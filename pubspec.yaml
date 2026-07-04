@@ -77,6 +77,7 @@ flutter:
 flutter_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "assets/icon/bns_icon.png"  # The happy green smiling brain - accepted icon for BNS. Positive, uplifting for neuro support, brain fog management with happy tone.
+  macos: true
+  image_path: "assets/icon/bns_icon.png"  # The happy green smiling brain - accepted icon for BNS. Positive, uplifting for neuro support, brain fog management with happy tone. Fits every angle.
   adaptive_icon_background: "#14B8A6"  # Relaxing teal from theme
   adaptive_icon_foreground: "assets/icon/bns_icon.png"

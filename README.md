@@ -147,7 +147,8 @@ flutter run -d windows
   - Run `flutter pub run flutter_launcher_icons:main` for generation.
 - Widget (Android gadget - polished): Uses home_widget. Shows "Today's mission" (due routines/goals), plans for next N days (user-configurable 0-7, default 2 - regular joe doesn't like to know more than 2 days ahead to avoid stress), recent memories/wins (part of the story, since we forget what we've done when building). Positive encouragement like "You showed up. Small steps = big wins. You got this!". Updates automatically. Tap to open app or capture. Configurable in Sync screen. Builds user power, motivation, confidence, and distance from past.
 - Build: `flutter build apk --release` (perfect with above).
-- See docs/packaging-and-associations.md for all platforms.
+- macOS: Fully supported (not voided from this territory!). Flutter cross-platform. .bns file type via Info.plist (open .bns to deliver full active data - routines, memories, etc. - using the app). The happy green smiling brain icon/logo applies perfectly (launcher + in-app). Build: `flutter build macos --release`. Feels native. No Android-style home widget, but we can add macOS menu bar for quick capture/sync status if desired. User works from many places - mac included.
+- See docs/packaging-and-associations.md for all platforms (Android, iOS, macOS, Windows, Linux).
 - Private for whiteno1se enterprise (SHALTIEL). No leaks. Test file association by sharing .bns.
 
 To test the amazing secure sync: run on two devices on same WiFi, open Sync screen, pair if new (confirm code), watch progress bars, enjoy auto for trusted.

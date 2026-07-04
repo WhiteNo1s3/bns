@@ -85,6 +85,14 @@ This document collects all the awesome ideas for making BNS better for users wit
 
 Documented here and in README/AGENTS. App must be kid-fluent, positive, no small wins ignored.
 
+## macOS Support
+- Not voided from this territory. Full cross-platform (Flutter: android, ios, macos, windows, linux as planned).
+- .bns file type: Integrated via macos/Runner/Info.plist (CFBundleDocumentTypes for "bns" - open file delivers full active data using the app).
+- Icon/Logo: The happy green smiling brain applies (use in macOS AppIcon assets for launcher and about).
+- Build: `flutter build macos --release`. Feels native on macOS.
+- No Android home widget equivalent, but we can add macOS menu bar (dock/menu) for quick "today's mission", capture, or sync status to keep low cognitive load.
+- User works from many places - mac fully included for .bns sync, memories, diary, etc. Private for whiteno1se enterprise (SHALTIEL).
+
 ## Android Widget Polish (current focus)
 - Show "today's mission" (routines/goals for today).
 - Let user see week plans from today if any.

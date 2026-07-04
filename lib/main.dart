@@ -230,6 +230,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await IsarService.addCapture(capture);
     _diaryController.clear();
     ref.invalidate(routinesProvider);
+    AndroidBnsWidget.updateWidget();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

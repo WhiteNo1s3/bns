@@ -28,7 +28,12 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<!-- BNS file type association for .bns (full data delivery via app) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+	<!-- BNS file type association for .bns (full data delivery via app) - clean native macOS, not iOS-on-Mac -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -44,6 +49,6 @@
 			<string>Owner</string>
 		</dict>
 	</array>
-	<!-- Add any other keys from standard Flutter macOS Info.plist as needed for full build -->
+	<!-- For clean native macOS support with Apple Silicon (M1/M2+) - relevant and affordable for all users -->
 </dict>
 </plist>

@@ -47,7 +47,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- BNS file type association for .bns (high-profile iOS target) -->
+	<!-- BNS file type association for .bns (high-profile iOS target for WhiteNo1se Inc (SHALTIEL)) -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

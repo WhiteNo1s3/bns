@@ -33,9 +33,10 @@ if ($Target -eq "all" -or $Target -eq "web") {
 }
 
 if ($Target -eq "all" -or $Target -eq "macos") {
-    Write-Host "Building macOS..." -ForegroundColor Green
+    Write-Host "Building clean native macOS (not iPhone apps on Mac)..." -ForegroundColor Green
     flutter build macos --release
     Write-Host "macOS app ready in build/macos/Build/Products/Release/"
+    Write-Host "With Apple Silicon (M1/M2+), relevant to all kinds of people - everyone can afford it. Clean version for all. In US charts are nuts - high potential."
 }
 
 Write-Host "`nFor full .bns file association on Windows, register the extension manually or use a setup installer (InnoSetup / MSIX)."

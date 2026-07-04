@@ -38,6 +38,7 @@ class IsarService {
           deviceName: 'My BNS Device',
           retentionDays: 14,
           userType: 'normal',
+          widgetForwardDays: 2,
         ));
       });
     }

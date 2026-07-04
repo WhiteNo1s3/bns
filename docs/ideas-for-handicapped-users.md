@@ -84,3 +84,11 @@ This document collects all the awesome ideas for making BNS better for users wit
 - All to make more concrete, less annoying, confident ("he made it").
 
 Documented here and in README/AGENTS. App must be kid-fluent, positive, no small wins ignored.
+
+## Android Widget Polish (current focus)
+- Show "today's mission" (routines/goals for today).
+- Let user see week plans from today if any.
+- User sets how many days forward to see (stresses user otherwise). Default 2 (regular joe with severe brain injury doesn't like more than 2 days from now).
+- Memories part of the story (we forget what we've done when making apps - final straw for building this for myself).
+- Widget builds: user gets power, motivated, away from past, complete confidence in app (not afraid to use). We encourage a lot in the app.
+- Positive, gentle, reliable.

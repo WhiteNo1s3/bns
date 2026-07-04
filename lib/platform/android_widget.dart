@@ -1,5 +1,8 @@
 import 'package:home_widget/home_widget.dart';
+import 'package:bns/core/models/models.dart';
+import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:intl/intl.dart';
 
 /// Android Home Widget (Gadget) for BNS.
 /// Shows gentle summary: routines due today, last sync, quick capture action.
@@ -15,26 +18,62 @@ class AndroidBnsWidget {
   static const _androidWidgetName = 'BnsHomeWidgetProvider';
 
   /// Update the widget with current data.
+  /// Shows:
+  /// - Today's mission (due routines today)
+  /// - Plans for next N days (configurable, default 2 to avoid stress)
+  /// - Positive encouragement, recent memory if any
   /// Call after routine complete, capture, sync, etc.
   static Future<void> updateWidget() async {
     try {
       final settings = await IsarService.getSettings();
-      final routines = await IsarService.getAllRoutines();
-      // Simple: count active routines (in real filter today's)
-      final activeCount = routines.where((r) => r.isActive).length;
+      final allRoutines = await IsarService.getAllRoutines();
+      final forwardDays = settings.widgetForwardDays.clamp(0, 14); // cap to avoid stress
 
       final today = DateTime.now();
-      final dateStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
-      final logs = await IsarService.getLogsForDate(dateStr);
-      final completedToday = logs.where((l) => l.status == CompletionStatus.done).length;
+      final todayStr = DateFormat('yyyy-MM-dd').format(today);
+
+      // Today's mission: routines that apply today
+      final todayRoutines = allRoutines.where((r) => r.isActive && r.appliesOn(today)).toList();
+      final todayMissions = todayRoutines.map((r) => r.title).join(' • ');
+
+      // Completed today
+      final logsToday = await IsarService.getLogsForDate(todayStr);
+      final completedToday = logsToday.where((l) => l.status == CompletionStatus.done).length;
+
+      // Upcoming plans: calendar events in next forwardDays
+      String upcoming = '';
+      if (forwardDays > 0) {
+        final upcomingEvents = <String>[];
+        for (int d = 1; d <= forwardDays; d++) {
+          final futureDate = today.add(Duration(days: d));
+          final dateStr = DateFormat('yyyy-MM-dd').format(futureDate);
+          final events = await IsarService.getEventsForDate(dateStr);
+          if (events.isNotEmpty) {
+            final dayLabel = DateFormat('E').format(futureDate);
+            upcomingEvents.add('$dayLabel: ${events.map((e) => e.title).join(", ")}');
+          }
+        }
+        upcoming = upcomingEvents.join(' | ');
+      }
+
+      // Recent memory (last non-quick for story)
+      final recentMemories = await IsarService.getAllCaptures();
+      final lastMem = recentMemories.firstWhere(
+        (c) => c.memoryLevel != MemoryLevel.quick,
+        orElse: () => QuickCapture(id: '', at: DateTime.now(), memoryLevel: MemoryLevel.quick),
+      );
+      final recentStory = lastMem.contextNote ?? lastMem.text ?? '';
 
       await HomeWidget.saveWidgetData<String>('device_name', settings.deviceName);
-      await HomeWidget.saveWidgetData<int>('active_routines', activeCount);
+      await HomeWidget.saveWidgetData<String>('today_mission', todayMissions.isEmpty ? 'No missions today - rest is ok' : todayMissions);
       await HomeWidget.saveWidgetData<int>('completed_today', completedToday);
+      await HomeWidget.saveWidgetData<String>('upcoming', upcoming.isEmpty ? 'No plans ahead (as set)' : upcoming);
+      await HomeWidget.saveWidgetData<String>('recent_memory', recentStory.isEmpty ? 'You\'ve done great things before' : recentStory);
       await HomeWidget.saveWidgetData<String>('last_sync', settings.lastFullSyncAt?.toIso8601String() ?? 'Never');
 
-      // Gentle positive text
-      await HomeWidget.saveWidgetData<String>('summary', 'You showed up today. $completedToday done.');
+      // Positive encouragement - user gets power, motivated, away from past
+      final summary = 'You showed up. $completedToday done today. Small steps = big wins. You got this!';
+      await HomeWidget.saveWidgetData<String>('summary', summary);
 
       await HomeWidget.updateWidget(
         name: _androidWidgetName,

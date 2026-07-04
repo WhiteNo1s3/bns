@@ -31,6 +31,9 @@ class AppSettings with _$AppSettings {
     // User type for UI adaptation (brighter for fog, simpler for kids, etc.)
     // "normal" (like severe TBI/DAI regular joe), "kid-ADHD", "ADHD", "custom" (e.g. "penguin" - we secure the penguin)
     @Default('normal') String userType,
+    // How many days forward to show in widget/calendar summary. Default 2 (user prefers not to see far ahead to avoid stress).
+    // 0 = today only, up to 7 or so. Can be set by user.
+    @Default(2) int widgetForwardDays,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

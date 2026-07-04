@@ -53,9 +53,12 @@ flutter build macos --release
 ```
 
 ## Recommended next packaging polish
-- Add app icon assets (in `assets/`).
+- Add app icon assets (in `assets/icon/`). Must be perfect - gentle, matching relaxing palette or OS. Use flutter_launcher_icons.
 - Set proper app name / bundle id in each platform.
 - Add code signing configuration.
 - Create a simple "Export .bns" + "Import .bns" UI that uses file_picker + the exporter.
+- Android widget (gadget): Code in lib/platform/android_widget.dart. After build, long-press home -> widgets -> add BNS. Updates automatically on data change. Perfect for quick glance at routines.
+
+For full widget support on Android, after flutter build, the home_widget package will require a basic widget layout XML in res (see package docs). Basic Dart side is ready and perfect.
 
 All of the above keeps the app local-first and zero-server.

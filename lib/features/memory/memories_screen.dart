@@ -10,6 +10,12 @@ import 'package:intl/intl.dart';
 /// Not just reminders - the memory of the event/day is stored.
 /// 
 /// Permanent ones are protected from pruning.
+/// 
+/// User can remove memories (and other data).
+/// Everything the user wants he can do.
+/// Advise if sure (confirmation).
+/// Deleted items go to trash, stay 3 days, then permanent delete.
+/// .bns delivers full active data (memories included if not trashed).
 /// Ties to routines: log "things that happened" during them.
 class MemoriesScreen extends StatefulWidget {
   const MemoriesScreen({super.key});
@@ -24,6 +30,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   String _searchQuery = '';
   bool _loading = true;
   bool _showGarden = false; // visual garden for good memories
+  bool _showTrash = false; // trash view: deleted items, 3 days then gone
 
   final List<String> _predefinedTags = ['crisis', 'good', 'felt safe', 'felt confused', 'felt out of bound', 'drama', 'wonderings', 'routine'];
 
@@ -35,11 +42,17 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
   Future<void> _loadMemories() async {
     setState(() => _loading = true);
-    final all = await IsarService.getAllCaptures();
-    // Only show remember or memorize levels
-    var filtered = all.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
+    List<QuickCapture> filtered;
+    if (_showTrash) {
+      final trashed = await IsarService.getTrashedCaptures();
+      filtered = trashed.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
+    } else {
+      final all = await IsarService.getAllCaptures();
+      // Only show remember or memorize levels (active)
+      filtered = all.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
+    }
 
-    if (_filterLevel != null) {
+    if (_filterLevel != null && !_showTrash) {
       filtered = filtered.where((c) => c.memoryLevel == _filterLevel).toList();
     }
 
@@ -73,6 +86,42 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     );
   }
 
+  Future<void> _deleteMemory(QuickCapture mem) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Move to trash?'),
+        content: Text('This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Move to Trash'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await IsarService.softDeleteCapture(mem.id);
+      await _loadMemories();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Moved to trash. You can restore within 3 days.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreMemory(QuickCapture mem) async {
+    await IsarService.restoreCapture(mem.id);
+    await _loadMemories();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Restored from trash.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rememberCount = _memories.where((m) => m.memoryLevel == MemoryLevel.remember).length;
@@ -88,6 +137,14 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(_showTrash ? Icons.delete_forever : Icons.delete_outline),
+            tooltip: _showTrash ? 'Back to active memories' : 'Trash (deleted, 3 days then gone)',
+            onPressed: () {
+              setState(() => _showTrash = !_showTrash);
+              _loadMemories();
+            },
+          ),
           IconButton(
             icon: Icon(_showGarden ? Icons.list : Icons.local_florist),
             tooltip: _showGarden ? 'List view' : 'Memory Garden (good memories visual)',
@@ -148,9 +205,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 const Divider(),
                 Expanded(
                   child: _memories.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
+                            _showTrash 
+                              ? 'Trash is empty. Deleted items stay here for 3 days.'
+                              : 'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
                             textAlign: TextAlign.center,
                           ),
                         )
@@ -184,12 +243,28 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                     if (m.tags.isNotEmpty) Text('Tags: ${m.tags.join(", ")}'),
                                   ],
                                 ),
-                                trailing: m.audioPath != null 
-                                  ? IconButton(
-                                      icon: const Icon(Icons.play_arrow),
-                                      onPressed: () => _playAudio(m.audioPath),
-                                    )
-                                  : null,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (m.audioPath != null)
+                                      IconButton(
+                                        icon: const Icon(Icons.play_arrow),
+                                        onPressed: () => _playAudio(m.audioPath),
+                                      ),
+                                    if (_showTrash)
+                                      IconButton(
+                                        icon: const Icon(Icons.restore),
+                                        onPressed: () => _restoreMemory(m),
+                                        tooltip: 'Restore',
+                                      )
+                                    else
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () => _deleteMemory(m),
+                                        tooltip: 'Move to trash',
+                                      ),
+                                  ],
+                                ),
                                 onTap: () {
                                   if (isPast) {
                                     // Extra warning

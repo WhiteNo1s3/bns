@@ -14,9 +14,11 @@ if ($Target -eq "all" -or $Target -eq "windows") {
 }
 
 if ($Target -eq "all" -or $Target -eq "android") {
-    Write-Host "Building Android APK..." -ForegroundColor Green
+    Write-Host "Building Android APK (perfect with .bns + icon)..." -ForegroundColor Green
+    # Icon must be perfect: run flutter pub run flutter_launcher_icons:main first with relaxing color icon
     flutter build apk --release
     Write-Host "APK: build/app/outputs/flutter-apk/app-release.apk"
+    Write-Host "Install and add BNS widget to home. .bns files will open and import."
 }
 
 if ($Target -eq "all" -or $Target -eq "web") {

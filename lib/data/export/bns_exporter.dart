@@ -11,7 +11,9 @@ import 'package:bns/data/local/isar_service.dart';
 class BnsExporter {
   static const _uuid = Uuid();
 
-  /// Creates a complete backup file of everything.
+  /// Creates a complete backup file of everything (full active data).
+  /// .bns is our file to deliver full data (routines, events, active memories, etc.).
+  /// Trashed items are excluded.
   /// This is the "imaging" of the user's data.
   /// Prunes first so .bns stays small (respects retention setting).
   static Future<File> exportFullSnapshot() async {

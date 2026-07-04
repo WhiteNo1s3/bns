@@ -98,8 +98,9 @@ cd C:\dev\bns
 Gentle daily reminders are scheduled for any routine that has a time (see `NotificationsService`). They use low importance so they never feel pushy.
 
 ## Key Features (All Awesome)
-- **Full .bns imaging** — complete export of all data + audio into portable `.bns` (ZIP)
+- **.bns is our file to deliver full data** — complete export of all *active* data + audio into portable `.bns` (ZIP). Trashed items excluded.
 - **Full import** (merge or replace)
+- User control: memories (and data) can be removed. Confirm if sure. Trash holds 3 days then auto gone. Full empowerment.
 - **Secure LAN Sync** (low-maintenance + safe):
   - Auto-discovery
   - Encryption + pairing code + explicit accept for first sync (no open vault!)

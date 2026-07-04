@@ -21,9 +21,23 @@ if ($Target -eq "all" -or $Target -eq "android") {
     Write-Host "Install and add BNS widget to home. .bns files will open and import."
 }
 
+if ($Target -eq "all" -or $Target -eq "ios") {
+    Write-Host "Building iOS (HIGH-PROFILE iPhone target - nuke launch for WhiteNo1se Inc (SHALTIEL))..." -ForegroundColor Green
+    # Icon perfect green smiling brain
+    flutter build ios --release
+    Write-Host "iOS IPA ready. .bns association for full data import. High-profile polish."
+}
+
 if ($Target -eq "all" -or $Target -eq "web") {
     flutter build web
 }
 
+if ($Target -eq "all" -or $Target -eq "macos") {
+    Write-Host "Building macOS..." -ForegroundColor Green
+    flutter build macos --release
+    Write-Host "macOS app ready in build/macos/Build/Products/Release/"
+}
+
 Write-Host "`nFor full .bns file association on Windows, register the extension manually or use a setup installer (InnoSetup / MSIX)."
+Write-Host "macOS: .bns association via Info.plist (integrated - open .bns delivers full data via app)."
 Write-Host "See docs for platform-specific association steps." -ForegroundColor Yellow

@@ -11,7 +11,8 @@ import 'package:intl/intl.dart';
 /// Update on data changes (complete routine, sync).
 /// 
 /// Note: Requires full flutter build after adding widget provider in Android (home_widget does some auto).
-/// For icon: use the perfect app icon we configured.
+/// iOS high-profile: home_widget can extend to iOS home screen widgets too (today's mission etc.).
+/// For icon: use the perfect happy green smiling brain we configured (bns_icon.png).
 
 class AndroidBnsWidget {
   static const _widgetName = 'BnsHomeWidget';

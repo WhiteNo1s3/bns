@@ -93,6 +93,13 @@ Documented here and in README/AGENTS. App must be kid-fluent, positive, no small
 - No Android home widget equivalent, but we can add macOS menu bar (dock/menu) for quick "today's mission", capture, or sync status to keep low cognitive load.
 - User works from many places - mac fully included for .bns sync, memories, diary, etc. Private for whiteno1se enterprise (SHALTIEL).
 
+- **iOS (iPhone variant - HIGH-PROFILE TARGET)**: Core for WhiteNo1se Inc (SHALTIEL) customers. We don't throw a grenade, we throw a nuke when we launch.
+  - Full iOS support with .bns file type (Info.plist + UTExportedTypeDeclarations - open .bns delivers full data: routines, memories as story, diary wins, plans).
+  - Icon/Logo: Happy green smiling brain – shining beautiful positive tone, direct brain fog ideas but uplifting. Perfect for high-profile iPhone users.
+  - Build: `flutter build ios --release`. Native iOS feel, low cognitive load.
+  - Widget: home_widget for iOS home screen (today's mission, upcoming, recent memories).
+  - High-profile polish: Encouraging, secure, user power/motivated/confident/not afraid. Memories part of story (forget what done). Launch big.
+
 ## Android Widget Polish (current focus)
 - Show "today's mission" (routines/goals for today).
 - Let user see week plans from today if any.

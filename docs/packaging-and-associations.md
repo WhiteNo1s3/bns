@@ -9,10 +9,17 @@ The canonical backup/sync format. See `docs/bns-format.md`.
 
 ## Platform Configuration
 
-### Android
-Add the contents of `android/app/src/main/AndroidManifest-snippet-for-bns.xml` inside the launcher `<activity>`.
+### Android (Perfect build with .bns + Icon)
+- Full `AndroidManifest.xml` is already at `android/app/src/main/AndroidManifest.xml` with:
+  - .bns file association (VIEW intent for content/file with *.bns)
+  - launcher
+  - Proper for home_widget and notifications.
+- For icon: Run `flutter pub run flutter_launcher_icons:main` after placing icon in `assets/icon/bns_icon.png` (512x512 recommended, use relaxing teal or system color).
+  - Adaptive icon configured in pubspec.yaml.
+- To handle .bns on launch: In `main.dart`, call `BnsFileHandler.handleLaunchWithFile` from intent (use `uni_links` or platform channel if needed for full).
+- Build: `flutter build apk --release` (or aab for play, but private).
 
-Also ensure `android:launchMode="singleTask"` or handle in `onNewIntent`.
+Ensure `android:launchMode="singleTop"` (already set) for file handling.
 
 ### Windows
 After `flutter build windows --release`:

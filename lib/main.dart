@@ -13,6 +13,7 @@ import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/features/memory/memories_screen.dart';
+import 'package:bns/platform/android_widget.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/file_handler.dart';
@@ -133,6 +134,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     // Refresh
     ref.invalidate(routinesProvider);
     setState(() {}); // force rebuild for logs
+
+    // Update Android widget (gadget) with fresh data
+    AndroidBnsWidget.updateWidget();
 
     // Offer "Remember this" for what happened in the routine (crises, why)
     if (!isDone && mounted) {

@@ -52,6 +52,9 @@ dependencies:
   encrypt: ^5.0.3
   crypto: ^3.0.3
 
+  # Android home widget (gadget)
+  home_widget: ^0.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -60,6 +63,7 @@ dev_dependencies:
   freezed: ^2.5.7
   isar_generator: ^4.0.3
   custom_lint: ^0.6.4
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -68,3 +72,10 @@ flutter:
   # assets:
   #   - assets/images/
   #   - assets/sounds/
+
+flutter_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icon/bns_icon.png"  # Replace with your perfect icon (512x512 recommended). For now use a placeholder or generate with https://romannurik.github.io/AndroidAssetStudio/
+  adaptive_icon_background: "#FFFFFF"  # or relaxing color from theme, e.g. teal
+  adaptive_icon_foreground: "assets/icon/bns_icon_foreground.png"

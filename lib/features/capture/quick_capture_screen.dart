@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/platform/android_widget.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -156,6 +157,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     );
 
     await IsarService.addCapture(capture);
+
+    // Update Android widget
+    AndroidBnsWidget.updateWidget();
 
     if (mounted) {
       final msg = _memoryLevel == MemoryLevel.memorize 

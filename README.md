@@ -4,6 +4,15 @@
 
 **Private internal project for whiteno1se enterprise (SHALTIEL). This repository is and will remain private.**
 
+## Ownership & Licensing
+This Software is proprietary to whiteno1se enterprise (SHALTIEL).
+
+See the full [LICENSE](LICENSE) for the enterprise-grade declaration (including the part about being "licensed to eliminate" unauthorized copies or competing apps – classic boardroom talk; in practice this is an internal tool for neurological support and we don't actually plan to eliminate anyone).
+
+Unauthorized copying, forking for commercial competing apps, or derivative works without explicit license from the Company is prohibited. All rights reserved.
+
+If you're here to help build something good for people with neurological challenges: welcome (within the private company context). Otherwise, don't make your own app from this.
+
 Built specifically with neurological challenges in mind (memory, executive dysfunction, TBI recovery). No cloud. No data collection. LAN-only sync via simple `.bns` files.
 
 ## Core Ideas

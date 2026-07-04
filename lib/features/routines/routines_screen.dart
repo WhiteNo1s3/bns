@@ -93,7 +93,13 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Routines'),
+        title: Row(
+          children: [
+            Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
+            const SizedBox(width: 8),
+            const Text('Manage Routines'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

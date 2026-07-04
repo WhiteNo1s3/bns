@@ -40,6 +40,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   MemoryLevel _memoryLevel = MemoryLevel.quick;
   final _contextController = TextEditingController(); // for "what happened / why" in remember/memorize
+  final Set<String> _selectedTags = {}; // for crisis, good, garden tags, search by routine/crisis
 
   @override
   void initState() {
@@ -140,6 +141,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final tags = ['quick-thought'];
     if (_memoryLevel == MemoryLevel.remember) tags.add('remember-this');
     if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
+    tags.addAll(_selectedTags); // include user chosen tags like crisis, good, felt safe etc.
 
     final capture = QuickCapture(
       id: _uuid.v4(),
@@ -282,6 +284,25 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               onSelectionChanged: (newSelection) {
                 setState(() => _memoryLevel = newSelection.first);
               },
+            ),
+
+            // Tags for search, crisis, garden organization (good, felt safe, crisis etc.)
+            const SizedBox(height: 12),
+            const Text('Tags (search by routine/crisis, visual garden, share with doctors):', style: TextStyle(fontSize: 12)),
+            Wrap(
+              spacing: 4,
+              children: ['crisis', 'good', 'felt safe', 'felt confused', 'felt out of bound', 'drama', 'wonderings', 'routine'].map((tag) {
+                final selected = _selectedTags.contains(tag);
+                return FilterChip(
+                  label: Text(tag),
+                  selected: selected,
+                  onSelected: (s) {
+                    setState(() {
+                      if (s) _selectedTags.add(tag); else _selectedTags.remove(tag);
+                    });
+                  },
+                );
+              }).toList(),
             ),
 
             // Context note for remember/memorize - "what happened / why the crisis"

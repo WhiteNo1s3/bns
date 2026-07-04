@@ -150,6 +150,54 @@ class _DayViewState extends State<DayView> {
     await _loadData();
   }
 
+  Future<void> _memorizeDayWithAutoSummary() async {
+    // Auto generate summary of the day's routines (what was done, skipped, etc.)
+    // This fulfills "memorize a day auto generate summary that day's routine"
+    final doneRoutines = _applicableRoutines.where((r) => _isRoutineDone(r.id)).map((r) => r.title).toList();
+    final skipped = _logs.where((l) => l.status == CompletionStatus.skipped).length;
+    final eventsSummary = _events.map((e) => e.title).join(', ');
+    final capturesCount = _captures.length + _dayMemories.length;
+
+    String summary = 'Day summary for ${DateFormat.yMMMd().format(_date)}:\n';
+    if (doneRoutines.isNotEmpty) {
+      summary += 'Completed: ${doneRoutines.join(", ")}\n';
+    }
+    if (skipped > 0) {
+      summary += 'Skipped $skipped routines (see reasons in captures)\n';
+    }
+    if (eventsSummary.isNotEmpty) {
+      summary += 'Events: $eventsSummary\n';
+    }
+    if (capturesCount > 0) {
+      summary += '$capturesCount thoughts/memories captured today.\n';
+    }
+    summary += 'You showed up. Small or big, it counts.';
+
+    // Create a permanent memorize capture for the day
+    final dayCapture = QuickCapture(
+      id: '',
+      at: DateTime.now(),
+      text: summary,
+      linkedEventId: null,
+      linkedRoutineId: null,
+      tags: ['day-memory', 'auto-summary'],
+      memoryLevel: MemoryLevel.memorize,
+      contextNote: 'Auto-generated from routines, events and captures for this day.',
+      isDayMemory: true,
+    );
+
+    await IsarService.addCapture(dayCapture);
+    await _loadData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Day memorized with auto summary! Great job tracking your progress.')),
+      );
+      // Also open memories to see it
+      context.push('/memories');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateLabel = DateFormat.yMMMMEEEEd().format(_date);
@@ -247,13 +295,18 @@ class _DayViewState extends State<DayView> {
                     children: [
                       Expanded(
                         child: FilledButton.tonal(
+                          onPressed: _memorizeDayWithAutoSummary,
+                          child: const Text('Memorize this day (auto summary of routines)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
                           onPressed: () async {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const QuickCaptureScreen(
-                                  // Pre-set for day memory
-                                ),
+                                builder: (_) => const QuickCaptureScreen(),
                               ),
                             );
                             await _loadData();

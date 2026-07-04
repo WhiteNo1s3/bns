@@ -11,6 +11,7 @@ import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/sync/sync_screen.dart';
+import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/file_handler.dart';
@@ -56,6 +57,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/sync',
       builder: (context, state) => const SyncScreen(),
+    ),
+    GoRoute(
+      path: '/routines',
+      builder: (context, state) => const RoutinesScreen(),
     ),
   ],
 );
@@ -285,6 +290,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 onPressed: () => context.push('/calendar'),
                 icon: const Icon(Icons.event_note),
                 label: const Text('Open calendar for appointments & day notes'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/routines'),
+                icon: const Icon(Icons.list_alt),
+                label: const Text('Manage all routines (add, edit, delete)'),
               ),
             ],
           ),

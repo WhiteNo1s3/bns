@@ -2,6 +2,8 @@
 
 **Gentle, privacy-first support for routines, memory, reminders, and feeling good about the progress you make.**
 
+**Private internal project for whiteno1se enterprise (SHALTIEL). This repository is and will remain private.**
+
 Built specifically with neurological challenges in mind (memory, executive dysfunction, TBI recovery). No cloud. No data collection. LAN-only sync via simple `.bns` files.
 
 ## Core Ideas
@@ -14,6 +16,20 @@ Built specifically with neurological challenges in mind (memory, executive dysfu
 
 ## .bns Files
 The entire state (routines, events, captures, logs + audio) is one portable `.bns` file (a zip under the hood). See `docs/bns-format.md`.
+
+## Auto-Sync (LAN)
+This is the key "zero effort" feature for working across devices (PC ↔ Phone ↔ other PC).
+
+- Devices on the same Wi-Fi automatically discover each other via UDP.
+- **First time with a new device**: Requires secure pairing — a 6-digit code is shown on both screens. You must explicitly confirm "codes match" + accept. All data is AES-encrypted.
+- **Known/trusted devices**: Once paired, **Auto-Sync** can be enabled. When the screen is open (or in background on supported platforms), it will automatically sync when the trusted device is detected nearby. No manual tap needed.
+- Progress is always visible with modern progress bars (system accent color or the relaxing main gradient colors).
+- Old data is automatically pruned on a rolling 2-week window (configurable) so files stay small and syncs stay fast. You can expand retention if you want to plan years ahead (or even 10,000 years), but it may slow syncs — there's an easy "return to default" option.
+- Manual Export/Import `.bns` is always available as fallback.
+
+Leave the Sync screen open on two machines and they find each other. Pair once if new. Then it just works.
+
+This was designed so you can move between locations without friction while keeping everything private and secure.
 
 ## Current Status
 Advanced implementation in place (core MVP + amazing secure sync features):
@@ -90,7 +106,9 @@ Open the Sync screen from the top bar on Today or Calendar. Leave it open on two
 See `docs/ideas-for-handicapped-users.md` for all the collected awesome ideas tailored for TBI/DAI users (progress visibility, security, gentle summaries, quiet mode, voice-first, etc.).
 
 ## What to Start First?
-Documentation updates to md files (as requested). Then polish the sync (more progress integration, device naming, quiet mode). Then complete remaining MVP (full Routines screen, Settings). See plan.md for full prioritized list.
+Documentation updates to md files (as requested). Then polish the sync (more progress integration, device naming, quiet mode, summaries). Then complete remaining MVP (full Routines screen, Settings). See plan.md for full prioritized list.
+
+**Note on Auto-Sync**: The "Auto-Sync" feature (for known/trusted devices) is the main reason this project exists in its current form — seamless movement between locations without manual file copying.
 
 ## Running (once Flutter is available)
 ```bash

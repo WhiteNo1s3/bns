@@ -145,7 +145,7 @@ flutter run -d windows
   - bns_icon.png and bns_logo.png in assets/icon/.
   - Configured in pubspec.yaml + flutter_launcher_icons (teal adaptive bg from relaxing palette).
   - Run `flutter pub run flutter_launcher_icons:main` for generation.
-- Widget (Android gadget): Uses home_widget. Updates on routine complete/sync/capture. Shows summary + quick actions.
+- Widget (Android gadget - polished): Uses home_widget. Shows "Today's mission" (due routines/goals), plans for next N days (user-configurable 0-7, default 2 - regular joe doesn't like to know more than 2 days ahead to avoid stress), recent memories/wins (part of the story, since we forget what we've done when building). Positive encouragement like "You showed up. Small steps = big wins. You got this!". Updates automatically. Tap to open app or capture. Configurable in Sync screen. Builds user power, motivation, confidence, and distance from past.
 - Build: `flutter build apk --release` (perfect with above).
 - See docs/packaging-and-associations.md for all platforms.
 - Private for whiteno1se enterprise (SHALTIEL). No leaks. Test file association by sharing .bns.

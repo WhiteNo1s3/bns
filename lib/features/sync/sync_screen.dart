@@ -6,6 +6,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/sync/lan_sync_service.dart' show BnsPeer, LanSyncService;
 import 'package:bns/core/models/trusted_device.dart';
 import 'package:bns/data/sync/sync_progress.dart';
+import 'package:bns/platform/android_widget.dart';
 
 /// Low-maintenance, secure sync screen with:
 /// - Clear progress bars (system or relaxing palette colors)
@@ -28,6 +29,7 @@ class _SyncScreenState extends State<SyncScreen> {
   bool _autoSync = true;
   bool _discovering = false;
   int _retentionDays = 14;
+  int _widgetForwardDays = 2;
 
   String? _pendingPairCode;
   BnsPeer? _pendingPeer;
@@ -41,6 +43,7 @@ class _SyncScreenState extends State<SyncScreen> {
   Future<void> _init() async {
     final settings = await IsarService.getSettings();
     _retentionDays = settings.retentionDays;
+    _widgetForwardDays = settings.widgetForwardDays;
     await _service.start(deviceName: settings.deviceName, autoSync: _autoSync);
 
     _service.peersStream.listen((p) {
@@ -62,7 +65,12 @@ class _SyncScreenState extends State<SyncScreen> {
 
   Future<void> _loadRetention() async {
     final s = await IsarService.getSettings();
-    if (mounted) setState(() => _retentionDays = s.retentionDays);
+    if (mounted) {
+      setState(() {
+        _retentionDays = s.retentionDays;
+        _widgetForwardDays = s.widgetForwardDays;
+      });
+    }
   }
 
   Future<void> _setRetention(int days) async {
@@ -78,6 +86,31 @@ class _SyncScreenState extends State<SyncScreen> {
     await _loadRetention();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Reset to default 2-week retention')),
+    );
+  }
+
+  Future<void> _setWidgetForwardDays(int days) async {
+    final settings = await IsarService.getSettings();
+    final updated = settings.copyWith(widgetForwardDays: days);
+    await IsarService.updateSettings(updated);
+    await _loadRetention();
+    // Refresh widget with new forward view
+    // (call the helper if imported, or via service)
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Widget will show next $days days forward (less stress for you)')),
+    );
+    AndroidBnsWidget.updateWidget();
+  }
+
+  Future<void> _setWidgetForwardDays(int days) async {
+    final settings = await IsarService.getSettings();
+    final updated = settings.copyWith(widgetForwardDays: days);
+    await IsarService.updateSettings(updated);
+    await _loadRetention();
+    // Update widget immediately
+    // (import if needed, but call via service or direct)
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Widget will show next $days days forward (less stress)')),
     );
   }
 
@@ -279,6 +312,20 @@ class _SyncScreenState extends State<SyncScreen> {
                   Text(
                     'Warning: larger retention = bigger .bns files = slower LAN sync.',
                     style: TextStyle(fontSize: 11, color: Colors.orange),
+                  ),
+                  const SizedBox(height: 12),
+                  // Widget forward days - user controls to avoid stress. Default 2 (regular joe preference, no more than 2 days ahead)
+                  Text('Widget forward days (set low to reduce stress - you control what you see):', style: TextStyle(fontSize: 11)),
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      for (int d in [0, 1, 2, 3, 7])
+                        ChoiceChip(
+                          label: Text('$d days'),
+                          selected: _widgetForwardDays == d,
+                          onSelected: (_) => _setWidgetForwardDays(d),
+                        ),
+                    ],
                   ),
                 ],
               ),

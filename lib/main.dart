@@ -104,6 +104,7 @@ class TodayScreen extends ConsumerStatefulWidget {
 
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   late ConfettiController _confetti;
+  final _diaryController = TextEditingController(); // for interactive diary entry
 
   @override
   void initState() {
@@ -114,6 +115,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   void dispose() {
     _confetti.dispose();
+    _diaryController.dispose();
     super.dispose();
   }
 
@@ -210,6 +212,53 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveDiaryEntry() async {
+    final text = _diaryController.text.trim();
+    if (text.isEmpty) return;
+
+    // Save as diary capture - interactive moving diary
+    final capture = QuickCapture(
+      id: '',
+      at: DateTime.now(),
+      text: text,
+      tags: ['diary', 'goal-progress'],
+      memoryLevel: MemoryLevel.remember,
+      contextNote: 'Daily interactive diary - goals & wins',
+    );
+    await IsarService.addCapture(capture);
+    _diaryController.clear();
+    ref.invalidate(routinesProvider);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saved to diary! V for done — no win is too small. You made it!')),
+      );
+      // Offer to make permanent in garden
+      final perm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Memorize this win?'),
+          content: const Text('Add to your permanent memory garden?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),
+          ],
+        ),
+      );
+      if (perm == true) {
+        final memCap = QuickCapture(
+          id: '',
+          at: DateTime.now(),
+          text: text,
+          tags: ['diary', 'memorize-win', 'good'],
+          memoryLevel: MemoryLevel.memorize,
+          contextNote: 'Permanent diary win - you did it!',
+        );
+        await IsarService.addCapture(memCap);
+      }
+    }
   }
 
   @override
@@ -325,7 +374,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 error: (e, _) => Text('Error loading: $e'),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Interactive Moving Diary integration
+              Text('Moving Diary - Remind & Set Goals, Mark V for Done', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                'Set goals, note wins. Every step forward counts — we applaud any progress (big or small like "pissing on floor then in toilet").',
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _diaryController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  hintText: 'Today\'s goal or win... (e.g. completed morning routine)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 4),
+              ElevatedButton.icon(
+                onPressed: _saveDiaryEntry,
+                icon: const Icon(Icons.check),
+                label: const Text('Save to Diary (V = done! You made it)'),
+              ),
+
+              const SizedBox(height: 24),
               QuickCaptureBar(
                 onTap: () => context.push('/capture'),
               ),

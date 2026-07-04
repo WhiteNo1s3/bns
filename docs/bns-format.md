@@ -21,7 +21,7 @@ Example internal layout:
 ```
 BNS_Backup_2026-07-04_1430.bns
 ├── manifest.json
-├── data.json
+├── data.json.gz   # GZip compressed JSON for compact size
 └── audio/
     ├── cap_01f3a2b4.m4a
     └── cap_01f3a2c9.m4a
@@ -37,12 +37,17 @@ BNS_Backup_2026-07-04_1430.bns
   "appVersion": "0.1.0+1",
   "schema": "bns/v1",
   "audioCount": 2,
-  "totalItems": 47
+  "totalItems": 47,
+  "dataCompressed": true,
+  "dataFormat": "gzip+json"
 }
 ```
 
-## data.json (top level)
-Full serialised state. All IDs are UUID strings.
+.bns uses GZip compression on data.json.gz for compactness (our efficient database format). The app (BNS) updates the local DB and spreads the data via .bns exports/imports/sync.
+
+## data.json.gz (top level, GZip compressed)
+Full serialised state (compressed for compact .bns database format). All IDs are UUID strings.
+The app updates the local DB and uses .bns to spread/deliver the data to the user.
 
 ```json
 {

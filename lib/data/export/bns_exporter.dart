@@ -51,10 +51,12 @@ class BnsExporter {
           snapshot.events.length +
           snapshot.captures.length +
           snapshot.logs.length,
+      'dataCompressed': true,
+      'dataFormat': 'gzip+json',
     };
     archive.addFile(ArchiveFile('manifest.json', 0, utf8.encode(jsonEncode(manifest))));
 
-    // data.json - full snapshot
+    // data.json - full snapshot (GZip compressed for compact .bns - our database format)
     final data = {
       'routines': snapshot.routines.map((e) => e.toJson()).toList(),
       'events': snapshot.events.map((e) => e.toJson()).toList(),
@@ -62,7 +64,10 @@ class BnsExporter {
       'completionLogs': snapshot.logs.map((e) => e.toJson()).toList(),
       'settings': snapshot.settings.toJson(),
     };
-    archive.addFile(ArchiveFile('data.json', 0, utf8.encode(jsonEncode(data))));
+    final dataJson = jsonEncode(data);
+    final dataBytes = utf8.encode(dataJson);
+    final compressedData = GZipEncoder().encode(dataBytes) as List<int>;
+    archive.addFile(ArchiveFile('data.json.gz', compressedData.length, compressedData));
 
     // audio/ folder inside the zip — use clean filenames
     for (final f in audioFiles) {

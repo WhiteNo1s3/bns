@@ -80,7 +80,13 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Memory Section'),
+        title: Row(
+          children: [
+            Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
+            const SizedBox(width: 8),
+            const Text('Memory Section'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: Icon(_showGarden ? Icons.list : Icons.local_florist),

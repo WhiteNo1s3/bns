@@ -22,6 +22,7 @@ class QuickCapture with _$QuickCapture {
     @Default(MemoryLevel.quick) MemoryLevel memoryLevel,
     String? contextNote, // "what happened / why the crisis or event in the routine"
     @Default(false) bool isDayMemory, // capture the day itself
+    DateTime? deletedAt, // for trash: null = active, set = deleted, auto-remove after 3 days
   }) = _QuickCapture;
 
   factory QuickCapture.fromJson(Map<String, dynamic> json) =>

@@ -141,13 +141,18 @@ class IsarService {
     return isar.quickCaptures
         .filter()
         .atBetween(start, end)
+        .deletedAtIsNull()
         .sortByAtDesc()
         .findAll();
   }
 
   static Future<List<QuickCapture>> getAllCaptures() async {
     final isar = await instance;
-    return isar.quickCaptures.where().sortByAtDesc().findAll();
+    return isar.quickCaptures
+        .filter()
+        .deletedAtIsNull()
+        .sortByAtDesc()
+        .findAll();
   }
 
   static Future<QuickCapture> addCapture(QuickCapture capture) async {
@@ -338,6 +343,7 @@ class IsarService {
 
     final cutoff = DateTime.now().subtract(Duration(days: retention));
     final cutoffDateStr = DateFormat('yyyy-MM-dd').format(cutoff);
+    final trashCutoff = DateTime.now().subtract(const Duration(days: 3));
 
     await isar.writeTxn(() async {
       // Delete old completion logs (per-day routine status)
@@ -348,14 +354,25 @@ class IsarService {
 
       // Delete old quick captures (historical notes/voice beyond window)
       // But keep 'memorize' level as permanent memories
+      // Also clean trash older than 3 days
       final oldCaptures = await isar.quickCaptures
           .filter()
           .atLessThan(cutoff)
           .findAll();
       for (final cap in oldCaptures) {
-        if (cap.memoryLevel != MemoryLevel.memorize) {
+        if (cap.memoryLevel != MemoryLevel.memorize && (cap.deletedAt == null || cap.deletedAt!.isBefore(trashCutoff))) {
           await isar.quickCaptures.deleteById(cap.id);
         }
+      }
+
+      // Clean up trashed captures older than 3 days (permanent delete)
+      final trashedOld = await isar.quickCaptures
+          .filter()
+          .deletedAtIsNotNull()
+          .deletedAtLessThan(trashCutoff)
+          .findAll();
+      for (final cap in trashedOld) {
+        await isar.quickCaptures.deleteById(cap.id);
       }
 
       // Delete old PAST calendar events only.
@@ -392,6 +409,45 @@ class IsarService {
   static Future<void> resetRetentionToDefault() async {
     await updateRetentionDays(14);
   }
+
+  // ---- Trash / Soft delete (user control) ----
+  // Memories (and captures) can be removed by user.
+  // Everything the user wants he can do.
+  // Advise if sure (confirmation in UI).
+  // Leave in trash for 3 days, then auto permanent delete (in prune).
+  // .bns delivers full active data (trashed excluded from export).
+
+  static Future<void> softDeleteCapture(String id) async {
+    final isar = await instance;
+    final cap = await isar.quickCaptures.get(id);
+    if (cap != null) {
+      await isar.writeTxn(() async {
+        await isar.quickCaptures.put(cap.copyWith(deletedAt: DateTime.now()));
+      });
+    }
+  }
+
+  static Future<void> restoreCapture(String id) async {
+    final isar = await instance;
+    final cap = await isar.quickCaptures.get(id);
+    if (cap != null) {
+      await isar.writeTxn(() async {
+        await isar.quickCaptures.put(cap.copyWith(deletedAt: null));
+      });
+    }
+  }
+
+  static Future<List<QuickCapture>> getTrashedCaptures() async {
+    final isar = await instance;
+    return isar.quickCaptures
+        .filter()
+        .deletedAtIsNotNull()
+        .sortByDeletedAtDesc()
+        .findAll();
+  }
+
+  // Update export to only active data (full current state, no trash)
+  // (already handled in getFullSnapshot via getAll* which exclude deleted)
 }
 
   // ---- Settings ----

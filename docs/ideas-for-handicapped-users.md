@@ -58,6 +58,11 @@ This document collects all the awesome ideas for making BNS better for users wit
 - Simple visual: small device icons that grow with successful syncs (gentle gamification).
 - "Devices connected" garden or icons that "bloom" with consistency (no pressure).
 - Rolling retention (default 2 weeks / 14 days): as the week goes on, old day data deletes (completions, captures, past events) and new days open up. Keeps routines and some information. Prevents huge files and slow sync.
+- .bns is our file to deliver full data? Yes - full active state (routines, events, active memories/captures, logs, settings, audio). Trashed items not included.
+- Memories also can be removed by user. Everything the user wants he can do.
+- Advise if he is sure (confirmation: "Move to trash?").
+- We leave it in trash and 3 days since deleted (then auto permanent delete).
+- Trash view: restore from trash or let it go. User empowered, with gentle advice.
 - Expand retention feature (e.g. 90 days or unlimited for 10000 year planning) but warns it can cause slow sync / redundant files. Easy "return to default".
 - Let user plan arbitrarily far (10000 years) for calendar if they want redundant file — future events never pruned.
 - Conflict visualizer that is very simple: cards showing differences.

@@ -119,12 +119,31 @@ Documentation updates to md files (as requested). Then polish the sync (more pro
 
 **Note on Auto-Sync**: The "Auto-Sync" feature (for known/trusted devices) is the main reason this project exists in its current form — seamless movement between locations without manual file copying.
 
-## Running (once Flutter is available)
-```bash
+## Running & Perfect Build (with .bns file type + Icon)
+```powershell
+cd C:\dev\bns
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
-flutter run -d windows   # or android, macos, linux, ios
+
+# For icon (perfect): place 512x512 icon at assets/icon/bns_icon.png (use relaxing teal or system color)
+# Then: flutter pub run flutter_launcher_icons:main
+
+# Android build (with .bns association + widget support):
+flutter build apk --release
+# .bns files will launch the app and import (see AndroidManifest.xml)
+
+# Test widget: add to home screen after install. Tap for quick capture or open.
+
+# Desktop:
+flutter run -d windows
 ```
+
+**Perfect build notes**:
+- .bns file type: Full association in android/app/src/main/AndroidManifest.xml (VIEW for *.bns + content/file).
+- Icon: Configured in pubspec.yaml + flutter_launcher_icons. Use high quality, gentle icon matching the relaxing theme. Must be perfect for enterprise release.
+- Widget (Android gadget): Uses home_widget. Updates on routine complete/sync. Shows summary + actions. Eagerly wanted — now ready after build.
+- See docs/packaging-and-associations.md for all platforms (iOS/macOS/Windows snippets ready).
+- Private for whiteno1se enterprise (SHALTIEL). No leaks.
 
 To test the amazing secure sync: run on two devices on same WiFi, open Sync screen, pair if new (confirm code), watch progress bars, enjoy auto for trusted.
 

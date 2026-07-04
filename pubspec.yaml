@@ -1,0 +1,70 @@
+name: bns
+description: "BNS — Gentle support for routines, memory, reminders and feeling good. Privacy-first, LAN-sync only, cross-platform (Android, iOS, macOS, Windows, Linux). Built for neurological needs including executive dysfunction and TBI."
+version: 0.1.0+1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Local DB
+  isar: ^4.0.3
+  isar_flutter_libs: ^4.0.3
+
+  # .bns archive + files
+  archive: ^3.6.1
+  path_provider: ^2.1.4
+  file_picker: ^8.0.0
+
+  # Navigation & state
+  go_router: ^14.2.0
+  riverpod: ^2.5.1
+  flutter_riverpod: ^2.5.1
+  freezed_annotation: ^2.4.4
+
+  # UI / fun / accessibility
+  confetti: ^0.7.0
+  dynamic_color: ^1.7.0
+  flex_color_scheme: ^7.3.1
+
+  # Calendar & dates
+  table_calendar: ^3.1.2
+  intl: ^0.19.0
+
+  # Reminders & notifications
+  flutter_local_notifications: ^17.2.1
+  timezone: ^0.9.4
+
+  # Voice quick capture
+  record: ^5.1.2
+  audioplayers: ^6.1.0
+  permission_handler: ^11.3.1
+
+  # Utils
+  uuid: ^4.4.2
+  vibration: ^1.8.4
+  path: ^1.9.0   # for audio path manipulation
+
+  # Encryption for secure first-time pairing + transfers
+  encrypt: ^5.0.3
+  crypto: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.12
+  freezed: ^2.5.7
+  isar_generator: ^4.0.3
+  custom_lint: ^0.6.4
+
+flutter:
+  uses-material-design: true
+
+  # Add assets later (icons, gentle illustrations)
+  # assets:
+  #   - assets/images/
+  #   - assets/sounds/

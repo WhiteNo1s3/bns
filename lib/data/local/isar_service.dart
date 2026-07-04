@@ -37,6 +37,7 @@ class IsarService {
         await isar.appSettings.put(AppSettings(
           deviceName: 'My BNS Device',
           retentionDays: 14,
+          userType: 'normal',
         ));
       });
     }

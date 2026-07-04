@@ -28,6 +28,9 @@ class AppSettings with _$AppSettings {
     // Set to 0 for unlimited (allows huge/redundant files if user wants).
     // User can expand but warned about slower sync.
     @Default(14) int retentionDays,
+    // User type for UI adaptation (brighter for fog, simpler for kids, etc.)
+    // "normal" (like severe TBI/DAI regular joe), "kid-ADHD", "ADHD", "custom" (e.g. "penguin" - we secure the penguin)
+    @Default('normal') String userType,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

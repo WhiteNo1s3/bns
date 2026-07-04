@@ -66,3 +66,16 @@ This document collects all the awesome ideas for making BNS better for users wit
 **Documentation Note**: All ideas should be added to this file and referenced in README.md, AGENTS.md, and the main plan. Prioritize low maintenance, security (no open vault), and encouragement.
 
 **What to Start First**: As per user: add all this to the md files. Then polish sync with progress, pairing, auto-sync. Then complete MVP.
+
+## New expansions (2026-07-05 session)
+- Memorize a day auto-generates summary of that day's routines + events + captures. "You made it".
+- Search memories by routine or "crisis" tag. Organized list easy to share with doctors.
+- Warning for past/crisis: "keep the past in the past and move forward", "stay on the ground and don't react". Because reliving is common with neuro damage (TBI, etc.). Advise before entering.
+- Visual Memory Garden: bright colorful cards for good memories (tags: good, felt safe, felt confused, felt out of bound, drama, wonderings, custom abstract like "penguin"). Brighter for fogged users (Alzheimer, dementia, ADHD, ADD, mental illness). 
+  - Garden = good/positive.
+  - Roots = ugly neurological parts (crises etc.) - shown with strong warning.
+- Interactive moving diary: set goals, remind goals, mark "V" for done. Applaud ANY progress - no achievement too small (e.g. "pissing on floor then in toilet"). Wonderful, positive reinforcement. "we are happy to applause any man with neurological issue".
+- User roles/types for adaptation: "normal" (TBI/DAI regular joe like user with severe injury 11 years ago), kid-ADHD, ADHD, custom (penguin - "we must secure the penguin"). Don't check names, care about the mind. Makes UI brighter/simpler, fluent so kid can operate. Keybinds later for when cannot move.
+- All to make more concrete, less annoying, confident ("he made it").
+
+Documented here and in README/AGENTS. App must be kid-fluent, positive, no small wins ignored.

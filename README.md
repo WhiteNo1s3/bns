@@ -138,12 +138,16 @@ flutter build apk --release
 flutter run -d windows
 ```
 
-**Perfect build notes**:
-- .bns file type: Full association in android/app/src/main/AndroidManifest.xml (VIEW for *.bns + content/file).
-- Icon: Configured in pubspec.yaml + flutter_launcher_icons. Use high quality, gentle icon matching the relaxing theme. Must be perfect for enterprise release.
-- Widget (Android gadget): Uses home_widget. Updates on routine complete/sync. Shows summary + actions. Eagerly wanted — now ready after build.
-- See docs/packaging-and-associations.md for all platforms (iOS/macOS/Windows snippets ready).
-- Private for whiteno1se enterprise (SHALTIEL). No leaks.
+**Perfect build notes** (must be perfect):
+- .bns file type: Full association in android/app/src/main/AndroidManifest.xml (VIEW for *.bns + content/file). App launches and imports automatically. Desktop associations via snippets + build.
+- Icon & Logo: The happy green smiling brain! This is it — fits every angle. Direct brain fog ideas with a shining, beautiful, positive happy tone. Not directing or clinical, just supportive and uplifting. Green smiling brain for the icon (launcher/adaptive), logo version integrated. Perfect for severe neurological damage management with happy encouraging vibe.
+  - bns_icon.png and bns_logo.png in assets/icon/.
+  - Configured in pubspec.yaml + flutter_launcher_icons (teal adaptive bg from relaxing palette).
+  - Run `flutter pub run flutter_launcher_icons:main` for generation.
+- Widget (Android gadget): Uses home_widget. Updates on routine complete/sync/capture. Shows summary + quick actions.
+- Build: `flutter build apk --release` (perfect with above).
+- See docs/packaging-and-associations.md for all platforms.
+- Private for whiteno1se enterprise (SHALTIEL). No leaks. Test file association by sharing .bns.
 
 To test the amazing secure sync: run on two devices on same WiFi, open Sync screen, pair if new (confirm code), watch progress bars, enjoy auto for trusted.
 

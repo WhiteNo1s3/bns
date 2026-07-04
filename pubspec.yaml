@@ -68,14 +68,15 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Add assets later (icons, gentle illustrations)
-  # assets:
-  #   - assets/images/
-  #   - assets/sounds/
+  assets:
+    - assets/icon/bns_icon.png
+    - assets/icon/bns_logo.png
+    # Gentle illustrations and assets for happy, low-load UI
+    # - assets/images/
 
 flutter_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "assets/icon/bns_icon.png"  # Replace with your perfect icon (512x512 recommended). For now use a placeholder or generate with https://romannurik.github.io/AndroidAssetStudio/
-  adaptive_icon_background: "#FFFFFF"  # or relaxing color from theme, e.g. teal
-  adaptive_icon_foreground: "assets/icon/bns_icon_foreground.png"
+  image_path: "assets/icon/bns_icon.png"  # Perfect icon generated for happy positive tone in neuro support
+  adaptive_icon_background: "#14B8A6"  # Relaxing teal from theme
+  adaptive_icon_foreground: "assets/icon/bns_icon.png"

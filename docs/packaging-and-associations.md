@@ -68,14 +68,15 @@ iOS (iPhone variant) is **HIGH-PROFILE TARGET** for WhiteNo1se Inc (SHALTIEL) cu
 - Widget: home_widget for iOS home screen widgets (today's mission, etc.).
 - Native feel, low load, encouraging, secure. User power/motivation/confidence.
 
-macOS is **not voided** - full cross-platform support (Flutter). .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS. No direct "home widget" like Android, but desktop app with file assoc and menu support.
+macOS is **not voided** - we want **clean native version for all** (not the annoying little iPhone apps on Mac via Catalyst or "Designed for iPad"). Full cross-platform support (Flutter). With Apple Silicon (M1/M2+ iPhone/Mac processors), BNS is relevant to all kinds of people – everyone can afford it now. .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS (`flutter build macos --release`). No direct "home widget" like Android, but desktop app with file assoc and menu support. In US, charts are nuts – high potential for success. Clean for all platforms.
 
 ## Recommended next packaging polish
-- Add app icon assets (in `assets/icon/`). Must be perfect - gentle, matching relaxing palette or OS. Use flutter_launcher_icons.
+- Add app icon assets (in `assets/icon/`). Must be perfect - the happy green smiling brain (gentle, matching relaxing palette or OS). Use flutter_launcher_icons for iOS/macOS/Android.
 - Set proper app name / bundle id in each platform.
 - Add code signing configuration.
 - Create a simple "Export .bns" + "Import .bns" UI that uses file_picker + the exporter.
 - Android widget (gadget): Code in lib/platform/android_widget.dart. After build, long-press home -> widgets -> add BNS. Updates automatically on data change. Perfect for quick glance at routines.
+- macOS/iOS: Clean native (not iPhone-on-Mac). With Apple Silicon, relevant/affordable for everyone. In US, charts are nuts – polish for high-profile launch.
 
 For full widget support on Android, after flutter build, the home_widget package will require a basic widget layout XML in res (see package docs). Basic Dart side is ready and perfect.
 

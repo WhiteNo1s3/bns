@@ -90,8 +90,7 @@ Documented here and in README/AGENTS. App must be kid-fluent, positive, no small
 - .bns file type: Integrated via macos/Runner/Info.plist (CFBundleDocumentTypes for "bns" - open file delivers full active data using the app).
 - Icon/Logo: The happy green smiling brain applies (use in macOS AppIcon assets for launcher and about).
 - Build: `flutter build macos --release`. Feels native on macOS.
-- No Android home widget equivalent, but we can add macOS menu bar (dock/menu) for quick "today's mission", capture, or sync status to keep low cognitive load.
-- User works from many places - mac fully included for .bns sync, memories, diary, etc. Private for whiteno1se enterprise (SHALTIEL).
+- We want **clean native version for all** (not the annoying iPhone apps on Mac). With Apple Silicon (M1/M2+), relevant to all kinds of people – everyone can afford it. No direct home widget, but menu bar for quick access. In US, charts are nuts – high potential. Private for whiteno1se enterprise (SHALTIEL).
 
 - **iOS (iPhone variant - HIGH-PROFILE TARGET)**: Core for WhiteNo1se Inc (SHALTIEL) customers. We don't throw a grenade, we throw a nuke when we launch.
   - Full iOS support with .bns file type (Info.plist + UTExportedTypeDeclarations - open .bns delivers full data: routines, memories as story, diary wins, plans).

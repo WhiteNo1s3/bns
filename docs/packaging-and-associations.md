@@ -34,7 +34,10 @@ Root: HKCU; Subkey: "Software\Classes\.bns"; ValueType: string; ValueName: ""; V
 ```
 
 ### macOS
-Add document type in `macos/Runner/Info.plist` (see `macos/Runner/Info.plist-bns-association-snippet.plist`).
+- Full `macos/Runner/Info.plist` created with CFBundleDocumentTypes for .bns (Viewer role, Owner rank). This enables opening .bns files to deliver full data (active routines, memories, etc.) via the app.
+- The happy green smiling brain icon/logo applies here too (use in Assets.xcassets/AppIcon.appiconset – generate .icns from bns_icon.png or use flutter_launcher_icons if supported).
+- Build: `flutter build macos --release`. The app feels native on macOS.
+- File handling: On open, use `BnsFileHandler` (desktop args work on macOS).
 
 ### iOS
 Similar document types in `ios/Runner/Info.plist`.
@@ -51,6 +54,8 @@ flutter build macos --release
 # Or use the helper
 .\scripts\build.ps1
 ```
+
+macOS is **not voided** - full cross-platform support (Flutter). .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS. No direct "home widget" like Android, but desktop app with file assoc and menu support.
 
 ## Recommended next packaging polish
 - Add app icon assets (in `assets/icon/`). Must be perfect - gentle, matching relaxing palette or OS. Use flutter_launcher_icons.

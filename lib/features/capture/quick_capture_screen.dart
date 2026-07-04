@@ -38,11 +38,18 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   bool _isPlaying = false;
   Duration _recordDuration = Duration.zero;
 
+  MemoryLevel _memoryLevel = MemoryLevel.quick;
+  final _contextController = TextEditingController(); // for "what happened / why" in remember/memorize
+
   @override
   void initState() {
     super.initState();
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
+    }
+    // If linked to a routine, default to "Remember this" to capture what happened
+    if (widget.linkedRoutineId != null && _memoryLevel == MemoryLevel.quick) {
+      _memoryLevel = MemoryLevel.remember;
     }
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
@@ -52,6 +59,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   @override
   void dispose() {
     _textController.dispose();
+    _contextController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -129,6 +137,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       return;
     }
 
+    final tags = ['quick-thought'];
+    if (_memoryLevel == MemoryLevel.remember) tags.add('remember-this');
+    if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
+
     final capture = QuickCapture(
       id: _uuid.v4(),
       at: DateTime.now(),
@@ -136,14 +148,21 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       audioPath: _audioPath,
       linkedRoutineId: widget.linkedRoutineId,
       linkedEventId: widget.linkedEventId,
-      tags: ['quick-thought'],
+      tags: tags,
+      memoryLevel: _memoryLevel,
+      contextNote: _contextController.text.trim().isEmpty ? null : _contextController.text.trim(),
     );
 
     await IsarService.addCapture(capture);
 
     if (mounted) {
+      final msg = _memoryLevel == MemoryLevel.memorize 
+        ? 'Memorized permanently. This will stay with you.'
+        : _memoryLevel == MemoryLevel.remember
+          ? 'Remembered. The context of what happened is saved for you.'
+          : 'Saved. Thank you for capturing that.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved. Thank you for capturing that.')),
+        SnackBar(content: Text(msg)),
       );
       Navigator.pop(context, true); // return true to indicate saved
     }
@@ -174,9 +193,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Say or write anything. No judgment, just capture.',
-              style: TextStyle(fontSize: 16),
+            Text(
+              _memoryLevel == MemoryLevel.memorize 
+                ? 'Capture this permanently. The day and what happened will be remembered.'
+                : _memoryLevel == MemoryLevel.remember
+                  ? 'Remember this moment. Note what happened in the routine or day for later recall.'
+                  : 'Say or write anything. No judgment, just capture.',
+              style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
 
@@ -245,13 +268,47 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               const SizedBox(height: 16),
             ],
 
+            // Memory level selector - "remember this" vs "memorize this" vs quick
+            const SizedBox(height: 16),
+            const Text('How important is this memory?', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SegmentedButton<MemoryLevel>(
+              segments: const [
+                ButtonSegment(value: MemoryLevel.quick, label: Text('Quick note'), icon: Icon(Icons.note)),
+                ButtonSegment(value: MemoryLevel.remember, label: Text('Remember this'), icon: Icon(Icons.bookmark)),
+                ButtonSegment(value: MemoryLevel.memorize, label: Text('Memorize permanently'), icon: Icon(Icons.stars)),
+              ],
+              selected: {_memoryLevel},
+              onSelectionChanged: (newSelection) {
+                setState(() => _memoryLevel = newSelection.first);
+              },
+            ),
+
+            // Context note for remember/memorize - "what happened / why the crisis"
+            if (_memoryLevel != MemoryLevel.quick) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _contextController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'What happened? Why? (context for this day/routine)',
+                  hintText: 'e.g. Felt overwhelmed after the call, routine triggered anxiety',
+                  border: OutlineInputBorder(),
+                  helperText: 'This helps memorize the "why" and the day itself',
+                ),
+              ),
+            ],
+
             // Text
+            const SizedBox(height: 16),
             TextField(
               controller: _textController,
-              maxLines: 5,
-              minLines: 3,
+              maxLines: 4,
+              minLines: 2,
               decoration: InputDecoration(
-                hintText: 'Or type a quick note here…',
+                hintText: _memoryLevel == MemoryLevel.quick 
+                  ? 'Or type a quick note here…' 
+                  : 'Additional thoughts...',
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,

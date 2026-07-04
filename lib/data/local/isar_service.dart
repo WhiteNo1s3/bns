@@ -346,10 +346,16 @@ class IsarService {
           .deleteAll();
 
       // Delete old quick captures (historical notes/voice beyond window)
-      await isar.quickCaptures
+      // But keep 'memorize' level as permanent memories
+      final oldCaptures = await isar.quickCaptures
           .filter()
           .atLessThan(cutoff)
-          .deleteAll();
+          .findAll();
+      for (final cap in oldCaptures) {
+        if (cap.memoryLevel != MemoryLevel.memorize) {
+          await isar.quickCaptures.deleteById(cap.id);
+        }
+      }
 
       // Delete old PAST calendar events only.
       // Future dates (planning far ahead) are kept even if 10000 years.

@@ -39,8 +39,13 @@ Root: HKCU; Subkey: "Software\Classes\.bns"; ValueType: string; ValueName: ""; V
 - Build: `flutter build macos --release`. The app feels native on macOS.
 - File handling: On open, use `BnsFileHandler` (desktop args work on macOS).
 
-### iOS
-Similar document types in `ios/Runner/Info.plist`.
+### iOS (High-profile target - iPhone variant)
+- Full `ios/Runner/Info.plist` created with CFBundleDocumentTypes and UTExportedTypeDeclarations for .bns (Viewer, Owner rank, com.whiteno1se.bns).
+- This makes opening .bns files on iPhone/iPad launch the app and import full active data (routines, memories, diary, etc.).
+- Icon/Logo: The happy green smiling brain (bns_icon.png) – used for AppIcon via flutter_launcher_icons. Perfect positive tone for high-profile users.
+- Build: `flutter build ios --release` (or IPA for distribution). Feels native on iOS.
+- File handling: Association ready; app receives .bns for import.
+- High-profile: WhiteNo1se Inc (SHALTIEL) – we don't throw a grenade, we throw a nuke when we launch. iOS is key customer target.
 
 ## Packaging Commands
 
@@ -54,6 +59,14 @@ flutter build macos --release
 # Or use the helper
 .\scripts\build.ps1
 ```
+
+iOS (iPhone variant) is **HIGH-PROFILE TARGET** for WhiteNo1se Inc (SHALTIEL) customers/users. We don't throw a grenade, we throw a nuke when we launch. Full support:
+- Info.plist with .bns document types + UTExportedTypeDeclarations.
+- Open .bns → app imports full active data (routines, memories as story, diary, plans).
+- Icon/Logo: Happy green smiling brain (bns_icon.png) – perfect positive tone for neuro support. High-profile polish.
+- Build: `flutter build ios --release` (IPA for TestFlight/App Store).
+- Widget: home_widget for iOS home screen widgets (today's mission, etc.).
+- Native feel, low load, encouraging, secure. User power/motivation/confidence.
 
 macOS is **not voided** - full cross-platform support (Flutter). .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS. No direct "home widget" like Android, but desktop app with file assoc and menu support.
 

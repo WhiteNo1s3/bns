@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/export/bns_exporter.dart'; // for future import logic
 
-/// Handles opening .bns files (file association).
+/// Handles opening .bns files (file association) - cross-platform.
+/// iOS (high-profile iPhone): Via Info.plist document types. Open .bns → import full data.
 /// When the app is launched with a .bns path, we can import it.
 class BnsFileHandler {
   static Future<void> handleLaunchWithFile(String path, BuildContext? context) async {

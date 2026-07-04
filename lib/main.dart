@@ -220,7 +220,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Today • BNS'),
+        title: Row(
+          children: [
+            Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
+            const SizedBox(width: 8),
+            const Text('Today • BNS'),
+          ],
+        ),
         centerTitle: false,
         actions: [
           IconButton(

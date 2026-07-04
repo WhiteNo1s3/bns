@@ -1,0 +1,16 @@
+<!-- Add inside the main <dict> of Info.plist for macOS -->
+<key>CFBundleDocumentTypes</key>
+<array>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>BNS Backup</string>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+            <string>bns</string>
+        </array>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Owner</string>
+    </dict>
+</array>

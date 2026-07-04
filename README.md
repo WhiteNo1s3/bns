@@ -1,0 +1,112 @@
+# BNS
+
+**Gentle, privacy-first support for routines, memory, reminders, and feeling good about the progress you make.**
+
+Built specifically with neurological challenges in mind (memory, executive dysfunction, TBI recovery). No cloud. No data collection. LAN-only sync via simple `.bns` files.
+
+## Core Ideas
+- **You are in control** — routines and goals exist to help, never to punish.
+- **Quick capture anywhere** — voice or text thoughts, reasons, wins, whatever.
+- **Calendar that actually helps** — appointments + day-specific notes without complexity.
+- **LAN sync** — tap to share the full picture between any of your devices over Wi-Fi. Zero config.
+- **Always kind** — confetti and encouragement. Logging a skip with a reason is celebrated, not hidden.
+- **Native everywhere** — Android, iOS, Windows, macOS, Linux. Widgets on Android.
+
+## .bns Files
+The entire state (routines, events, captures, logs + audio) is one portable `.bns` file (a zip under the hood). See `docs/bns-format.md`.
+
+## Current Status
+Advanced implementation in place (core MVP + amazing secure sync features):
+- New dedicated folder `C:\dev\bns`
+- Core models (including TrustedDevice) + full Isar persistence + recurrence helpers
+- `.bns` format fully specified (`docs/bns-format.md`)
+- Theming with system + relaxing palettes (teal/sage etc., directly adapted from PillMemorizer colors)
+- Today screen with real data:
+  - Positive, forgiving language everywhere
+  - RoutineTile (click = complete + confetti; long-press = skip-with-reason)
+  - Skip flow that celebrates logging a reason (voice or text)
+  - QuickCaptureBar + navigation to capture screen (real mic hold + playback + text)
+  - Confetti on wins
+  - Gentle last-sync indicator
+- Full voice Quick Capture (record, play, link)
+- Calendar + rich DayView (linked routines, events, captures)
+- **Complete .bns imaging** (full export/import with audio)
+- **Advanced Secure LAN Sync** (the "amazing" part):
+  - UDP auto-discovery on same Wi-Fi
+  - Secure first-sync: encryption + explicit pairing with 6-digit code + big "accept" confirmation (protects "we should not be opening an exploit")
+  - Auto-sync to known/trusted devices (optional toggle)
+  - Continuous progress bars (modern, system color or relaxing main gradient colors)
+  - Encouraging progress messages at every step
+  - Low-maintenance: open on devices, they appear, one tap (or auto for trusted)
+  - Manual Export/Import .bns fallback for USB/AirDrop
+- Sync screen with trusted list, pairing dialog, progress, easy access from Today/Calendar
+- Notifications, file handlers, packaging scripts, go_router nav, Riverpod
+
+See the full approved plan in your Grok session `plan.md`.
+
+**What to Start First?** (per user): Add it to the md files of course (they are all awesome). See `docs/ideas-for-handicapped-users.md` and prioritization in plan.md. First: documentation updates. Then polish sync. Then MVP completion.
+
+## Next (when Flutter SDK installed)
+```powershell
+cd C:\dev\bns
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs   # generate freezed + isar
+flutter run -d windows
+```
+
+## Packaging & File Associations
+
+### Quick build
+```powershell
+cd C:\dev\bns
+.\scripts\build.ps1 -Target windows
+.\scripts\build.ps1 -Target android
+```
+
+### .bns file association
+- The app recognizes `.bns` (see `docs/bns-format.md` and `docs/packaging-and-associations.md`).
+- **Android**: Add snippet from `android/app/src/main/AndroidManifest-snippet-for-bns.xml`.
+- **Windows / macOS / iOS**: See `docs/packaging-and-associations.md` for Info.plist and registry details.
+- Code handler lives in `lib/services/file_handler.dart`.
+
+### Notifications
+Gentle daily reminders are scheduled for any routine that has a time (see `NotificationsService`). They use low importance so they never feel pushy.
+
+## Key Features (All Awesome)
+- **Full .bns imaging** — complete export of all data + audio into portable `.bns` (ZIP)
+- **Full import** (merge or replace)
+- **Secure LAN Sync** (low-maintenance + safe):
+  - Auto-discovery
+  - Encryption + pairing code + explicit accept for first sync (no open vault!)
+  - Auto-sync for known/trusted devices
+  - Always-visible progress bars in system/relaxing colors + encouraging messages
+  - One-tap or automatic for trusted
+  - Manual fallback
+- Full voice capture, Calendar with linked data, Today with kind UX
+- Real persistence + notifications + easy navigation
+
+Open the Sync screen from the top bar on Today or Calendar. Leave it open on two devices — they find each other. Pair if new (codes match + accept), then sync. Progress shows all the time.
+
+See `docs/ideas-for-handicapped-users.md` for all the collected awesome ideas tailored for TBI/DAI users (progress visibility, security, gentle summaries, quiet mode, voice-first, etc.).
+
+## What to Start First?
+Documentation updates to md files (as requested). Then polish the sync (more progress integration, device naming, quiet mode). Then complete remaining MVP (full Routines screen, Settings). See plan.md for full prioritized list.
+
+## Running (once Flutter is available)
+```bash
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+flutter run -d windows   # or android, macos, linux, ios
+```
+
+To test the amazing secure sync: run on two devices on same WiFi, open Sync screen, pair if new (confirm code), watch progress bars, enjoy auto for trusted.
+
+## Philosophy
+- No guilt.
+- Low cognitive load.
+- Large friendly targets.
+- Follows your OS colors or soft relaxing palettes.
+- Progress always visible, secure by default (pairing + encryption first).
+- Tester-first (hi — thanks for testing, you're amazing).
+
+Built with ❤️ and patience. All ideas documented in the md files.

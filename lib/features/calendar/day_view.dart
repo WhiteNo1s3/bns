@@ -27,6 +27,7 @@ class _DayViewState extends State<DayView> {
   List<Routine> _applicableRoutines = [];
   List<CompletionLog> _logs = [];
   List<QuickCapture> _captures = [];
+  List<QuickCapture> _dayMemories = [];
   bool _loading = true;
 
   @override
@@ -46,6 +47,15 @@ class _DayViewState extends State<DayView> {
     _logs = await IsarService.getLogsForDate(dateStr);
     _captures = await IsarService.getCapturesForDate(_date);
     _applicableRoutines = allRoutines.where((r) => r.appliesOn(_date)).toList();
+
+    // Load memories for this day (remember + memorize levels)
+    final allCaptures = await IsarService.getAllCaptures();
+    _dayMemories = allCaptures.where((c) => 
+      c.memoryLevel != MemoryLevel.quick && 
+      c.at.year == _date.year && 
+      c.at.month == _date.month && 
+      c.at.day == _date.day
+    ).toList();
 
     if (mounted) setState(() => _loading = false);
   }
@@ -211,6 +221,48 @@ class _DayViewState extends State<DayView> {
                         ),
                       );
                     }),
+
+                  const SizedBox(height: 24),
+                  Text('Memories for this day', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Remember what happened (routines, crises, why). Memorize the day itself.', 
+                       style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  if (_dayMemories.isEmpty)
+                    const Text('No memories captured for this day yet. Use Remember this in routines or capture.')
+                  else
+                    ..._dayMemories.map((m) => ListTile(
+                          leading: Icon(m.memoryLevel == MemoryLevel.memorize ? Icons.stars : Icons.bookmark),
+                          title: Text(m.contextNote ?? m.text ?? 'Memory of the day'),
+                          subtitle: Text(DateFormat.Hm().format(m.at) + (m.linkedRoutineId != null ? ' • from routine' : '')),
+                          onTap: () {
+                            if (m.audioPath != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Playing memory: ${m.audioPath}')),
+                              );
+                            }
+                          },
+                        )),
+
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const QuickCaptureScreen(
+                                  // Pre-set for day memory
+                                ),
+                              ),
+                            );
+                            await _loadData();
+                          },
+                          child: const Text('Remember this day / what happened'),
+                        ),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 24),
                   Text('Quick thoughts this day', style: Theme.of(context).textTheme.titleMedium),

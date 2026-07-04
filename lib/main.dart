@@ -12,6 +12,7 @@ import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
+import 'package:bns/features/memory/memories_screen.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/file_handler.dart';
@@ -61,6 +62,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/routines',
       builder: (context, state) => const RoutinesScreen(),
+    ),
+    GoRoute(
+      path: '/memories',
+      builder: (context, state) => const MemoriesScreen(),
     ),
   ],
 );
@@ -128,6 +133,30 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     // Refresh
     ref.invalidate(routinesProvider);
     setState(() {}); // force rebuild for logs
+
+    // Offer "Remember this" for what happened in the routine (crises, why)
+    if (!isDone && mounted) {
+      final remember = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Remember this?'),
+          content: Text('Capture what happened during "${r.title}" today. The day and context can be memorized.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes, remember this moment'),
+            ),
+          ],
+        ),
+      );
+      if (remember == true) {
+        await context.push('/capture', extra: {
+          'linkedRoutineId': r.id,
+          'initialText': 'What happened in this routine today? Why?',
+        });
+      }
+    }
   }
 
   Future<bool> _isDoneToday(String routineId, String date) async {
@@ -156,7 +185,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 Navigator.pop(ctx);
                 context.push('/capture', extra: {
                   'linkedRoutineId': r.id,
-                  'initialText': 'Reason for today: ',
+                  'initialText': 'Reason for today / what happened: ',
                 });
               },
             ),
@@ -206,6 +235,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             icon: const Icon(Icons.sync_alt),
             tooltip: 'Sync your devices',
             onPressed: () => context.push('/sync'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.psychology),
+            tooltip: 'Memories',
+            onPressed: () => context.push('/memories'),
           ),
         ],
       ),
@@ -296,6 +330,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 onPressed: () => context.push('/routines'),
                 icon: const Icon(Icons.list_alt),
                 label: const Text('Manage all routines (add, edit, delete)'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/memories'),
+                icon: const Icon(Icons.psychology),
+                label: const Text('Memory section: Remember & Memorize what happened'),
               ),
             ],
           ),

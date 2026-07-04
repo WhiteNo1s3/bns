@@ -58,7 +58,7 @@ This document collects all the awesome ideas for making BNS better for users wit
 - Simple visual: small device icons that grow with successful syncs (gentle gamification).
 - "Devices connected" garden or icons that "bloom" with consistency (no pressure).
 - Rolling retention (default 2 weeks / 14 days): as the week goes on, old day data deletes (completions, captures, past events) and new days open up. Keeps routines and some information. Prevents huge files and slow sync.
-- .bns is our file to deliver full data? Yes - full active state (routines, events, active memories/captures, logs, settings, audio). Trashed items not included.
+- .bns is our compact database to deliver full active data (routines, events, active memories, logs, settings, audio). The app updates the Isar DB; we compress (gzip data.json.gz) and spread via app exports/sync. Trashed excluded to keep small.
 - Memories also can be removed by user. Everything the user wants he can do.
 - Advise if he is sure (confirmation: "Move to trash?").
 - We leave it in trash and 3 days since deleted (then auto permanent delete).

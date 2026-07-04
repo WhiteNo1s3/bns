@@ -31,11 +31,15 @@ class BnsImporter {
 
     for (final file in archive) {
       if (file.isFile) {
-        final content = file.content as List<int>;
+        var content = file.content as List<int>;
 
         if (file.name == 'manifest.json') {
           manifest = jsonDecode(utf8.decode(content));
-        } else if (file.name == 'data.json') {
+        } else if (file.name == 'data.json.gz' || file.name == 'data.json') {
+          if (file.name.endsWith('.gz')) {
+            // Decompress GZip for compact .bns
+            content = GZipDecoder().decodeBytes(content);
+          }
           data = jsonDecode(utf8.decode(content));
         } else if (file.name.startsWith('audio/')) {
           final outFile = File('${extractDir.path}/${file.name}');

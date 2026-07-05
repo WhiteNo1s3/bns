@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:intl/intl.dart';
 
 /// Memory section: Remember this (contextual for routines/days/crises) 
@@ -128,14 +129,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     final memorizeCount = _memories.where((m) => m.memoryLevel == MemoryLevel.memorize).length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
-            const SizedBox(width: 8),
-            const Text('Memory Section'),
-          ],
-        ),
+      appBar: BnsAppBar(
+        title: 'Memory Section',
+        leading: Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
         actions: [
           IconButton(
             icon: Icon(_showTrash ? Icons.delete_forever : Icons.delete_outline),

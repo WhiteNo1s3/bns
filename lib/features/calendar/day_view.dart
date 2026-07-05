@@ -5,6 +5,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Day detail view.
 /// Shows:
@@ -204,8 +205,8 @@ class _DayViewState extends State<DayView> {
     final doneCount = _applicableRoutines.where((r) => _isRoutineDone(r.id)).length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(dateLabel),
+      appBar: BnsAppBar(
+        title: dateLabel,
         actions: [
           IconButton(icon: const Icon(Icons.sync_alt), onPressed: () => context.push('/sync'), tooltip: 'Sync'),
           IconButton(icon: const Icon(Icons.add), onPressed: _addEvent, tooltip: 'Add event'),

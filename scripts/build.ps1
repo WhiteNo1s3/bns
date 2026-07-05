@@ -37,8 +37,9 @@ if ($Target -eq "all" -or $Target -eq "macos") {
     flutter build macos --release
     Write-Host "macOS app ready in build/macos/Build/Products/Release/"
     Write-Host "With Apple Silicon (M1/M2+), relevant to all kinds of people - everyone can afford it. Clean version for all. In US charts are nuts - high potential."
+    Write-Host "No extra installs needed. Uses mac's own tools."
 }
 
 Write-Host "`nFor full .bns file association on Windows, register the extension manually or use a setup installer (InnoSetup / MSIX)."
-Write-Host "macOS: .bns association via Info.plist (integrated - open .bns delivers full data via app)."
-Write-Host "See docs for platform-specific association steps." -ForegroundColor Yellow
+Write-Host "macOS/iOS: .bns association via native Info.plist (integrated - open .bns delivers full data via app). Uses platform's own tools."
+Write-Host "See docs for platform-specific association steps. No extra installs for redistribution." -ForegroundColor Yellow

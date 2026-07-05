@@ -67,8 +67,9 @@ iOS (iPhone variant) is **HIGH-PROFILE TARGET** for WhiteNo1se Inc (SHALTIEL) cu
 - Build: `flutter build ios --release` (IPA for TestFlight/App Store).
 - Widget: home_widget for iOS home screen widgets (today's mission, etc.).
 - Native feel, low load, encouraging, secure. User power/motivation/confidence.
+- Clean, no extra installs needed for users on any platform.
 
-macOS is **not voided** - we want **clean native version for all** (not the annoying little iPhone apps on Mac via Catalyst or "Designed for iPad"). Full cross-platform support (Flutter). With Apple Silicon (M1/M2+ iPhone/Mac processors), BNS is relevant to all kinds of people – everyone can afford it now. .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS (`flutter build macos --release`). No direct "home widget" like Android, but desktop app with file assoc and menu support. In US, charts are nuts – high potential for success. Clean for all platforms.
+macOS is **not voided** - we want **clean native version for all** (not the annoying little iPhone apps on Mac via Catalyst or "Designed for iPad"). Full cross-platform support (Flutter). With Apple Silicon (M1/M2+ iPhone/Mac processors), BNS is relevant to all kinds of people – everyone can afford it now. .bns file type works natively (open file -> app imports full active data including memories). Icon/logo (happy green smiling brain) applies. Build feels native on macOS (`flutter build macos --release`). No direct "home widget" like Android, but desktop app with file assoc and menu support. In US, charts are nuts – high potential for success. Clean for all platforms. No extra installations for any (pc or otherwise) - self-contained builds. Use each platform's own tools (no copy-paste). Apple ecosystem trash per user, but we polish iOS/mac clean native.
 
 ## Recommended next packaging polish
 - Add app icon assets (in `assets/icon/`). Must be perfect - the happy green smiling brain (gentle, matching relaxing palette or OS). Use flutter_launcher_icons for iOS/macOS/Android.

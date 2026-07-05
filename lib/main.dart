@@ -8,6 +8,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/sync/sync_screen.dart';
@@ -269,14 +270,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final todayStr = DateFormat('yyyy-MM-dd').format(today);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
-            const SizedBox(width: 8),
-            const Text('Today • BNS'),
-          ],
-        ),
+      appBar: BnsAppBar(
+        title: 'Today • BNS',
+        leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
         centerTitle: false,
         actions: [
           IconButton(

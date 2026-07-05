@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:intl/intl.dart';
 
 /// Dedicated screen for managing all routines (CRUD).
@@ -92,14 +93,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
-            const SizedBox(width: 8),
-            const Text('Manage Routines'),
-          ],
-        ),
+      appBar: BnsAppBar(
+        title: 'Manage Routines',
+        leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

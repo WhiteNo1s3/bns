@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/calendar/day_view.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Calendar screen with month view.
 /// Tapping a day opens the DayView with linked routines, events and captures.
@@ -62,8 +63,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendar'),
+      appBar: BnsAppBar(
+        title: 'Calendar',
         actions: [
           IconButton(
             icon: const Icon(Icons.sync_alt),

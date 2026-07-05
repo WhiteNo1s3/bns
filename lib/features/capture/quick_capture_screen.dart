@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -185,8 +186,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final hasAudio = _audioPath != null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quick thought'),
+      appBar: BnsAppBar(
+        title: 'Quick thought',
         actions: [
           TextButton(
             onPressed: _saveCapture,

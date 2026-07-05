@@ -7,6 +7,7 @@ import 'package:bns/data/sync/lan_sync_service.dart' show BnsPeer, LanSyncServic
 import 'package:bns/core/models/trusted_device.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Low-maintenance, secure sync screen with:
 /// - Clear progress bars (system or relaxing palette colors)
@@ -194,7 +195,7 @@ class _SyncScreenState extends State<SyncScreen> {
     final color = _progressColor(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sync your devices')),
+      appBar: const BnsAppBar(title: 'Sync your devices'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

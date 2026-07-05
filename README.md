@@ -138,13 +138,16 @@ flutter build apk --release
 # iOS (HIGH-PROFILE iPhone - nuke launch for WhiteNo1se Inc (SHALTIEL)):
 flutter build ios --release
 # .bns association (Info.plist) for full data. Icon: happy green brain.
+# No extra installs.
 
 # macOS clean native (not iPhone apps on Mac, Apple Silicon relevant/affordable for all):
 flutter build macos --release
 # .bns association (Info.plist) for full data. Icon: happy green brain. In US charts are nuts - high potential.
+# No extra installs.
 
 # Desktop:
 flutter run -d windows
+# Self-contained, no extra for PC. Use platform tools.
 ```
 
 **Perfect build notes** (must be perfect):
@@ -155,7 +158,8 @@ flutter run -d windows
   - Run `flutter pub run flutter_launcher_icons:main` for generation.
 - Widget (Android gadget - polished): Uses home_widget. Shows "Today's mission" (due routines/goals), plans for next N days (user-configurable 0-7, default 2 - regular joe doesn't like to know more than 2 days ahead to avoid stress), recent memories/wins (part of the story, since we forget what we've done when building). Positive encouragement like "You showed up. Small steps = big wins. You got this!". Updates automatically. Tap to open app or capture. Configurable in Sync screen. Builds user power, motivation, confidence, and distance from past.
 - Build: `flutter build apk --release` (perfect with above).
-- macOS: Fully supported (not voided from this territory!). We want **clean native version for all** (not the annoying iPhone apps on Mac via Catalyst). With Apple Silicon (M1/M2+ iPhone/Mac processors), relevant to all kinds of people – everyone can afford it now. .bns file type via Info.plist (open .bns to deliver full active data). The happy green smiling brain icon/logo applies perfectly. Build: `flutter build macos --release`. Feels native. No Android home widget, but menu bar for quick mission/capture if desired. User works from many places - mac included. In US, charts are nuts – high potential. Clean for all platforms.
+- macOS: Fully supported (not voided from this territory!). We want **clean native version for all** (not the annoying iPhone apps on Mac via Catalyst or "Designed for iPad"). With Apple Silicon (M1/M2+), relevant to all kinds of people – everyone can afford it. Clean native build, .bns support, happy green brain icon. Feels like a proper Mac app. No extra installs needed. Use each device's own tools (no copy-paste). Apple ecosystem trash per user, but we polish iOS/mac clean native.
+- iOS: High-profile iPhone target. Clean native (not relying on Mac compat). .bns, icon, build perfect. No extra for users.
 - **iOS (iPhone variant - HIGH-PROFILE TARGET for WhiteNo1se Inc (SHALTIEL) customers/users)**: We don't throw a grenade, we throw a nuke when we launch. Core focus.
   - Full Info.plist with .bns document types + UTExportedTypeDeclarations (com.whiteno1se.bns).
   - Open .bns on iPhone/iPad → app imports full active data (routines, memories as story, diary wins, calendar plans, etc.).

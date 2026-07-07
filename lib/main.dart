@@ -209,6 +209,8 @@ class _BnsAppState extends ConsumerState<BnsApp> {
         palette: RelaxingPalette.teal,
         mode: ThemeModeSetting.dark,
       ),
+      // Static app: even light/dark switches snap instead of morphing.
+      themeAnimationDuration: Duration.zero,
       routerConfig: _router,
     );
 

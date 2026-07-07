@@ -1,6 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/models/settings.dart';
 
+/// Screens appear in place — nothing slides, nothing flies (owner law,
+/// 2026-07-06: "the app must be static to not make nausea on people").
+/// Vestibular sensitivity is common after TBI; moving content is a trigger.
+/// Stationary feedback (color changes, ripples) stays — it's the MOTION of
+/// content across the screen that's banned.
+class _StaticTransitionsBuilder extends PageTransitionsBuilder {
+  const _StaticTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child; // the new screen is simply there — calm, instant, still
+  }
+}
+
 /// Adapts PillMemorizer color language + relaxing palettes for BNS.
 /// Primary source of truth: follow system (Material You / accent) where possible.
 /// Secondary: soft relaxing seeds chosen for low stimulation and positive feel.
@@ -31,6 +51,18 @@ class BnsTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: isDark ? dark : light,
+      // STATIC transitions on every platform and every navigation path
+      // (go_router pages AND plain Navigator.push both honor this).
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _StaticTransitionsBuilder(),
+          TargetPlatform.iOS: _StaticTransitionsBuilder(),
+          TargetPlatform.windows: _StaticTransitionsBuilder(),
+          TargetPlatform.macOS: _StaticTransitionsBuilder(),
+          TargetPlatform.linux: _StaticTransitionsBuilder(),
+          TargetPlatform.fuchsia: _StaticTransitionsBuilder(),
+        },
+      ),
       // Soft rounded like PillMemorizer but gentler
       cardTheme: const CardThemeData(
         elevation: 0,

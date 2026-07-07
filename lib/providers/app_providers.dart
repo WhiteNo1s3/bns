@@ -8,11 +8,13 @@ final routinesProvider = FutureProvider<List<Routine>>((ref) async {
   return IsarService.getAllRoutines();
 });
 
-final eventsForDateProvider = FutureProvider.family<List<CalendarEvent>, String>((ref, date) async {
+final eventsForDateProvider =
+    FutureProvider.family<List<CalendarEvent>, String>((ref, date) async {
   return IsarService.getEventsForDate(date);
 });
 
-final capturesForDateProvider = FutureProvider.family<List<QuickCapture>, DateTime>((ref, date) async {
+final capturesForDateProvider =
+    FutureProvider.family<List<QuickCapture>, DateTime>((ref, date) async {
   return IsarService.getCapturesForDate(date);
 });
 
@@ -33,7 +35,8 @@ class RoutinesNotifier extends AsyncNotifier<List<Routine>> {
     state = AsyncData(await IsarService.getAllRoutines());
   }
 
-  Future<void> toggleComplete(String routineId, String date, bool isDone) async {
+  Future<void> toggleComplete(
+      String routineId, String date, bool isDone) async {
     final status = isDone ? CompletionStatus.done : CompletionStatus.skipped;
     await IsarService.logCompletion(
       routineId: routineId,
@@ -45,7 +48,8 @@ class RoutinesNotifier extends AsyncNotifier<List<Routine>> {
   }
 }
 
-final routinesNotifierProvider = AsyncNotifierProvider<RoutinesNotifier, List<Routine>>(
+final routinesNotifierProvider =
+    AsyncNotifierProvider<RoutinesNotifier, List<Routine>>(
   () => RoutinesNotifier(),
 );
 
@@ -61,6 +65,7 @@ class CapturesNotifier extends AsyncNotifier<List<QuickCapture>> {
   }
 }
 
-final capturesNotifierProvider = AsyncNotifierProvider<CapturesNotifier, List<QuickCapture>>(
+final capturesNotifierProvider =
+    AsyncNotifierProvider<CapturesNotifier, List<QuickCapture>>(
   () => CapturesNotifier(),
 );

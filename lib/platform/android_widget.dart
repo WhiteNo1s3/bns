@@ -1,47 +1,66 @@
+import 'dart:io' show Platform;
+
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/core/models/models.dart';
-import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:intl/intl.dart';
 
-/// Android Home Widget (Gadget) for BNS.
-/// Shows gentle summary: routines due today, last sync, quick capture action.
-/// 
-/// Perfect, low cognitive: large tap targets, positive text.
-/// Update on data changes (complete routine, sync).
-/// 
-/// Note: Requires full flutter build after adding widget provider in Android (home_widget does some auto).
-/// iOS high-profile: home_widget can extend to iOS home screen widgets too (today's mission etc.).
-/// For icon: use the perfect happy green smiling brain we configured (bns_icon.png).
-
+/// Android home-screen widget BUNDLE (the 2026-07-06 Android pivot).
+///
+/// Three widgets, all dirt simple, all huge targets, all kind:
+/// - **Today** (`BnsTodayWidgetProvider`): today's mission + gentle progress.
+/// - **Coming up** (`BnsUpcomingWidgetProvider`): plans for the next N days
+///   (user-configurable, default 2 — nobody needs more stress than 2 days)
+///   plus one recent memory ("part of the story, since we forget what
+///   we've done when building").
+/// - **Quick actions** (`BnsActionsWidgetProvider`): three big buttons —
+///   + Task, + Memory, 🎤 Voice. The 🎤 button opens the app ALREADY
+///   recording: one tap from home screen to talking.
+///
+/// Native side: android/app/src/main/kotlin/com/whiteno1se/bns/*.kt,
+/// layouts + provider configs in android/app/src/main/res/.
+/// Call [updateWidget] after anything that changes what they show
+/// (routine done, capture, sync, import).
 class AndroidBnsWidget {
-  static const _widgetName = 'BnsHomeWidget';
-  static const _androidWidgetName = 'BnsHomeWidgetProvider';
+  static const _providers = [
+    'BnsTodayWidgetProvider',
+    'BnsUpcomingWidgetProvider',
+    'BnsActionsWidgetProvider',
+  ];
 
-  /// Update the widget with current data.
-  /// Shows:
-  /// - Today's mission (due routines today)
-  /// - Plans for next N days (configurable, default 2 to avoid stress)
-  /// - Positive encouragement, recent memory if any
-  /// Call after routine complete, capture, sync, etc.
   static Future<void> updateWidget() async {
+    if (!Platform.isAndroid) return;
     try {
       final settings = await IsarService.getSettings();
       final allRoutines = await IsarService.getAllRoutines();
-      final forwardDays = settings.widgetForwardDays.clamp(0, 14); // cap to avoid stress
+      final forwardDays =
+          settings.widgetForwardDays.clamp(0, 14); // cap to avoid stress
 
       final today = DateTime.now();
       final todayStr = DateFormat('yyyy-MM-dd').format(today);
 
-      // Today's mission: routines that apply today
-      final todayRoutines = allRoutines.where((r) => r.isActive && r.appliesOn(today)).toList();
-      final todayMissions = todayRoutines.map((r) => r.title).join(' • ');
-
-      // Completed today
+      // Today's mission: routines that apply today, as a friendly list.
+      final todayRoutines =
+          allRoutines.where((r) => r.isActive && r.appliesOn(today)).toList();
       final logsToday = await IsarService.getLogsForDate(todayStr);
-      final completedToday = logsToday.where((l) => l.status == CompletionStatus.done).length;
+      final handledIds = logsToday.map((l) => l.routineId).toSet();
+      final doneCount =
+          logsToday.where((l) => l.status == CompletionStatus.done).length;
 
-      // Upcoming plans: calendar events in next forwardDays
+      final missionLines = todayRoutines.map((r) {
+        final mark = handledIds.contains(r.id) ? '✓ ' : '• ';
+        final time = r.time != null ? '  (${r.time})' : '';
+        return '$mark${r.title}$time';
+      }).join('\n');
+
+      final handled = todayRoutines
+          .where((r) => handledIds.contains(r.id))
+          .length;
+      final progress = todayRoutines.isEmpty
+          ? ''
+          : '$handled of ${todayRoutines.length} handled';
+
+      // Upcoming plans in the next forwardDays.
       String upcoming = '';
       if (forwardDays > 0) {
         final upcomingEvents = <String>[];
@@ -50,44 +69,58 @@ class AndroidBnsWidget {
           final dateStr = DateFormat('yyyy-MM-dd').format(futureDate);
           final events = await IsarService.getEventsForDate(dateStr);
           if (events.isNotEmpty) {
-            final dayLabel = DateFormat('E').format(futureDate);
-            upcomingEvents.add('$dayLabel: ${events.map((e) => e.title).join(", ")}');
+            final dayLabel = d == 1 ? 'Tomorrow' : DateFormat('EEEE').format(futureDate);
+            upcomingEvents
+                .add('$dayLabel: ${events.map((e) => e.title).join(", ")}');
           }
         }
-        upcoming = upcomingEvents.join(' | ');
+        upcoming = upcomingEvents.join('\n');
       }
 
-      // Recent memory (last non-quick for story)
+      // One recent memory — part of the story.
       final recentMemories = await IsarService.getAllCaptures();
       final lastMem = recentMemories.firstWhere(
-        (c) => c.memoryLevel != MemoryLevel.quick,
-        orElse: () => QuickCapture(id: '', at: DateTime.now(), memoryLevel: MemoryLevel.quick),
+        (c) =>
+            c.memoryLevel != MemoryLevel.quick &&
+            c.deletedAt == null &&
+            !c.tags.contains('mad-vent'), // vents NEVER surface (sacred rule)
+        orElse: () => QuickCapture(
+            id: '', at: DateTime.now(), memoryLevel: MemoryLevel.quick),
       );
       final recentStory = lastMem.contextNote ?? lastMem.text ?? '';
 
-      await HomeWidget.saveWidgetData<String>('device_name', settings.deviceName);
-      await HomeWidget.saveWidgetData<String>('today_mission', todayMissions.isEmpty ? 'No missions today - rest is ok' : todayMissions);
-      await HomeWidget.saveWidgetData<int>('completed_today', completedToday);
-      await HomeWidget.saveWidgetData<String>('upcoming', upcoming.isEmpty ? 'No plans ahead (as set)' : upcoming);
-      await HomeWidget.saveWidgetData<String>('recent_memory', recentStory.isEmpty ? 'You\'ve done great things before' : recentStory);
-      await HomeWidget.saveWidgetData<String>('last_sync', settings.lastFullSyncAt?.toIso8601String() ?? 'Never');
+      // Kind, user-type-aware summary.
+      String summary =
+          'You showed up. Small steps = big wins. You got this!';
+      if (doneCount > 0) {
+        summary = 'You showed up. $doneCount done today. You got this!';
+      }
+      if (settings.userType.contains('kid')) {
+        summary = 'Awesome job! $doneCount wins today 🌟 You are amazing!';
+      } else if (settings.userType == 'ADHD') {
+        summary = 'You did it. $doneCount steps. Brain high-fives you.';
+      }
 
-      // Positive encouragement - user gets power, motivated, away from past
-      final summary = 'You showed up. $completedToday done today. Small steps = big wins. You got this!';
+      await HomeWidget.saveWidgetData<String>(
+          'today_mission',
+          missionLines.isEmpty
+              ? 'Nothing due today — rest is allowed 🌿'
+              : missionLines);
+      await HomeWidget.saveWidgetData<String>('today_progress', progress);
       await HomeWidget.saveWidgetData<String>('summary', summary);
+      await HomeWidget.saveWidgetData<String>('upcoming',
+          upcoming.isEmpty ? 'Nothing planned ahead. That\'s allowed.' : upcoming);
+      await HomeWidget.saveWidgetData<String>(
+          'recent_memory',
+          recentStory.isEmpty
+              ? 'You\'ve done great things before.'
+              : recentStory);
 
-      await HomeWidget.updateWidget(
-        name: _androidWidgetName,
-        androidName: _androidWidgetName,
-      );
-    } catch (e) {
-      // Fail silent, widget is bonus
+      for (final provider in _providers) {
+        await HomeWidget.updateWidget(name: provider, androidName: provider);
+      }
+    } catch (_) {
+      // Fail silent — widgets are a bonus, never a blocker.
     }
-  }
-
-  /// Handle widget click (e.g. quick capture or open app)
-  static Future<void> handleWidgetClick(String? widgetId, String? data) async {
-    // In full, use to open specific.
-    // For now, app opens via main.
   }
 }

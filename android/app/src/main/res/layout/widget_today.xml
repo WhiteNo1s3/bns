@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/today_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🧠 Today"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:textColor="@color/bnsWidgetAccent" />
+
+        <TextView
+            android:id="@+id/today_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/bnsWidgetMuted" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/today_mission"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:textSize="15sp"
+        android:lineSpacingExtra="5dp"
+        android:textColor="@color/bnsWidgetText" />
+
+    <TextView
+        android:id="@+id/today_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="@color/bnsWidgetMuted" />
+</LinearLayout>

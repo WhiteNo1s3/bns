@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_bg"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/btn_task"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:layout_margin="4dp"
+        android:minHeight="48dp"
+        android:gravity="center"
+        android:background="@drawable/widget_btn_bg"
+        android:text="＋ Task"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="@color/bnsWidgetOnAccent" />
+
+    <TextView
+        android:id="@+id/btn_memory"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:layout_margin="4dp"
+        android:minHeight="48dp"
+        android:gravity="center"
+        android:background="@drawable/widget_btn_bg"
+        android:text="＋ Memory"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="@color/bnsWidgetOnAccent" />
+
+    <TextView
+        android:id="@+id/btn_voice"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:layout_margin="4dp"
+        android:minHeight="48dp"
+        android:gravity="center"
+        android:background="@drawable/widget_btn_bg"
+        android:text="🎤 Voice"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="@color/bnsWidgetOnAccent" />
+</LinearLayout>

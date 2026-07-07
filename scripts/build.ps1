@@ -1,45 +1,51 @@
 # BNS Build & Package script (PowerShell)
-# Run from project root after flutter pub get
+# Run from project root. Requires: Flutter SDK on PATH.
+#
+# Targets this machine can build:
+#   windows  — needs Visual Studio Build Tools (C++ workload)
+#   android  — needs Android SDK + JDK 17 (set JAVA_HOME if gradle can't find it)
+# Targets that need a Mac (config is ready, build there):
+#   ios, macos
+# Target that needs Linux:
+#   linux
+#
+# Note: there is intentionally NO web target — BNS uses dart:io (local files,
+# LAN sockets) by design. Privacy-first native app on every platform.
 
 param(
-    [string]$Target = "all"
+    [string]$Target = "host"   # host = everything buildable on this machine
 )
 
 Write-Host "=== BNS Packaging ===" -ForegroundColor Cyan
 
-if ($Target -eq "all" -or $Target -eq "windows") {
+if ($Target -eq "host" -or $Target -eq "windows") {
     Write-Host "Building Windows..." -ForegroundColor Green
     flutter build windows --release
-    Write-Host "Windows exe ready in build/windows/x64/runner/Release/"
+    Write-Host "Windows exe: build\windows\x64\runner\Release\bns.exe"
 }
 
-if ($Target -eq "all" -or $Target -eq "android") {
-    Write-Host "Building Android APK (perfect with .bns + icon)..." -ForegroundColor Green
-    # Icon must be perfect: run flutter pub run flutter_launcher_icons:main first with relaxing color icon
-    flutter build apk --release
-    Write-Host "APK: build/app/outputs/flutter-apk/app-release.apk"
-    Write-Host "Install and add BNS widget to home. .bns files will open and import."
+if ($Target -eq "host" -or $Target -eq "android") {
+    Write-Host "Building Android APK (obfuscated release)..." -ForegroundColor Green
+    # Ship builds, not source: AOT + Dart symbol obfuscation (+ R8 on the JVM
+    # side, see android/app/build.gradle.kts). Symbol maps land in
+    # build\symbols — keep them if you ever need to read a crash stack.
+    flutter build apk --release --obfuscate --split-debug-info=build\symbols
+    Write-Host "APK: build\app\outputs\flutter-apk\app-release.apk"
+    Write-Host "Install and add the BNS widgets to home. .bns files open and import."
 }
 
-if ($Target -eq "all" -or $Target -eq "ios") {
-    Write-Host "Building iOS (HIGH-PROFILE iPhone target - nuke launch for WhiteNo1se Inc (SHALTIEL))..." -ForegroundColor Green
-    # Icon perfect green smiling brain
+if ($Target -eq "ios") {
+    Write-Host "Building iOS (run on a Mac)..." -ForegroundColor Green
     flutter build ios --release
-    Write-Host "iOS IPA ready. .bns association for full data import. High-profile polish."
 }
 
-if ($Target -eq "all" -or $Target -eq "web") {
-    flutter build web
-}
-
-if ($Target -eq "all" -or $Target -eq "macos") {
-    Write-Host "Building clean native macOS (not iPhone apps on Mac)..." -ForegroundColor Green
+if ($Target -eq "macos") {
+    Write-Host "Building clean native macOS (run on a Mac)..." -ForegroundColor Green
     flutter build macos --release
-    Write-Host "macOS app ready in build/macos/Build/Products/Release/"
-    Write-Host "With Apple Silicon (M1/M2+), relevant to all kinds of people - everyone can afford it. Clean version for all. In US charts are nuts - high potential."
-    Write-Host "No extra installs needed. Uses mac's own tools."
+    Write-Host "macOS app: build/macos/Build/Products/Release/"
 }
 
-Write-Host "`nFor full .bns file association on Windows, register the extension manually or use a setup installer (InnoSetup / MSIX)."
-Write-Host "macOS/iOS: .bns association via native Info.plist (integrated - open .bns delivers full data via app). Uses platform's own tools."
-Write-Host "See docs for platform-specific association steps. No extra installs for redistribution." -ForegroundColor Yellow
+if ($Target -eq "linux") {
+    Write-Host "Building Linux (run on a Linux machine)..." -ForegroundColor Green
+    flutter build linux --release
+}

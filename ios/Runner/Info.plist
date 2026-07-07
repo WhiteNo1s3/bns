@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>bns</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,6 +47,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Voice quick capture -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BNS records short voice notes only when you tap the mic. Nothing leaves your devices.</string>
+	<!-- LAN-only sync between your own devices (iOS 14+ local network prompt) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>BNS finds your own devices on your Wi-Fi to sync privately. No cloud, no internet.</string>
+	<!-- Account sync is HTTPS-only on the internet (ATS default). This
+	     exception allows plain-http to LOCAL addresses only, so the sync
+	     server can be tested on-device against a dev box (Mac window 2026-07). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<!-- BNS file type association for .bns (high-profile iOS target for WhiteNo1se Inc (SHALTIEL)) -->
 	<key>CFBundleDocumentTypes</key>
 	<array>

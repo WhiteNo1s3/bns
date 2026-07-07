@@ -1,25 +1,49 @@
 # BNS File Format Specification (.bns)
 
-Version: 1
-Status: Draft (MVP)
-Last updated: 2026-07-04
+Version: 2
+Status: Active
+Last updated: 2026-07-05
+
+## Credits — open technology, used as-is
+.bns proudly stands on open, battle-tested technology. **We claim no ownership
+of any of it** — we credit it and use it exactly as published:
+- **ZIP** container format (PKWARE, public APPNOTE specification) — "the zip magic".
+- **DEFLATE / GZIP** compression (RFC 1951 / RFC 1952).
+- **JSON** (ECMA-404) for all structured data.
+- **AES** (NIST FIPS-197) for LAN transfer encryption.
+- The Dart `archive` package for ZIP/GZIP handling.
+
+What is *ours* is the arrangement on top — the identity marker, the manifest +
+data layout, the burnout/retention semantics, and the BNS-only LAN framing.
+This is the same honest pattern EPUB and OpenDocument use: openly "just a ZIP",
+distinctly their own format.
+
+## Database vs travel file (architecture decision, 2026-07-05)
+Ben's question: is .bns the database we operate on, or the packed form of it?
+**Decision: .bns is the TRAVEL FORM of the database — the wardrobe stays open, the suitcase is packed at the border.**
+- The **live database** is an open structure: `bns_data.json` (+ `audio/` folder) in app documents. Every change is written **immediately and atomically** — there is no save button, no save-on-exit dependency, nothing for the user to remember. A crash or battery death at any moment loses at most the keystroke in flight, never the day.
+- The **.bns zip** is built only at the boundaries: LAN sync, manual export, and the silent lifecycle imaging below. We never "reopen the package" during normal use — zero zip work while you use the app.
+- Why not operate on the zip directly: rewriting an archive per change is slow, re-compresses audio constantly, and a mid-write kill corrupts an archive — exactly wrong for users who force-kill apps and lose battery. The open store + atomic rename can't be half-written.
+- **Silent lifecycle imaging** ("save before exit, seamless"): when the app goes to background or is asked to close, it refreshes ONE stable file — `exports/BNS_Latest_<device>.bns` — skipped when nothing changed, written atomically. Result: a current, shareable .bns always exists without the user ever exporting. Sync stays "one static file crossing platforms", not a million wired systems.
 
 ## Goals
 - Single file that contains the **entire user datasheet**.
 - Easy to backup, copy over USB/LAN/SMB/AirDrop, email to self, etc.
 - Recognized by the BNS app on every platform (file association).
-- Human-inspectable when renamed to .zip.
+- Human-inspectable when renamed to .zip (transparency is a feature, not a leak).
 - Supports audio attachments for quick thoughts.
 - Future-proof with manifest version + schema.
 
 ## Container
 - A standard ZIP file.
 - Extension: `.bns` (the app registers handlers for it).
+- Media type: `application/x-bns`.
 - Recommended filename when exporting: `BNS_Backup_YYYY-MM-DD_HHMM.bns`
 
-Example internal layout:
+Example internal layout (format v2):
 ```
-BNS_Backup_2026-07-04_1430.bns
+BNS_Backup_2026-07-05_1430.bns
+├── mimetype       # FIRST entry, STORED (uncompressed): "application/x-bns"
 ├── manifest.json
 ├── data.json.gz   # GZip compressed JSON for compact size
 └── audio/
@@ -27,15 +51,90 @@ BNS_Backup_2026-07-04_1430.bns
     └── cap_01f3a2c9.m4a
 ```
 
+## Container abstraction (industry-grade evolution path)
+The code never hardcodes ZIP: everything goes through the `BnsPacker`
+interface (`lib/data/pack/`) and its registry (`BnsPackers`). The current
+writer is `zip-v2`; readers detect the right packer from raw bytes. A future
+container (zstd, custom binary, deltas) implements the interface, registers,
+and the exporter/importer/LAN never change. Packers are pure byte
+transformers — isolate-safe, unit-tested by contract, benchmarked
+(`test/pack_benchmark_test.dart`; zip-v2 reference: pack 151ms / unpack+verify
+74ms for a 5.9MB heavy dataset).
+
+## Second container: BNS2 (`bns2-v1`, read support everywhere)
+A length-prefixed binary format (idea from the 2026-07-06 inbox wave, ported
+with the integrity seal the draft lacked):
+```
+"BNS2"                        4-byte magic — identity at offset 0
+u32le manifestLen + manifest  (sealed: packer + sha256 integrity block)
+u32le dataLen     + data.json.gz
+u32le audioCount  + [u32le nameLen + name + u32le byteLen + bytes]×N
+```
+All readers (Dart packer registry, web satellite) accept it; **zip-v2 remains
+the only writer** — benchmarked head-to-head on the 5.9MB heavy dataset the
+two are a dead heat (bns2 85/53ms vs zip 83/54ms pack/unpack), so the
+rename-to-.zip transparency keeps the writer seat. The benchmark races every
+registered packer; a future format must win there WITH integrity to take over.
+
+## Two official implementations (cross-verified)
+zip-v2 is implemented twice, on purpose — a format with two independent
+implementations is a format, not an accident of one codebase:
+1. **Dart** — `lib/data/pack/bns_zip_packer.dart` (the app, all platforms).
+2. **JavaScript** — the `BNS-CORE` block inside `satellite/bns-web.html`
+   (the web satellite: a single static HTML file that opens, edits and
+   re-seals .bns in the browser — no server, no install, no network).
+Both write the marker at bytes 30..54, STORE already-compressed payloads,
+seal with SHA-256, and verify CRCs + hashes before trusting content.
+`tool/cross_check.dart` (`make` / `verify`) is the referee: each side must
+read and fully verify files written by the other. Run it (plus the Node
+harness that executes the satellite's core) whenever either implementation
+changes.
+
+## Integrity (the unbreakable seal, format v2+)
+Every image's manifest carries:
+```json
+"packer": "zip-v2",
+"integrity": {
+  "algorithm": "sha256",
+  "data": "<sha256 hex of data.json.gz bytes>",
+  "audio": { "cap_xxx.m4a": "<sha256 hex>" }
+}
+```
+Unpack verifies ZIP CRC32s AND these hashes before anything reaches the
+database. A single flipped bit — corruption in transit, disk rot, tampering —
+is rejected with a friendly message and nothing is imported. Legacy v1 files
+(no seal) are still accepted through the structural checks. Combined with the
+LAN layer (AES per trusted device, strangers refused) and atomic writes, the
+chain is: encrypted transport → structural validation → cryptographic
+integrity → only then the database.
+
+## The identity marker (what makes the file special, format v2+)
+The first archive entry is a file literally named `mimetype`, containing
+`application/x-bns`, stored **without compression** and **first** — the same
+technique EPUB uses. Because a ZIP local header is exactly 30 bytes, the
+marker lands at a **fixed byte offset** in the raw file:
+- bytes 30..37 → `mimetype`
+- bytes 38..54 → `application/x-bns`
+
+So a genuine .bns is recognizable by reading ~60 bytes, without unpacking —
+used by the LAN validator (`BnsImporter.hasBnsMark`) and available to any
+other tool. Readers MUST still verify manifest.json + data.json(.gz) exist
+before trusting content.
+
+Compatibility policy: readers accept format v1 files (no marker) as long as
+manifest + data validate. Writers always produce the current version.
+
 ## manifest.json
 ```json
 {
-  "formatVersion": 1,
-  "exportedAt": "2026-07-04T14:30:00.000Z",
-  "deviceId": "uuid-v4-of-origin-device",
+  "formatVersion": 2,
+  "mediaType": "application/x-bns",
+  "container": "zip (PKWARE APPNOTE) + deflate/gzip (RFC 1951/1952) + json",
+  "exportedAt": "2026-07-05T14:30:00.000Z",
+  "deviceId": "stable-uuid-of-origin-device",
   "deviceName": "Ben's Pixel",
   "appVersion": "0.1.0+1",
-  "schema": "bns/v1",
+  "schema": "bns/v2",
   "audioCount": 2,
   "totalItems": 47,
   "dataCompressed": true,
@@ -145,7 +244,7 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
 6. Full replace option also offered ("Use this backup exactly").
 
 ## Export
-- Always full snapshot of current Isar + current audio files.
+- Always full snapshot of the current local store (JSON snapshot store since July 2026; formerly Isar) + current audio files.
 - Written atomically to temp then moved.
 - User can choose filename/location via file_picker.
 

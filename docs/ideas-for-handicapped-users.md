@@ -72,16 +72,14 @@ This document collects all the awesome ideas for making BNS better for users wit
 
 **What to Start First**: As per user: add all this to the md files. Then polish sync with progress, pairing, auto-sync. Then complete MVP.
 
-## New expansions (2026-07-05 session)
-- Memorize a day auto-generates summary of that day's routines + events + captures. "You made it".
-- Search memories by routine or "crisis" tag. Organized list easy to share with doctors.
-- Warning for past/crisis: "keep the past in the past and move forward", "stay on the ground and don't react". Because reliving is common with neuro damage (TBI, etc.). Advise before entering.
-- Visual Memory Garden: bright colorful cards for good memories (tags: good, felt safe, felt confused, felt out of bound, drama, wonderings, custom abstract like "penguin"). Brighter for fogged users (Alzheimer, dementia, ADHD, ADD, mental illness). 
-  - Garden = good/positive.
-  - Roots = ugly neurological parts (crises etc.) - shown with strong warning.
-- Interactive moving diary: set goals, remind goals, mark "V" for done. Applaud ANY progress - no achievement too small (e.g. "pissing on floor then in toilet"). Wonderful, positive reinforcement. "we are happy to applause any man with neurological issue".
-- User roles/types for adaptation: "normal" (TBI/DAI regular joe like user with severe injury 11 years ago), kid-ADHD, ADHD, custom (penguin - "we must secure the penguin"). Don't check names, care about the mind. Makes UI brighter/simpler, fluent so kid can operate. Keybinds later for when cannot move.
-- All to make more concrete, less annoying, confident ("he made it").
+## New expansions (2026-07-05 session) - ALL IMPLEMENTED ("do them all")
+- ✅ Memorize a day auto-generates summary of that day's routines + events + captures. "You made it". (in DayView)
+- ✅ Search memories by routine or "crisis" tag. Organized list easy to share with doctors. (in Memories + garden)
+- ✅ Warning for past/crisis: "keep the past in the past and move forward", "stay on the ground and don't react". Advise before entering. (banners + dialogs)
+- ✅ Visual Memory Garden: bright colorful cards for good memories (tags: good, felt safe...). Brighter for fogged. Garden=good, Roots=ugly with strong warning. Penguin abstract ok.
+- ✅ Interactive moving diary: set goals, remind goals, mark "V" for done. Applaud ANY progress (examples: toilet progress, showed up). Positive reinforcement in Today + day view.
+- ✅ User roles/types for adaptation: "normal", "kid-ADHD", "ADHD", "custom (penguin)". UI brighter/simpler/kid-fluent (text scale + tone messages). Widget adapts too.
+- ✅ All implemented. Low cognitive, positive, confident. "he made it". Quiet mode + device names + widget forward days default 2 too.
 
 Documented here and in README/AGENTS. App must be kid-fluent, positive, no small wins ignored.
 
@@ -99,6 +97,16 @@ Documented here and in README/AGENTS. App must be kid-fluent, positive, no small
   - Widget: home_widget for iOS home screen (today's mission, upcoming, recent memories).
   - High-profile polish: Encouraging, secure, user power/motivated/confident/not afraid. Memories part of story (forget what done). Launch big.
 
+## PC / Desktop Focus (Primary Platform)
+- Modern application menu: persistent sidebar (NavigationRail style) with clean modern look.
+- Selected items clearly marked with relaxing teal accent + highlight (same color scheme everywhere).
+- More robust than mobile: generous typing areas, clear visual selection states, keyboard-first shortcuts that are set-and-forget.
+- Keybinds: full user control with checkboxes ("ticking which keybind should be active"). Provide basic sensible layout (mark done, capture, diary focus, navigation) but never force the user. Edit combos freely. Saved inside the shared .bns file.
+- Typing is #1 for PC user. Diary and capture fields are comfortable and focusable.
+- PC can persist its own robust functions/config inside the .bns (keybinds, future desktop prefs) while fully compatible with phone/tablet sync.
+- Same .bns format everywhere. LAN sync works cross platform.
+- Same positive, forgiving, low-load UX.
+
 ## Android Widget Polish (current focus)
 - Show "today's mission" (routines/goals for today).
 - Let user see week plans from today if any.
@@ -106,3 +114,58 @@ Documented here and in README/AGENTS. App must be kid-fluent, positive, no small
 - Memories part of the story (we forget what we've done when making apps - final straw for building this for myself).
 - Widget builds: user gets power, motivated, away from past, complete confidence in app (not afraid to use). We encourage a lot in the app.
 - Positive, gentle, reliable.
+
+## PC Flow Polish (July 2026 refinement pass)
+Goal: gentler flow — celebrate first, offer second, never block a happy moment.
+
+- ✅ **No more dialogs interrupting wins.** Completing a routine or saving a diary entry now shows one friendly toast with an optional action ("Remember this moment" / "Keep forever") instead of a blocking popup. Confetti plays uninterrupted; the offer waits quietly for 6 seconds and disappears if ignored. Low cognitive load, one primary action.
+- ✅ **"Mark next step done"** (was "Mark something done"): completes the next *unfinished* routine, never re-toggles a finished one, and the toast names what was completed. If everything is done: "Everything for today is already done. Amazing!"
+- ✅ **No duplicate navigation on PC.** The Today screen's bottom nav buttons (calendar/routines/memories) hide when the sidebar is visible; the duplicate sync icon in the app bar was removed. Mobile keeps the buttons.
+- ✅ **Comfortable reading column** on wide monitors (Today content max ~780px, centered) — long lines are hard for brain fog.
+- ✅ **Date always visible** in the PC top bar ("Saturday, July 5") — gentle orientation for memory support.
+- ✅ **Keybinds that work + are discoverable**: Ctrl+D now truly focuses the diary field (not just navigate home); new Ctrl+T returns to Today; sidebar tooltips show each shortcut (Ctrl+R routines, Ctrl+M memories, Ctrl+N capture, Ctrl+, sync).
+- ✅ **Empty Today state helps instead of stalling**: "Nothing scheduled for today — that's perfectly fine" + a button straight to Add Routine (the old text said "coming soon" even though the Routines screen exists).
+- ✅ **Sidebar footer speaks to the user, not the developer**: "Everything stays on your devices. Private • No cloud • Yours."
+- ✅ Diary description softened to "big or small, we applaud any progress" (same meaning, warmer words). Quick-win chips unchanged.
+
+## Pass 3 — Keybinds for real, keyboard navigation, "I am mad" mode (July 2026)
+Theme: structure to lean on. The marathon is insane — the app is the steady thing.
+
+- ✅ **Keybinds actually work now.** The Sync & PC checkboxes used to be display-only; the app''s shortcuts were hardcoded. Now the shortcuts are built live from your saved keybinds: tick/untick applies instantly, combos apply instantly, and everything travels in the .bns. Central registry in `lib/core/keybinds.dart`.
+- ✅ **Press-to-record combos.** No "ctrl+enter" syntax to type: click the combo, press the keys you want, see them written out, save. "Return to simple default layout" button always available.
+- ✅ **Keyboard navigation of today''s steps**: Ctrl+G (default) jumps to the list, ↑↓ move a clear teal selection, Enter/Space completes (confetti and all), S opens skip-with-reason, Esc lets go. Hint line shown on PC.
+- ✅ **New global actions**: mark next unfinished step done (Ctrl+Enter), save diary (Ctrl+Shift+Enter), go Today (Ctrl+T) — all remappable, all optional.
+- ✅ **"I am mad" mode** — a pressure valve for rage days (rage is common in this community; it deserves first-class support, not silence):
+  - "I''m mad" button on Today. One tap, no questions.
+  - While on: header validates the anger ("It''s okay to be furious. This space can take it."), a warm-colored banner (errorContainer — same Material palette, semi-homogenous, not alarm-red chaos) offers **Vent now** — voice or text, curse like a rapper, zero judgment.
+  - **Burnout built in**: the mode switches itself off after ~24h, and vents (tagged `mad-vent`) auto-delete within ~2 days no matter the retention setting. Anger gets space, not a permanent record. A vent deliberately promoted to "Memorize" is respected and kept.
+  - Turning it off says: "Welcome back. Nothing you said is held against you."
+- ✅ **Deliberate skip = win**: skip sheet now says "Skipping on purpose is a decision — and deciding counts as a win." A day without doing what you needed is okay; choosing is the structure.
+- ✅ Fixed a broken brace in `isar_service.dart` that left all settings/keybind methods outside the class (file could not compile).
+
+## Pass 4 — System repair: it builds everywhere now (July 2026)
+Full discrepancy audit + repair. Details in `roadmap-and-brainstorm.md` ("Big repair pass").
+Highlights for users:
+- The app now actually compiles and packages on Windows + Android from this machine; iOS/macOS/Linux runner projects are complete and ready to build on their native machines. Same teal look, same .bns everywhere (semi-homogenous by construction: one Flutter codebase).
+- Secure pairing became real and simpler to trust: the 6-digit code is TYPED on the second device, never sent over Wi-Fi. Decline is always one tap. Closed screen = automatic decline.
+- Sync now truly encrypts both directions and refuses strangers entirely. Your device keeps its own name and identity even after imports.
+- Reminders won't crash the PC version (Windows has no notification plugin support yet — gentle no-op there, sidebar date + Today screen carry the orientation load).
+- Model tests protect the .bns format from accidental breakage.
+
+## Pass 5 — Reference-wave absorption (July 2026, from the read-only idea inbox)
+Workflow established: `C:\Dev\bns` is the read-only idea inbox (Grok drafts land there);
+this folder is the state-of-the-art program. Ideas get ported here, implemented properly, and verified.
+
+- ✅ **Per-device "LAN allowed" switch** in the trusted devices list — a calm kill switch: the device stays paired, but nothing flows either way until you flip it back. Default on, with advisory copy. Honored instantly by the running sync service.
+- ✅ **Only .bns ever travels** — every LAN payload and every manual import is structurally validated (ZIP magic + manifest + data) before anything is processed. Hostile or broken files get a gentle "Not a BNS backup" message and go nowhere.
+- ✅ **Desktop menu bar** (File / View / Help): export & import backups from the File menu, jump anywhere from View (with the keyboard shortcut shown), and a warm About box under Help. Discoverable like a proper modern PC app — friendlier than Office.
+- ✅ Trusted-device cards redesigned: bigger targets, labeled switches (LAN allowed, Auto-sync), one clear forget button.
+
+## Pass 6 — Industry-grade container (July 2026, reference wave 3)
+"We are not toying around — solutions for an industry hungry for solutions, unbreakable."
+- ✅ Container behind an abstraction: the .bns format can now evolve forever (faster codecs, deltas) without touching the app — old files always keep working.
+- ✅ Unbreakable seal: every .bns carries SHA-256 integrity for its data and every voice note; a single flipped bit is rejected with a kind message and nothing partial ever reaches your data. Proven by test.
+- ✅ Measured, not guessed: benchmark in CI — packing a heavy 5.9MB dataset: 151ms; unpacking with full verification: 74ms. Regression ceilings fail the build if it ever gets slow.
+- ✅ Double-click .bns on Windows: `scripts\register-bns.ps1` registers the association (per-user, no admin needed).
+- ✅ "Keep a ready-to-share .bns fresh" toggle in Sync & PC (on by default) — the seamless imaging is now user-controllable.
+- ✅ After a crash or force-kill, the next launch says one calm line: everything was already saved as you went. Nothing lost. (True by architecture — per-change atomic saves.)

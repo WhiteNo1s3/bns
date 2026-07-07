@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -8,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Full voice + text capture screen.
@@ -17,12 +17,18 @@ class QuickCaptureScreen extends StatefulWidget {
   final String? linkedRoutineId;
   final String? linkedEventId;
   final String? initialText;
+  final List<String>? initialTags; // e.g. ['mad-vent'] from Mad mode
+  /// True when arriving from the home-widget 🎤 button: start recording
+  /// immediately — one tap from home screen to talking.
+  final bool autoRecord;
 
   const QuickCaptureScreen({
     super.key,
     this.linkedRoutineId,
     this.linkedEventId,
     this.initialText,
+    this.initialTags,
+    this.autoRecord = false,
   });
 
   @override
@@ -41,14 +47,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   Duration _recordDuration = Duration.zero;
 
   MemoryLevel _memoryLevel = MemoryLevel.quick;
-  final _contextController = TextEditingController(); // for "what happened / why" in remember/memorize
-  final Set<String> _selectedTags = {}; // for crisis, good, garden tags, search by routine/crisis
+  final _contextController =
+      TextEditingController(); // for "what happened / why" in remember/memorize
+  final Set<String> _selectedTags =
+      {}; // for crisis, good, garden tags, search by routine/crisis
 
   @override
   void initState() {
     super.initState();
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
+    }
+    if (widget.initialTags != null) {
+      _selectedTags.addAll(widget.initialTags!);
     }
     // If linked to a routine, default to "Remember this" to capture what happened
     if (widget.linkedRoutineId != null && _memoryLevel == MemoryLevel.quick) {
@@ -57,6 +68,21 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
     });
+    if (widget.autoRecord) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
+    }
+  }
+
+  /// Widget-initiated capture: the phone gently speaks the subject prompt
+  /// first (device engine, skipped in quiet mode), THEN the mic opens —
+  /// the spoken prompt never ends up inside the recording.
+  Future<void> _autoStart() async {
+    if (!mounted || _isRecording) return;
+    final settings = await IsarService.getSettings();
+    if (!settings.quietMode) {
+      await TtsService.speakSubject('Tell me about today.');
+    }
+    if (mounted && !_isRecording) await _toggleRecording();
   }
 
   @override
@@ -73,7 +99,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (status != PermissionStatus.granted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission needed for voice notes.')),
+          const SnackBar(
+              content: Text('Microphone permission needed for voice notes.')),
         );
       }
     }
@@ -98,8 +125,16 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       final canRecord = await _audioRecorder.hasPermission();
       if (!canRecord) return;
 
+      // Voice-optimized: mono AAC at 48 kbps — clear speech at ~1/3 the size
+      // of the old 128 kbps default. Small at birth beats compressing later
+      // (m4a is already compressed; re-zipping old files gains ~nothing).
       await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 48000,
+          sampleRate: 44100,
+          numChannels: 1,
+        ),
         path: path,
       );
 
@@ -143,7 +178,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final tags = ['quick-thought'];
     if (_memoryLevel == MemoryLevel.remember) tags.add('remember-this');
     if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
-    tags.addAll(_selectedTags); // include user chosen tags like crisis, good, felt safe etc.
+    tags.addAll(
+        _selectedTags); // include user chosen tags like crisis, good, felt safe etc.
 
     final capture = QuickCapture(
       id: _uuid.v4(),
@@ -154,7 +190,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       linkedEventId: widget.linkedEventId,
       tags: tags,
       memoryLevel: _memoryLevel,
-      contextNote: _contextController.text.trim().isEmpty ? null : _contextController.text.trim(),
+      contextNote: _contextController.text.trim().isEmpty
+          ? null
+          : _contextController.text.trim(),
     );
 
     await IsarService.addCapture(capture);
@@ -163,11 +201,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     AndroidBnsWidget.updateWidget();
 
     if (mounted) {
-      final msg = _memoryLevel == MemoryLevel.memorize 
-        ? 'Memorized permanently. This will stay with you.'
-        : _memoryLevel == MemoryLevel.remember
-          ? 'Remembered. The context of what happened is saved for you.'
-          : 'Saved. Thank you for capturing that.';
+      final msg = _selectedTags.contains('mad-vent')
+          ? 'Vented. It burns away on its own — nothing is held against you.'
+          : _memoryLevel == MemoryLevel.memorize
+              ? 'Memorized permanently. This will stay with you.'
+              : _memoryLevel == MemoryLevel.remember
+                  ? 'Remembered. The context of what happened is saved for you.'
+                  : 'Saved. Thank you for capturing that.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );
@@ -191,7 +231,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         actions: [
           TextButton(
             onPressed: _saveCapture,
-            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Save',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -201,11 +242,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _memoryLevel == MemoryLevel.memorize 
-                ? 'Capture this permanently. The day and what happened will be remembered.'
-                : _memoryLevel == MemoryLevel.remember
-                  ? 'Remember this moment. Note what happened in the routine or day for later recall.'
-                  : 'Say or write anything. No judgment, just capture.',
+              _selectedTags.contains('mad-vent')
+                  ? 'Let it out. Curse everyone and everything — only you can see this, and it burns out on its own within about 2 days.'
+                  : _memoryLevel == MemoryLevel.memorize
+                      ? 'Capture this permanently. The day and what happened will be remembered.'
+                      : _memoryLevel == MemoryLevel.remember
+                          ? 'Remember this moment. Note what happened in the routine or day for later recall.'
+                          : 'Say or write anything. No judgment, just capture.',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
@@ -224,13 +267,20 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                         ? Colors.red.shade400
                         : Theme.of(context).colorScheme.primaryContainer,
                     boxShadow: _isRecording
-                        ? [BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 24, spreadRadius: 4)]
+                        ? [
+                            BoxShadow(
+                                color: Colors.red.withOpacity(0.4),
+                                blurRadius: 24,
+                                spreadRadius: 4)
+                          ]
                         : null,
                   ),
                   child: Icon(
                     _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
                     size: 64,
-                    color: _isRecording ? Colors.white : Theme.of(context).colorScheme.primary,
+                    color: _isRecording
+                        ? Colors.white
+                        : Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -240,7 +290,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               child: Text(
                 _isRecording
                     ? 'Recording… ${_formatDuration(_recordDuration)} — tap to stop'
-                    : (hasAudio ? 'Tap mic to record again' : 'Tap to start recording'),
+                    : (hasAudio
+                        ? 'Tap mic to record again'
+                        : 'Tap to start recording'),
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -255,7 +307,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 child: ListTile(
                   leading: IconButton(
                     iconSize: 36,
-                    icon: Icon(_isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                    icon: Icon(_isPlaying
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_filled),
                     onPressed: _playPauseAudio,
                   ),
                   title: const Text('Voice note'),
@@ -277,13 +331,23 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
             // Memory level selector - "remember this" vs "memorize this" vs quick
             const SizedBox(height: 16),
-            const Text('How important is this memory?', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text('How important is this memory?',
+                style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             SegmentedButton<MemoryLevel>(
               segments: const [
-                ButtonSegment(value: MemoryLevel.quick, label: Text('Quick note'), icon: Icon(Icons.note)),
-                ButtonSegment(value: MemoryLevel.remember, label: Text('Remember this'), icon: Icon(Icons.bookmark)),
-                ButtonSegment(value: MemoryLevel.memorize, label: Text('Memorize permanently'), icon: Icon(Icons.stars)),
+                ButtonSegment(
+                    value: MemoryLevel.quick,
+                    label: Text('Quick note'),
+                    icon: Icon(Icons.note)),
+                ButtonSegment(
+                    value: MemoryLevel.remember,
+                    label: Text('Remember this'),
+                    icon: Icon(Icons.bookmark)),
+                ButtonSegment(
+                    value: MemoryLevel.memorize,
+                    label: Text('Memorize permanently'),
+                    icon: Icon(Icons.stars)),
               ],
               selected: {_memoryLevel},
               onSelectionChanged: (newSelection) {
@@ -293,17 +357,32 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
             // Tags for search, crisis, garden organization (good, felt safe, crisis etc.)
             const SizedBox(height: 12),
-            const Text('Tags (search by routine/crisis, visual garden, share with doctors):', style: TextStyle(fontSize: 12)),
+            const Text(
+                'Tags (search by routine/crisis, visual garden, share with doctors):',
+                style: TextStyle(fontSize: 12)),
             Wrap(
               spacing: 4,
-              children: ['crisis', 'good', 'felt safe', 'felt confused', 'felt out of bound', 'drama', 'wonderings', 'routine'].map((tag) {
+              children: {
+                'crisis',
+                'good',
+                'felt safe',
+                'felt confused',
+                'felt out of bound',
+                'drama',
+                'wonderings',
+                'routine',
+                ..._selectedTags
+              }.map((tag) {
                 final selected = _selectedTags.contains(tag);
                 return FilterChip(
                   label: Text(tag),
                   selected: selected,
                   onSelected: (s) {
                     setState(() {
-                      if (s) _selectedTags.add(tag); else _selectedTags.remove(tag);
+                      if (s)
+                        _selectedTags.add(tag);
+                      else
+                        _selectedTags.remove(tag);
                     });
                   },
                 );
@@ -317,10 +396,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 controller: _contextController,
                 maxLines: 3,
                 decoration: const InputDecoration(
-                  labelText: 'What happened? Why? (context for this day/routine)',
-                  hintText: 'e.g. Felt overwhelmed after the call, routine triggered anxiety',
+                  labelText:
+                      'What happened? Why? (context for this day/routine)',
+                  hintText:
+                      'e.g. Felt overwhelmed after the call, routine triggered anxiety',
                   border: OutlineInputBorder(),
-                  helperText: 'This helps memorize the "why" and the day itself',
+                  helperText:
+                      'This helps memorize the "why" and the day itself',
                 ),
               ),
             ],
@@ -332,9 +414,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               maxLines: 4,
               minLines: 2,
               decoration: InputDecoration(
-                hintText: _memoryLevel == MemoryLevel.quick 
-                  ? 'Or type a quick note here…' 
-                  : 'Additional thoughts...',
+                hintText: _memoryLevel == MemoryLevel.quick
+                    ? 'Or type a quick note here…'
+                    : 'Additional thoughts...',
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
@@ -360,4 +442,3 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     );
   }
 }
-

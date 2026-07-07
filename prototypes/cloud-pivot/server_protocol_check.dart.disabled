@@ -1,0 +1,105 @@
+// Cross-language contract check: Dart client ↔ Node server.
+//
+// Speaks to a running bns-server.mjs exactly the way ServerSyncService does
+// (same headers, same JSON shapes, same base64 audio) and verifies the full
+// hello → pull → push → pull cycle. Run:
+//
+//   node server/bns-server.mjs adduser check --data-dir <tmp>
+//   node server/bns-server.mjs serve --port 8890 --data-dir <tmp> &
+//   dart run tool/server_protocol_check.dart http://127.0.0.1:8890 <token>
+//
+// Pure dart:io — no Flutter, no plugins.
+import 'dart:convert';
+import 'dart:io';
+
+Future<Map<String, dynamic>> post(HttpClient client, String url, String token,
+    Map<String, dynamic> body) async {
+  final req = await client.postUrl(Uri.parse(url));
+  req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+  req.headers.contentType = ContentType.json;
+  req.add(utf8.encode(jsonEncode(body)));
+  final res = await req.close();
+  return jsonDecode(await res.transform(utf8.decoder).join())
+      as Map<String, dynamic>;
+}
+
+int failures = 0;
+void check(String name, bool cond) {
+  stdout.writeln('${cond ? 'PASS' : 'FAIL'}  $name');
+  if (!cond) failures++;
+}
+
+Future<void> main(List<String> args) async {
+  if (args.length < 2) {
+    stderr.writeln('usage: server_protocol_check.dart <baseUrl> <token>');
+    exit(2);
+  }
+  final base = args[0];
+  final token = args[1];
+  final client = HttpClient();
+
+  final hello = await post(client, '$base/v1/hello', token, {});
+  check('hello ok', hello['ok'] == true);
+  check('hello carries revision + audio list',
+      hello['revision'] is int && hello['audio'] is List);
+
+  final audioBytes = List<int>.generate(2048, (i) => (i * 31) & 0xFF);
+  final data = {
+    'routines': [
+      {
+        'id': 'r-dart',
+        'title': 'From the Dart client',
+        'recurrenceType': 'daily',
+        'daysOfWeek': <int>[],
+        'isActive': true,
+        'tags': <String>[],
+        'firstStepOnlyDefault': false,
+        'createdAt': '2026-07-06T10:00:00.000Z',
+        'updatedAt': '2026-07-06T10:00:00.000Z',
+      }
+    ],
+    'events': <Object>[],
+    'captures': [
+      {
+        'id': 'c-dart',
+        'at': '2026-07-06T10:00:00.000Z',
+        'text': 'voice note ride-along 💚',
+        'audioPath': 'audio/cap_dart.m4a',
+      }
+    ],
+    'completionLogs': <Object>[],
+    'settings': {'deviceId': 'dart-check', 'deviceName': 'Dart Check'},
+  };
+
+  final push = await post(client, '$base/v1/push', token, {
+    'data': data,
+    'audio': {'cap_dart.m4a': base64Encode(audioBytes)},
+  });
+  check('push accepted', push['ok'] == true && push['revision'] is int);
+
+  final pull = await post(client, '$base/v1/pull', token, {'have': <String>[]});
+  check('pull returns pushed data',
+      ((pull['data'] as Map)['routines'] as List).isNotEmpty &&
+          (((pull['data'] as Map)['routines'] as List).first
+                  as Map)['title'] ==
+              'From the Dart client');
+  check('pull returns audio byte-identical',
+      base64Decode((pull['audio'] as Map)['cap_dart.m4a'] as String)
+          .toString() ==
+          audioBytes.toString());
+  check('emoji survived the round trip',
+      (((pull['data'] as Map)['captures'] as List).first as Map)['text'] ==
+          'voice note ride-along 💚');
+
+  final pull2 =
+      await post(client, '$base/v1/pull', token, {'have': ['cap_dart.m4a']});
+  check('pull skips audio we already have',
+      !((pull2['audio'] as Map).containsKey('cap_dart.m4a')));
+
+  final bad = await post(client, '$base/v1/hello', 'f' * 64, {});
+  check('bad token refused', bad['ok'] != true);
+
+  client.close(force: true);
+  stdout.writeln(failures == 0 ? '\nall green' : '\n$failures FAILURES');
+  exit(failures == 0 ? 0 : 1);
+}

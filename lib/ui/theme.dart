@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dynamic_color/dynamic_color.dart';
 import 'package:bns/core/models/settings.dart';
 
 /// Adapts PillMemorizer color language + relaxing palettes for BNS.
@@ -19,11 +18,15 @@ class BnsTheme {
     final base = _seedForPalette(palette);
 
     // Prefer dynamic (Android 12+/macOS) when available
-    final light = dynamicLight ?? ColorScheme.fromSeed(seedColor: base, brightness: Brightness.light);
-    final dark = dynamicDark ?? ColorScheme.fromSeed(seedColor: base, brightness: Brightness.dark);
+    final light = dynamicLight ??
+        ColorScheme.fromSeed(seedColor: base, brightness: Brightness.light);
+    final dark = dynamicDark ??
+        ColorScheme.fromSeed(seedColor: base, brightness: Brightness.dark);
 
     final isDark = mode == ThemeModeSetting.dark ||
-        (mode == ThemeModeSetting.system && WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark);
+        (mode == ThemeModeSetting.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
 
     return ThemeData(
       useMaterial3: true,
@@ -39,7 +42,8 @@ class BnsTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
       ),
     );

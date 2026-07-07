@@ -37,7 +37,7 @@ This is one of the most amazing parts of the app. User feedback: "the whole case
 
 ## Implementation Notes
 - LanSyncService: handles UDP, TCP, encryption (AES via encrypt package), pairing code gen, progress emission.
-- TrustedDevice in Isar.
+- TrustedDevice in the local store. Shared secrets stay on-device only — they are never exported into .bns files.
 - BnsExporter / Importer for the .bns imaging.
 - Progress bars and colors tied to BnsTheme (relaxing or system).
 - No unauthenticated data exchange ever.
@@ -54,3 +54,12 @@ This is one of the most amazing parts of the app. User feedback: "the whole case
 See main plan.md for what to start first (docs first, then this polish), and full ideas list.
 
 This makes sync safe ("no vault for anyone"), encouraging (progress + kind words), and truly low-maintenance (auto for known, one-tap, progress always shown).
+
+## Exploit-free by design (July 2026, hardened)
+The promise: **only .bns files ever travel the LAN, and only between devices you paired.**
+- The LAN protocol is strictly BNS-only: discovery uses the BNS_HELLO magic (non-BNS packets fast-rejected), transfers use header-framed PUSH/PULL between known device ids.
+- Every payload is AES-encrypted per trusted device (fresh random IV each transfer). Unknown devices get nothing — not even plaintext metadata. LAN-disabled devices (per-device toggle) get nothing either.
+- Every received payload is structurally validated before any processing: ZIP magic, manifest.json, data.json(.gz) must all be present. A hostile file (e.g. renamed PDF), truncated transfer, or wrong-key decrypt is rejected outright. The same validation guards manual file imports.
+- **Per-device "LAN allowed" toggle** in the trusted devices list — a one-tap kill switch that keeps the pairing but stops all transfers both ways. Default on; we advise keeping it on for your own devices.
+- Honest scope: this promise holds for what the BNS app accepts and emits. It cannot control what other software on the network does — which is why unknown senders are ignored entirely rather than trusted to "be the app".
+- No size limits: retention settings are the size control; huge datasets just sync slower.

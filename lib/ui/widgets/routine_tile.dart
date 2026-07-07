@@ -10,6 +10,7 @@ class RoutineTile extends StatelessWidget {
   final bool isDone;
   final VoidCallback onToggle;
   final VoidCallback onSkip;
+  final bool selected; // For modern PC selection marking (teal highlight)
 
   const RoutineTile({
     super.key,
@@ -17,13 +18,28 @@ class RoutineTile extends StatelessWidget {
     required this.isDone,
     required this.onToggle,
     required this.onSkip,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final primary = colorScheme.primary; // consistent relaxing teal
+
+    // Modern selected marking for PC (and keyboard nav): subtle teal background + border
+    final cardColor = selected ? primary.withOpacity(0.08) : null;
+    final border = selected
+        ? Border.all(color: primary.withOpacity(0.5), width: 1.5)
+        : null;
 
     return Card(
+      color: cardColor,
+      shape: border != null
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: border.top, // reuse for all sides
+            )
+          : null,
       child: InkWell(
         onTap: onToggle,
         onLongPress: onSkip,
@@ -35,7 +51,7 @@ class RoutineTile extends StatelessWidget {
               Icon(
                 isDone ? Icons.check_circle_rounded : Icons.circle_outlined,
                 size: 28,
-                color: isDone ? colorScheme.primary : colorScheme.outline,
+                color: isDone ? primary : colorScheme.outline,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -47,7 +63,11 @@ class RoutineTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 17,
                         decoration: isDone ? TextDecoration.lineThrough : null,
-                        color: isDone ? colorScheme.outline : colorScheme.onSurface,
+                        color: isDone
+                            ? colorScheme.outline
+                            : colorScheme.onSurface,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -65,7 +85,8 @@ class RoutineTile extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Chip(
-                    label: Text(routine.tags.first, style: const TextStyle(fontSize: 11)),
+                    label: Text(routine.tags.first,
+                        style: const TextStyle(fontSize: 11)),
                     visualDensity: VisualDensity.compact,
                   ),
                 ),

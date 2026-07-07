@@ -26,5 +26,5 @@ class RecurrenceUtils {
     }
   }
 
-  static String _dowLabel(int d) => ['S','M','T','W','T','F','S'][d];
+  static String _dowLabel(int d) => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d];
 }

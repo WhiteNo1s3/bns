@@ -51,11 +51,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _selectedDay = selected;
       _focusedDay = focused;
     });
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DayView(date: selected),
-      ),
-    ).then((_) => _loadEvents()); // refresh on return
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => DayView(date: selected),
+          ),
+        )
+        .then((_) => _loadEvents()); // refresh on return
   }
 
   @override
@@ -65,6 +67,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Scaffold(
       appBar: BnsAppBar(
         title: 'Calendar',
+        hideOnDesktopWide: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.sync_alt),
@@ -82,7 +85,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   id: '',
                   title: 'New appointment / note',
                   date: dateStr,
-                  time: '${now.hour.toString().padLeft(2,'0')}:${now.minute.toString().padLeft(2,'0')}',
+                  time:
+                      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
                   notes: '',
                   createdAt: now,
                   updatedAt: now,
@@ -161,10 +165,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(DateFormat.yMMMMEEEEd().format(day), style: Theme.of(context).textTheme.titleMedium),
+            Text(DateFormat.yMMMMEEEEd().format(day),
+                style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             if (events.isEmpty && captures.isEmpty)
-              const Text('Nothing registered yet for this day. Tap + or go to the day view.'),
+              const Text(
+                  'Nothing registered yet for this day. Tap + or go to the day view.'),
             ...events.map((e) => ListTile(
                   leading: const Icon(Icons.event),
                   title: Text(e.title),
@@ -172,9 +178,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 )),
             if (captures.isNotEmpty) ...[
               const SizedBox(height: 8),
-              const Text('Quick thoughts', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text('Quick thoughts',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
               ...captures.take(3).map((c) => ListTile(
-                    leading: Icon(c.audioPath != null ? Icons.mic : Icons.notes),
+                    leading:
+                        Icon(c.audioPath != null ? Icons.mic : Icons.notes),
                     title: Text(c.text ?? 'Voice note'),
                     subtitle: Text(DateFormat.Hm().format(c.at)),
                   )),

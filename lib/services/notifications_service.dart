@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -8,11 +9,20 @@ import 'package:bns/data/local/isar_service.dart';
 /// Polite, gentle notification service.
 /// Only reminds for time-based routines. Never shaming.
 class NotificationsService {
-  static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
+  /// flutter_local_notifications has no Windows implementation —
+  /// everything here quietly no-ops there instead of crashing.
+  static bool get _supported =>
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isMacOS ||
+      Platform.isLinux;
+
   static Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized || !_supported) return;
 
     tzdata.initializeTimeZones();
 
@@ -35,7 +45,8 @@ class NotificationsService {
 
     // Request permissions on Android 13+
     await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
     _initialized = true;
@@ -43,7 +54,7 @@ class NotificationsService {
 
   /// Schedule a gentle reminder for a routine that has a time.
   static Future<void> scheduleRoutineReminder(Routine routine) async {
-    if (routine.time == null) return;
+    if (!_initialized || routine.time == null) return;
 
     await cancelRoutineReminder(routine.id);
 
@@ -53,7 +64,8 @@ class NotificationsService {
 
     // Schedule daily at the routine time (local)
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
 
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
@@ -79,22 +91,27 @@ class NotificationsService {
       scheduled,
       details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // repeat daily
       payload: 'routine:${routine.id}',
     );
   }
 
   static Future<void> cancelRoutineReminder(String routineId) async {
+    if (!_initialized) return;
     await _plugin.cancel(routineId.hashCode);
   }
 
   /// Cancel all (used for settings toggle)
   static Future<void> cancelAll() async {
+    if (!_initialized) return;
     await _plugin.cancelAll();
   }
 
   /// Reschedule all active time-based routines (call on app start or after changes)
   static Future<void> rescheduleAll() async {
+    if (!_initialized) return;
     await cancelAll();
     final routines = await IsarService.getAllRoutines();
     for (final r in routines.where((r) => r.isActive && r.time != null)) {

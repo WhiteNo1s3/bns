@@ -120,6 +120,11 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - **Mac window (from Friday 2026-07-10, ~2.5 weeks)**: effort goes into perfect iOS/macOS builds from THIS codebase — real IPA, TestFlight, adaptive polish — not a rewrite.
 - **Kubuntu laptop**: the Linux target finally gets exercised — see README "Working from multiple computers".
 
+2026-07-06 wave 7 — **the STATIC pass** (Ben: "get rid of the confusing refresh… it scrolls from above; the app must be static to not make nausea on people"):
+- ✅ **All screen motion removed, everywhere**: `_StaticTransitionsBuilder` in `lib/ui/theme.dart` applied to every platform — covers BOTH navigation paths (go_router pages and plain `Navigator.push`). Screens appear in place; nothing slides in from above or the side, ever. `themeAnimationDuration: zero` so even light/dark switches snap. Elevated to an AGENTS.md non-negotiable (vestibular sensitivity post-TBI is common; motion of content is the trigger — stationary feedback like color changes and ripples stays).
+- ✅ Record button's in-place color fade kept (stationary feedback, not motion); confetti unchanged (opt-out celebration, dead in quiet mode).
+- ✅ **"The Explorer" naming settled** (README): the satellite HTML is the door for people AROUND the user — non-users, kids, loved ones — to observe and sync .bns files to a computer without installing; the user himself lives in the native Windows/Android program.
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.

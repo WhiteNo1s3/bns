@@ -30,16 +30,23 @@ The entire state (routines, events, captures, logs + audio) is one portable `.bn
 
 Credit where due: the container is the open ZIP format (PKWARE's "zip magic") with DEFLATE/GZIP compression and JSON data — open technology used as-is, no ownership claimed. What makes a `.bns` a `.bns` is our identity layer on top (EPUB-style `mimetype` marker first in the archive, `application/x-bns`, at a fixed byte offset), so the file is instantly recognizable as ours while staying transparently inspectable with any archive tool.
 
-## The web satellite (`satellite/bns-web.html`)
-One static HTML file = the whole .bns manager in any modern browser. Open a
-.bns, see and edit routines/calendar/memories/diary, play voice notes, save a
-re-sealed file — all in the page's memory. **No server, no npm, no install, no
+## The Explorer (`satellite/bns-web.html`) — for the people AROUND the user
+One static HTML file = a .bns explorer in any modern browser: **observe the
+data and sync files to the computer** without installing anything. It's meant
+for people who don't use BNS constantly — non-users, kids, loved ones — while
+the user himself lives in the native program (Windows/Android). Open a .bns,
+see routines/calendar/memories/diary, play voice notes, make edits, save a
+re-sealed file back to the computer. **No server, no npm, no install, no
 account, no network calls, no traces.** Double-click it locally or host it on
 the website as a plain static file; on iPhone, Safari → Add to Home Screen
-makes it an app-shaped door with zero App Store involvement. It is the second
-official implementation of the zip-v2 format, cross-verified against the app's
-Dart packer by `tool/cross_check.dart`. (The no-server law stands: this is a
-document tool, not a service.)
+makes it an app-shaped door with zero App Store involvement.
+
+Two special powers: it auto-opens **family share** files (`BNS_Family_*.bns`)
+into a read-only "important plans" view, and `#family` shows any full backup
+as a gentle read-only window. It is the second official implementation of
+both .bns containers, cross-verified against the app's Dart packers by
+`tool/cross_check.dart`. (The no-server law stands: this is a document tool,
+not a service.)
 
 ## Why Flutter (and not five native apps)
 One codebase carries the entire product — the sync protocol, the sealed .bns

@@ -18,16 +18,57 @@ Built specifically with neurological challenges in mind (memory, executive dysfu
 ## Core Ideas
 - **You are in control** — routines and goals exist to help, never to punish.
 - **Quick capture anywhere** — voice or text thoughts, reasons, wins, whatever.
+- **Android is the flagship** (pivot 2026-07-06) — widgets in bundles (today's mission, upcoming plans, quick actions), voice-first capture, dirt-simple screens. PC remains the fully-featured desktop experience (sidebar, keybinds, MenuBar) and every platform shares the same .bns files.
 - **Calendar that actually helps** — appointments + day-specific notes without complexity.
-- **LAN sync** — tap to share the full picture between any of your devices over Wi-Fi. Zero config.
+- **No accounts, no cloud** — the 0.12a account-server pivot was cancelled the same day (see `prototypes/cloud-pivot/`). Devices share directly over the user's own Wi-Fi; `.bns` files are the by-hand backup; the web satellite is the no-install window.
+- **Premium, paid-only** — no ads, no free tier, no subscriptions. Store purchase (~$1–2, final price pending) is the only distribution.
 - **Always kind** — confetti and encouragement. Logging a skip with a reason is celebrated, not hidden.
-- **Native everywhere** — Android, iOS, Windows, macOS, Linux. Widgets on Android.
+- **Native everywhere** — Android, iOS, Windows, macOS, Linux. Widgets on Android. PC feels like a real modern application.
 
 ## .bns Files
 The entire state (routines, events, captures, logs + audio) is one portable `.bns` file (a zip under the hood). See `docs/bns-format.md`.
 
-## Auto-Sync (LAN)
-This is the key "zero effort" feature for working across devices (PC ↔ Phone ↔ other PC).
+Credit where due: the container is the open ZIP format (PKWARE's "zip magic") with DEFLATE/GZIP compression and JSON data — open technology used as-is, no ownership claimed. What makes a `.bns` a `.bns` is our identity layer on top (EPUB-style `mimetype` marker first in the archive, `application/x-bns`, at a fixed byte offset), so the file is instantly recognizable as ours while staying transparently inspectable with any archive tool.
+
+## The web satellite (`satellite/bns-web.html`)
+One static HTML file = the whole .bns manager in any modern browser. Open a
+.bns, see and edit routines/calendar/memories/diary, play voice notes, save a
+re-sealed file — all in the page's memory. **No server, no npm, no install, no
+account, no network calls, no traces.** Double-click it locally or host it on
+the website as a plain static file; on iPhone, Safari → Add to Home Screen
+makes it an app-shaped door with zero App Store involvement. It is the second
+official implementation of the zip-v2 format, cross-verified against the app's
+Dart packer by `tool/cross_check.dart`. (The no-server law stands: this is a
+document tool, not a service.)
+
+## Why Flutter (and not five native apps)
+One codebase carries the entire product — the sync protocol, the sealed .bns
+packers, mad mode, the kindness — to Android, iOS, Windows, macOS and Linux,
+compiled AOT to native machine code. Native is used exactly where it matters:
+the Android widgets are hand-written Kotlin, file associations are native
+manifests, speech uses the device engines. A ground-up native rewrite would
+cost months and buy nothing users can see; the real lock-in insurance is the
+.bns format itself, which already has two independent implementations (Dart
+and the satellite's JS) — any future app on any stack can speak it. Full
+decision record in `docs/roadmap-and-brainstorm.md`.
+
+## Working from multiple computers (GitHub)
+The source of truth is the private repo `github.com/benshaltiel/bns`.
+On any machine (including the Kubuntu laptop):
+```bash
+git clone https://github.com/benshaltiel/bns.git
+cd bns
+flutter pub get
+flutter test          # 18 tests incl. container benchmark + tamper checks
+flutter build linux   # on the Kubuntu laptop (needs: clang cmake ninja-build \
+                      #   pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev)
+```
+Built artifacts (`dist/`, `build/`) stay OUT of git — rebuild them anywhere;
+releases ship binaries, the repo ships source. Commit + push at the end of a
+session, pull at the start of the next, whichever machine you're on.
+
+## Auto-Sync (LAN) — the main road (re-affirmed after the cancelled 0.12a server pivot)
+PC ↔ Phone ↔ other PC on one Wi-Fi, no third party in the middle.
 
 - Devices on the same Wi-Fi automatically discover each other via UDP.
 - **First time with a new device**: Requires secure pairing — a 6-digit code is shown on both screens. You must explicitly confirm "codes match" + accept. All data is AES-encrypted.
@@ -41,7 +82,15 @@ Leave the Sync screen open on two machines and they find each other. Pair once i
 This was designed so you can move between locations without friction while keeping everything private and secure.
 
 ## Current Status
-Advanced implementation in place (core MVP + amazing secure sync features):
+Advanced implementation in place (core MVP + amazing secure sync features + all polish "do them all"):
+
+- All major features complete: routines, calendar+day+auto day summary memorize, quick voice capture, LAN sync with pairing+progress+auto, .bns gzip compact, rolling retention, trash 3d, full memory garden+roots+search+crisis tags+ past warnings, interactive diary with V small wins, user types (normal/kid-ADHD/ADHD/penguin), adaptive BnsAppBar native iOS/mac clean, Android widget with configurable forward days (default 2), positive everywhere (confetti, messages, you made it), quiet mode.
+- User types adapt UI scale/tones (brighter kid fluent etc.).
+- Quiet mode, device naming, full import on .bns open.
+- Positive, low load, forgiving, no guilt. All ideas from docs implemented.
+- PC flow polish pass (July 2026): no blocking dialogs after wins (toast + optional action instead), "Mark next step done" completes the next unfinished routine, no duplicate navigation on desktop, comfortable reading column on wide monitors, date in top bar, working Ctrl+D diary focus + Ctrl+T Today, shortcut hints in sidebar tooltips, helpful empty state. See `docs/ideas-for-handicapped-users.md` → "PC Flow Polish".
+- Keybinds + keyboard + mad pass (July 2026): keybinds are now LIVE (built from settings, tick to enable, press-to-record combos, travel in .bns), full keyboard navigation of today's steps (Ctrl+G, ↑↓, Enter, S), and **"I am mad" mode** — a judgment-free rage valve: vent in any language you want, vents burn out within ~2 days, the mode calms itself after ~24h. Deliberate skips are celebrated as decisions. Roadmap + parked ideas now tracked in `docs/roadmap-and-brainstorm.md`.
+- **It builds now** (July 2026 repair pass): real platform runners for Windows/Android/iOS/macOS/Linux with .bns associations, permissions and entitlements in place; Isar/freezed replaced by a dependency-free JSON snapshot store (same API, no codegen); LAN sync protocol + secure pairing actually work (stable device identity, real encryption both ways, type-the-code pairing); `flutter analyze` clean, model tests passing. Full list: `docs/roadmap-and-brainstorm.md` → "Big repair pass". iOS/macOS build on a Mac; Linux on a Linux box; no web target by design (dart:io, privacy-first native).
 - New dedicated folder `C:\dev\bns`
 - Core models (including TrustedDevice) + full Isar persistence + recurrence helpers
 - `.bns` format fully specified (`docs/bns-format.md`)
@@ -69,7 +118,14 @@ Advanced implementation in place (core MVP + amazing secure sync features):
 
 See the full approved plan in your Grok session `plan.md`.
 
-**What to Start First?** (per user): Add it to the md files of course (they are all awesome). See `docs/ideas-for-handicapped-users.md` and prioritization in plan.md. First: documentation updates. Then polish sync. Then MVP completion.
+### PC Desktop (Primary)
+- Modern sidebar navigation (clean, selected items highlighted with the teal relaxing colors).
+- Keybinds: Go to Sync screen → scroll to "PC Keybinds". Checkboxes to enable/disable, edit the key combo (e.g. `ctrl+enter`). Set & forget. We ship good defaults + simple grouped layout so it's easy. Not mandatory.
+- PC-specific data (keybinds, future robust features) stored inside the normal .bns — full sync compatibility, mobile just carries the fields.
+- Typing optimized: big diary fields, focus shortcuts, comfortable capture.
+- More robust lists and selections than mobile views.
+
+**What to Start First?** (per user): All done! ("do them all"). Polish complete, user types, garden, diary V, widget, warnings, summaries, clean native iOS/mac bars, quiet, more encouragement. See docs. Run on devices for LAN sync test.
 
 ## Next (when Flutter SDK installed)
 ```powershell
@@ -114,6 +170,8 @@ Gentle daily reminders are scheduled for any routine that has a time (see `Notif
 Open the Sync screen from the top bar on Today or Calendar. Leave it open on two devices — they find each other. Pair if new (codes match + accept), then sync. Progress shows all the time.
 
 See `docs/ideas-for-handicapped-users.md` for all the collected awesome ideas tailored for TBI/DAI users (progress visibility, security, gentle summaries, quiet mode, voice-first, etc.).
+
+**"do them all" complete**: user types adapt (scale + tones for kid/ADHD/penguin), memory garden + roots + past warnings + crisis search, auto day memorize summaries, interactive diary + V marks + small wins, widget polish (today mission + N days default 2 + memories), quiet mode, device names, clean native iOS/mac via adaptive bar, full .bns import on open, more encouragement, docs updated. All low load + positive.
 
 ## What to Start First?
 Documentation updates to md files (as requested). Then polish the sync (more progress integration, device naming, quiet mode, summaries). Then complete remaining MVP (full Routines screen, Settings). See plan.md for full prioritized list.

@@ -1,0 +1,53 @@
+# BNS sync server — systemd unit for the Ubuntu VPS (Germany).
+# Install: copy to /etc/systemd/system/bns-sync.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now bns-sync
+#
+# Runs as the unprivileged "bns" user and is locked down hard: the process
+# can write ONLY its own data directory, sees a private /tmp, can't gain
+# privileges, and can't touch devices or other homes. Even if something
+# unforeseen happened, there is nowhere to go.
+
+[Unit]
+Description=BNS sync server (3 commands, accounts provisioned via CLI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bns
+Group=bns
+WorkingDirectory=/opt/bns
+# --quota-mb 2048: no account can exceed 2GB — on the 100GB box that's 45+
+# worst-case accounts (typical accounts use a few MB thanks to the 14-day
+# rolling retention). Raise per customer when someone actually needs more.
+ExecStart=/usr/bin/node /opt/bns/bns-server.mjs serve --port 8787 --bind 127.0.0.1 --data-dir /opt/bns/data --quota-mb 2048
+Restart=on-failure
+RestartSec=5
+
+# ---- hardening: minimum possible surface ----
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/bns/data
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Sane resource ceilings for a single-purpose box
+LimitNOFILE=4096
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

@@ -32,6 +32,9 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
+		<!-- plain-http allowed to LOCAL addresses only: on-device testing of the sync server (internet stays HTTPS-only) -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 	</dict>
 	<!-- BNS file type association for .bns (full data delivery via app) - clean native macOS, not iOS-on-Mac -->
 	<key>CFBundleDocumentTypes</key>

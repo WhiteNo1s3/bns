@@ -1,0 +1,185 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:bns/core/models/models.dart';
+import 'package:bns/data/local/isar_service.dart';
+
+/// Client for the BNS account server (the 0.12a pivot).
+///
+/// Dumb server, smart client: the server (server/bns-server.mjs) only stores
+/// and validates; ALL merge logic runs here, on the device, using the same
+/// last-write-wins rules as .bns imports. One sync =
+///   1. hello  — auth check + what audio the server already has
+///   2. pull   — server snapshot + audio we lack → merge into the local store
+///   3. push   — full merged snapshot + audio the server lacks
+///
+/// Data travels UNPACKED (JSON + individual audio files) — no zip on the hot
+/// path; .bns stays the import/export travel file. Transport security is
+/// HTTPS (Ben terminates SSL on his own servers); auth is a bearer token
+/// provisioned on the box, stored ONLY in the local settings (stripped from
+/// every .bns export).
+class ServerSyncService {
+  /// Human-readable outcome for the Sync screen. Throws nothing — a sync
+  /// that can't run reports why, gently.
+  static Future<String> syncNow({void Function(String)? onProgress}) async {
+    final settings = await IsarService.getSettings();
+    final url = settings.serverUrl?.trim() ?? '';
+    final token = settings.serverToken?.trim() ?? '';
+    if (url.isEmpty || token.isEmpty) {
+      return 'Not set up yet — add your server address and access code.';
+    }
+    final base = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+    try {
+      // ---- 1. hello
+      onProgress?.call('Reaching your server…');
+      final hello = await _post(client, '$base/v1/hello', token, {});
+      if (hello['ok'] != true) {
+        return _friendlyAuthError(hello);
+      }
+      final serverAudio = ((hello['audio'] as List?) ?? const [])
+          .whereType<String>()
+          .toSet();
+
+      // ---- 2. pull (tell the server which audio we already have)
+      onProgress?.call('Getting the latest from your server…');
+      final audioDir = await IsarService.getAudioDir();
+      final localAudioNames = <String>{};
+      await for (final f in audioDir.list()) {
+        if (f is File) localAudioNames.add(f.uri.pathSegments.last);
+      }
+      final pull = await _post(client, '$base/v1/pull', token, {
+        'have': localAudioNames.toList(),
+      });
+      if (pull['ok'] != true) return _friendlyAuthError(pull);
+
+      var pulledItems = 0;
+      final pulledData = pull['data'];
+      if (pulledData is Map<String, dynamic>) {
+        // New audio first so merged captures can point at real files.
+        final audioB64 = pull['audio'];
+        if (audioB64 is Map) {
+          for (final entry in audioB64.entries) {
+            final name = entry.key.toString();
+            if (!_safeAudioName(name)) continue;
+            final file = File('${audioDir.path}/$name');
+            final tmp = File('${file.path}.tmp');
+            await tmp.writeAsBytes(base64Decode(entry.value as String),
+                flush: true);
+            if (await file.exists()) await file.delete();
+            await tmp.rename(file.path);
+            localAudioNames.add(name);
+          }
+        }
+
+        final routines = _list(pulledData['routines'], Routine.fromJson);
+        final events = _list(pulledData['events'], CalendarEvent.fromJson);
+        final captures = _list(pulledData['captures'], QuickCapture.fromJson)
+            .map((c) => _remapAudio(c, audioDir))
+            .toList();
+        final logs = _list(pulledData['completionLogs'], CompletionLog.fromJson);
+        final incomingSettings = pulledData['settings'] is Map<String, dynamic>
+            ? AppSettings.fromJson(
+                pulledData['settings'] as Map<String, dynamic>)
+            : settings;
+        pulledItems =
+            routines.length + events.length + captures.length + logs.length;
+
+        onProgress?.call('Weaving it together…');
+        await IsarService.mergeData(
+          routines: routines,
+          events: events,
+          captures: captures,
+          logs: logs,
+          incomingSettings: incomingSettings,
+        );
+      }
+
+      // ---- 3. push the merged truth back up (only audio the server lacks)
+      onProgress?.call('Sending your latest back…');
+      final snapshot = await IsarService.getFullSnapshot();
+      final data = {
+        'routines': snapshot.routines.map((e) => e.toJson()).toList(),
+        'events': snapshot.events.map((e) => e.toJson()).toList(),
+        'captures': snapshot.captures.map((e) => e.toJson()).toList(),
+        'completionLogs': snapshot.logs.map((e) => e.toJson()).toList(),
+        // Local secret stays local, exactly like .bns exports.
+        'settings': snapshot.settings.toJson()..remove('serverToken'),
+      };
+      final audioToSend = <String, String>{};
+      for (final cap in snapshot.captures) {
+        final p = cap.audioPath;
+        if (p == null) continue;
+        final name = p.split(Platform.pathSeparator).last.split('/').last;
+        if (!_safeAudioName(name) || serverAudio.contains(name)) continue;
+        final f = File('${audioDir.path}/$name');
+        if (await f.exists()) {
+          audioToSend[name] = base64Encode(await f.readAsBytes());
+        }
+      }
+      final push = await _post(client, '$base/v1/push', token, {
+        'data': data,
+        'audio': audioToSend,
+      });
+      if (push['ok'] != true) return _friendlyAuthError(push);
+
+      await IsarService.updateSettings((await IsarService.getSettings())
+          .copyWith(lastFullSyncAt: DateTime.now()));
+
+      final took = pulledItems > 0 ? ' Brought in $pulledItems items.' : '';
+      return 'All synced — your server has everything (rev ${push['revision']}).$took';
+    } on SocketException {
+      return 'Couldn\'t reach the server — check the address or your internet. Nothing was lost.';
+    } on HandshakeException {
+      return 'Secure connection failed (SSL). Check the https address. Nothing was lost.';
+    } on FormatException {
+      return 'The server answered strangely — is the address right? Nothing was lost.';
+    } catch (e) {
+      return 'Sync hit a snag ($e). Your data on this device is safe.';
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  // ------------------------------------------------------------ helpers
+  static Future<Map<String, dynamic>> _post(HttpClient client, String url,
+      String token, Map<String, dynamic> body) async {
+    final req = await client.postUrl(Uri.parse(url));
+    req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    req.headers.contentType = ContentType.json;
+    req.add(utf8.encode(jsonEncode(body)));
+    final res = await req.close();
+    final text = await res.transform(utf8.decoder).join();
+    final parsed = jsonDecode(text);
+    return parsed is Map<String, dynamic> ? parsed : {'ok': false};
+  }
+
+  static String _friendlyAuthError(Map<String, dynamic> res) {
+    final err = res['error']?.toString() ?? 'unknown';
+    if (err == 'unauthorized') {
+      return 'The server didn\'t recognize the access code — check it and try again.';
+    }
+    return 'The server said no ($err). Your data on this device is safe.';
+  }
+
+  static bool _safeAudioName(String name) =>
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.(m4a|wav|aac|ogg)$')
+          .hasMatch(name);
+
+  static List<T> _list<T>(
+      Object? raw, T Function(Map<String, dynamic>) fromJson) {
+    return (raw is List ? raw : const [])
+        .whereType<Map<String, dynamic>>()
+        .map(fromJson)
+        .toList();
+  }
+
+  static QuickCapture _remapAudio(QuickCapture c, Directory audioDir) {
+    final p = c.audioPath;
+    if (p == null) return c;
+    final name = p.split('/').last.split(Platform.pathSeparator).last;
+    final local = File('${audioDir.path}/$name');
+    return local.existsSync() ? c.copyWith(audioPath: local.path) : c;
+  }
+}

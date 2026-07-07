@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Relaxing teal palette for the widget bundle (dark). -->
+<resources>
+    <color name="bnsWidgetBg">#F0122E2B</color>
+    <color name="bnsWidgetText">#D7F5F0</color>
+    <color name="bnsWidgetMuted">#8FB5AF</color>
+    <color name="bnsWidgetAccent">#2DD4BF</color>
+    <color name="bnsWidgetOnAccent">#0B1F1D</color>
+</resources>

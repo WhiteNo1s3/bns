@@ -10,42 +10,43 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Local DB
-  isar: ^4.0.3
-  isar_flutter_libs: ^4.0.3
+  # Local persistence is a dependency-free JSON snapshot store
+  # (lib/data/local/isar_service.dart). No database packages, no codegen.
 
   # .bns archive + files
   archive: ^3.6.1
   path_provider: ^2.1.4
-  file_picker: ^8.0.0
+  # 10.x is the newest line compatible with Flutter's current (legacy-Kotlin)
+  # Gradle path; 11+ requires AGP built-in Kotlin which Flutter doesn't support yet.
+  file_picker: ^10.3.7
 
   # Navigation & state
   go_router: ^14.2.0
   riverpod: ^2.5.1
   flutter_riverpod: ^2.5.1
-  freezed_annotation: ^2.4.4
 
   # UI / fun / accessibility
   confetti: ^0.7.0
-  dynamic_color: ^1.7.0
-  flex_color_scheme: ^7.3.1
 
   # Calendar & dates
   table_calendar: ^3.1.2
   intl: ^0.19.0
 
-  # Reminders & notifications
+  # Reminders & notifications (not supported on Windows — guarded in code)
   flutter_local_notifications: ^17.2.1
   timezone: ^0.9.4
 
   # Voice quick capture
-  record: ^5.1.2
+  # 6.x is the newest line compatible with the legacy-Kotlin Gradle path (see file_picker note)
+  record: ^6.2.1
   audioplayers: ^6.1.0
   permission_handler: ^11.3.1
+  # Device speech engine (free, on-device, no cloud AI, no subscriptions):
+  # speaks the gentle prompt when a widget starts a voice capture.
+  flutter_tts: ^4.0.2
 
   # Utils
   uuid: ^4.4.2
-  vibration: ^1.8.4
   path: ^1.9.0   # for audio path manipulation
 
   # Encryption for secure first-time pairing + transfers
@@ -53,16 +54,12 @@ dependencies:
   crypto: ^3.0.3
 
   # Android home widget (gadget)
-  home_widget: ^0.5.0
+  home_widget: ^0.9.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.12
-  freezed: ^2.5.7
-  isar_generator: ^4.0.3
-  custom_lint: ^0.6.4
   flutter_launcher_icons: ^0.13.1
 
 flutter:
@@ -74,10 +71,16 @@ flutter:
     # Gentle illustrations and assets for happy, low-load UI
     # - assets/images/
 
-flutter_icons:
+flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
-  macos: true
   image_path: "assets/icon/bns_icon.png"  # The happy green smiling brain - accepted icon for BNS. Positive, uplifting for neuro support, brain fog management with happy tone. Fits every angle. High-profile iOS target too.
   adaptive_icon_background: "#14B8A6"  # Relaxing teal from theme
   adaptive_icon_foreground: "assets/icon/bns_icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icon/bns_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/bns_icon.png"
+    icon_size: 256

@@ -1,0 +1,158 @@
+# BNS — Roadmap & Brainstorm
+
+Living document: what's done, what's next, ideas parked until a feature they depend on lands.
+Cross-platform via `.bns` files over LAN — every idea below must stay compatible with that.
+
+## Guiding brainstorm (from the founder, July 2026)
+- **Structure to lean on.** The case is severe; the marathon for people like us is insane. The app is the steady, predictable thing — structure and confidence over features.
+- **A day without doing what you needed is OK.** Never a debt, never a red mark.
+- **Fail is a win if you meant to do it.** A deliberate skip is a decision, and deciding is exercising control. Even an unintended fail gets happy framing.
+- **Rage is part of the community we serve.** "I am mad" mode: curse everyone like a rapper, no thinking required, burns out on its own. Professional-grade support for anger, not silence about it.
+- **Semi-homogenous colors and structures across all platform versions.** Same relaxing teal/sage Material palette everywhere; platform-native feel (Cupertino bars on iOS/mac) but recognizably the same app.
+- **No web interface, permanent decision.** An app that runs all the time must not carry a web-facing surface — that's how exploits happen, and it would also endanger Apple approval for the iOS release. Native only; LAN sync is the sole network feature. (Also recorded as a non-negotiable in AGENTS.md.)
+- **PC is primary** and should be friendlier than Office: sidebar, keybinds, typing-first, keyboard-everything.
+
+## Done (implemented in code)
+- Core: routines, calendar + day view, quick voice/text capture, memory garden/roots, diary with small wins, completion logs, trash (3-day), rolling retention (14d default), user types, quiet mode.
+- Sync: LAN discovery, secure pairing (6-digit code + confirm), AES, trusted devices, auto-sync, progress bars, manual export/import `.bns`.
+- PC shell: sidebar with marked selection, date in top bar, comfortable reading column, no duplicated nav, shortcut hints in tooltips.
+- Flow: no blocking dialogs after wins (toast + optional action), "Mark next step done" completes next *unfinished* step, helpful empty state, deliberate-skip-is-a-win copy.
+- Keybinds: live, configurable, press-to-record, enable/disable checkboxes, reset to defaults, stored in settings → travels in `.bns`. Registry: `lib/core/keybinds.dart`.
+- Keyboard navigation of today's steps (Ctrl+G, arrows, Enter, S, Esc) with teal selection highlight.
+- "I am mad" mode: 24h validated-rage mode, vent captures (`mad-vent` tag) burn out ≤ ~2 days regardless of retention, warm errorContainer banner, kind re-entry message.
+
+## Big repair pass (July 2026) — "make it actually build"
+What the audit found and fixed:
+- **The project had never compiled.** No generated files, platform folders were fragments (windows/ empty, android had no Gradle, ios/macos had only plists), a stray `}` broke `IsarService`, `isar ^4.0.3` doesn't exist on pub.dev, and the freezed+`@Collection()` String-id combo matches no real Isar version.
+- **Isar + freezed removed entirely.** Models are now plain hand-written Dart classes (manual JSON/copyWith with null-clearing sentinels); persistence is an atomic JSON snapshot store (same public `IsarService` API, zero call-site changes, zero codegen). At BNS scale (2-week window) this is instant and works on every platform. Revisit a real DB only if data outgrows this.
+- **Platform runners scaffolded for real** (`flutter create`, org com.whiteno1se) for windows/android/ios/macos/linux, with the custom `.bns` file associations merged back in, plus previously-missing pieces: Android permissions (INTERNET, RECORD_AUDIO, POST_NOTIFICATIONS…), iOS mic + local-network usage strings, macOS sandbox entitlements (network client/server, mic, user files).
+- **LAN sync protocol repaired** (it could never have worked): stable per-device id in settings (was: new random id every 5s broadcast), incoming data is now actually decrypted (was: imported ciphertext), IV handling matched between encrypt/decrypt, PULL now returns data encrypted for a known trusted device only (was: full plaintext to anyone), broadcast timer cleaned up, auto-sync fires once per session instead of every hello.
+- **Pairing redesigned to be real**: initiator shows the code; the user *types it* on the other device (code never crosses the network); both sides derive the same AES key. Receiver can decline; closed screen = auto-decline.
+- Notifications guarded off on Windows (plugin has no Windows support); desktop `.bns` open-with args wired up in `main()`; local device identity survives imports (a merge used to rename your device); `record`/`home_widget` bumped to compatible versions; web target dropped on purpose (dart:io by design, README never promised web).
+- Model round-trip tests added (`flutter test` — 5 passing).
+
+### Android build notes (hard-won, don't rediscover)
+- `flutter_local_notifications` needs **core library desugaring** — enabled in `android/app/build.gradle.kts` (`isCoreLibraryDesugaringEnabled` + `desugar_jdk_libs:2.1.5`).
+- **Plugin version ceiling**: Flutter's current Gradle integration uses the *legacy* Kotlin path (`android.builtInKotlin=false`, `android.newDsl=false` — do not flip these until Flutter supports AGP 9's new DSL). Plugins that migrated to AGP built-in Kotlin will fail with "cannot find symbol …Plugin" because their Kotlin never compiles. Ceilings as of July 2026: `file_picker ^10.x` (11+ needs built-in Kotlin), `record ^6.x` (7+ needs it), `home_widget 0.9.3` is fine (honors the flag). When Flutter ships new-DSL support, lift all three together.
+- AGP 9.0.1 + Gradle 9.3.1 + compileSdk from Flutter (36). `home_widget 0.8.x` pulled an androidx.glance alpha that forced AGP 9.1/compileSdk 37 — avoided by using 0.9.3.
+- SDK licenses were accepted by writing hash files into `%LOCALAPPDATA%\Android\Sdk\licenses` (CI-style); `cmdline-tools` is not installed and not needed for building.
+- Release APK is currently **signed with the debug key** (template default) — create a real keystore + `key.properties` before distributing outside your own devices.
+
+## Absorbed from the reference folder (C:\Dev\bns — read-only Grok/idea inbox)
+`C:\Dev\bns` is Ben's idea inbox (he drops Grok-generated drafts there). **Never write to it.**
+Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* here, state-of-the-art.
+
+2026-07-05 wave — status:
+- ✅ **Per-device "LAN allowed" toggle** on trusted devices (kill switch without un-pairing; default on, advisory copy). Enforced at every transfer point: auto-sync, push out, push in, pull.
+- ✅ **BNS-payload-only guarantee**: structural validation (ZIP magic + manifest + data presence) on every import and on every decrypted LAN payload. A renamed PDF, garbage bytes, or a wrong-key decrypt all go nowhere. Discovery fast-rejects non-BNS packets.
+- ✅ **Desktop MenuBar** (File: export/import backup • View: all sections with shortcut hints • Help: About) in the PC shell.
+- ✅ Already had (convergent, ours shipped first and compiles): stable deviceId, quietMode, keybinds maps, press-to-record keybinds, NavigationRail sidebar with teal selection.
+- ✋ Deliberately NOT ported: Grok's PULL answers *any* LAN host ("only the official app would ask") — ours refuses unknown devices entirely and encrypts replies per-device. Stronger, kept. Also skipped `lanSyncAllowed` inside the .bns manifest (it's a per-device local setting, doesn't belong in the export).
+- Size stance adopted: no artificial size limits on .bns/sync — retention settings are the size control.
+
+2026-07-05 follow-up — **.bns format v2 (credit + identity)**, per Ben's direction:
+- ✅ Open technology credited explicitly (ZIP "zip magic"/PKWARE, DEFLATE/GZIP RFCs, JSON, AES) in the spec, README, and the app's About box — used as-is, zero ownership claimed.
+- ✅ Our own method defined ON TOP: EPUB-style `mimetype` identity marker (`application/x-bns`), stored uncompressed as the FIRST archive entry → fixed byte offset → a genuine .bns is recognizable from ~60 raw bytes without unpacking (`BnsImporter.hasBnsMark`). Manifest bumped to formatVersion 2 with `mediaType` + `container` credit fields.
+- ✅ Backwards compatible: v1 files (no marker) still import via the manifest+data validation path. Writers always emit v2.
+- Byte-offset test added (8 tests total).
+
+2026-07-05 wave 3 — **industry-grade container pass** (from the reference folder's "container evolution plan" + scripts wave). The recurring request across the whole wave: make the container an evolvable abstraction and make the system unbreakable. Status:
+- ✅ **BnsPacker abstraction** (`lib/data/pack/`): interface + registry (`BnsPackers.detect/current`) + `BnsZipPacker` (formatId `zip-v2`). Exporter/importer/LAN speak only to the abstraction — future formats (zstd, custom binary, deltas) plug into the registry and touch nothing else. Packers are PURE (no I/O) → isolate-safe and unit-testable by contract.
+- ✅ **Unbreakable seal**: every image carries a SHA-256 integrity block (data payload + each voice note) in its manifest; unpack verifies ZIP CRCs AND the hashes before anything reaches the database. Proven by test: one flipped byte → friendly rejection, nothing imported. Legacy v1 files (no seal) still accepted via structural checks.
+- ✅ **Benchmark** (plan action item): `test/pack_benchmark_test.dart`, runs in CI with regression ceilings. Numbers on this machine: pack 151ms / unpack+verify 74ms for 5.9MB (30×200KB audio + 700 records).
+- ✅ **Windows .bns registration**: `scripts/register-bns.ps1` (ported from the reference wave, adapted) — HKCU per-user default, sets Content Type `application/x-bns`, double-click → app imports with full validation.
+- ✅ **Auto-image setting** (`autoImageEnabled`, default on) with a toggle in Sync & PC — the reference wave's "seamless current.bns" idea, wired to our lifecycle guard.
+- ✅ **Clean-exit detection**: session marked open on launch / closed on graceful goodbye (re-opened on resume). After a crash/kill the next launch shows one REASSURING line ("everything was already saved as you went — nothing lost") — honest, because per-change persistence makes it true.
+- ✋ Not ported as-is: the draft packer in the reference folder (no marker/STORE/integrity — ours supersedes it); the 16-agent plan's Phase 2+ items (zstd/custom binary prototype, bns-cli, web viewer) are parked below in "Ideas waiting".
+
+2026-07-05 follow-up — **database vs travel file settled + silent lifecycle imaging**:
+- ✅ Decision (Ben): the live database stays an OPEN structure (bns_data.json + audio/, every change written instantly & atomically — no save button, crash-proof); .bns is the TRAVEL form, packed only at boundaries. Full reasoning in bns-format.md → "Database vs travel file".
+- ✅ **Silent imaging**: on background/close (not kill), the app flushes and refreshes ONE stable `exports/BNS_Latest_<device>.bns` — atomic write, skipped when revision unchanged. A current, shareable database file always exists without the user ever exporting. Verified live on Windows: graceful window close produced the file with the identity marker at bytes 30–54; unchanged runs correctly skip.
+- Voice notes already save instantly on capture (audio file + store entry); they ride into the .bns only at imaging/sync time — "as minimized as it can".
+- ✅ **"Most responsive operation" pass**: (1) already-compressed entries (data.json.gz, .m4a audio — the bulk of any real .bns) are now STORED in the zip instead of deflated again — double-compression burned nearly all the CPU for ~0% size gain; imaging now runs at basically disk speed. (2) The whole pack-and-write moved to a background isolate — the UI thread never stutters during imaging/sync. (3) Decision: ZIP stays — spec frozen for decades, unowned, universally openable (that's the transparency feature); with STORE it's as fast as any container gets. Verified live post-change: graceful close → auto-image with marker intact. Builder is pure + unit-tested (STORED roundtrip byte-identical).
+
+2026-07-05 wave 4 — **the web satellite** (`satellite/bns-web.html`), per Ben's direction ("html page to control database and make it to sync… ultimate solution for iPhone, no approval needed"):
+- ✅ **One self-contained HTML file** — the full .bns manager in a browser. No server, no npm, no install, no account, no network calls, no traces (zero localStorage/IndexedDB; memory only). Double-click it locally or host it as a static file on the future website; works offline either way. THIS is the answer to "people annoyed on installing stuff" — the npm/local-server idea is rejected permanently (resident process, port, traces, Ctrl+C — everything the no-server law exists to prevent).
+- ✅ **Second official zip-v2 implementation**: reads AND writes the real format — identity marker at bytes 30–54, CRC-verified ZIP, SHA-256 integrity seal verified on open and written on save, legacy v1 accepted, same friendly refusal messages. Vanilla browser tech only (DecompressionStream, WebCrypto) — needs Chrome/Edge 103+, Safari 16.4+, Firefox 113+.
+- ✅ **Control, not just view**: Today (done/skip-on-purpose with celebration), quick capture, routines CRUD (deactivate = "let it rest" instead of hard delete — merge-safe), calendar plans, memories (edit/tags/level, trash sets `deletedAt` = app's 3-day trash), diary, voice-note playback from inside the file. `updatedAt` bumped on every edit so the app's last-write-wins merge does the right thing. Unknown/future JSON fields pass through untouched.
+- ✅ **Save**: in-place via File System Access (Chrome/Edge desktop) or download/share-sheet fallback (iPhone Safari → Files/AirDrop). Ctrl+S works. Unsaved-changes guard on tab close.
+- ✅ **iPhone story**: Safari → Add to Home Screen → app-shaped, App-Store-free door to the data. The .bns file IS the sync (AirDrop/Files/USB); the page never touches a network.
+- ✅ **Cross-implementation referee**: `tool/cross_check.dart` (make/verify) + a Node harness running the page's exact core (extracted from its BNS-CORE markers). Proven both directions on 2026-07-05: JS reads Dart-written files (seal + marker verified), Dart's packer verifies JS-written files (CRC + SHA-256 + emoji-UTF8 intact). Tamper test: one flipped byte → friendly rejection in both implementations.
+- ✋ **Grok's binary packer draft** (`bns_binary_packer.dart` in the inbox, "BNS2" magic, length-prefixed) — assessed, NOT ported: it drops the SHA-256 integrity seal, drops CRCs, drops the rename-to-zip transparency, diverges from the pure sync packer interface, and chases a bottleneck that doesn't exist (zip-v2 with STORE: 151ms pack for 5.9MB; the benchmark is the referee). Stays parked under "Faster container prototype" — must beat the numbers WITH integrity to enter the registry.
+- Not in web v1 (waiting on feedback): mad mode UI, voice recording (browsers produce webm/opus, app expects m4a — playback only for now), keybind editing.
+
+2026-07-06 — **THE PIVOT (0.12a): server-first, market entry** — ⛔ **CANCELLED BY BEN THE SAME DAY** ("the mistake of the vps is banging now we gotta fix it"). Everything below in this entry is history, not current state: the server + client code was quarantined to `prototypes/cloud-pivot/` (reference only, absent from builds), the Sync screen's account card was removed, LAN + .bns is re-affirmed as the only sync. The per-keystroke-refresh fix and the 0.12a versioning survive (they were never server-specific). Kept unedited below for the record:
+- ✅ **Strategy**: users get an ACCOUNT on a BNS server; LAN Wi-Fi pairing is too much stress/ceremony for Alzheimer's/TBI users and is demoted to a fallback. .bns stays as import/export travel file. Rationale recorded in docs/server-sync.md.
+- ✅ **Server shipped** (`server/bns-server.mjs`): one file, zero npm deps, exactly 3 network commands (hello/pull/push, all else 404), CLI-only account provisioning (token shown once, only sha256 stored), constant-time auth + per-IP lockout, streaming size caps, traversal-proof audio whitelist, refuses root, atomic writes, data stored UNPACKED (data.json + individual audio — "we don't pack"), dumb-server/smart-client (all merging on device), Ctrl+C clean shutdown. 23 headless tests green (`server/test-server.mjs`).
+- ✅ **Client shipped**: `ServerSyncService` (hello → pull+merge → push, only-missing audio both ways), settings `serverUrl`/`serverToken`, "Your BNS account" card FIRST on the Sync screen (one-time setup → Sync now with progress + gentle failure copy). **Token never travels**: stripped from .bns exports, preserved through merge/replace. Cross-language contract proven live: `tool/server_protocol_check.dart` (Dart client ↔ Node server, 8 checks green).
+- ✅ **Per-keystroke UI refresh KILLED** (Ben: "looks horrible… every key press refreshes the ui"): Memories search was reloading the store + flashing the loading spinner on every keystroke → now pure in-memory filtering (`_applyFilters`), store touched only when data changes; Today's per-tile `FutureBuilder`s (re-queried the store on every rebuild/arrow-key) → replaced with a cached done-set + cached last-sync line. Rebuilds are now fully synchronous.
+- ✅ **Versioning starts at 0.12a** (pubspec `0.12.0-a+12`, About box, .bns manifests, server banner).
+- 📅 **Mac window: Friday 2026-07-10, for ~2.5 weeks** — first macOS/iOS builds + tests on real hardware. Keep both targets fresh with every change until then.
+- Deployment plan: Ben's European servers (he professionally manages sites/SSL/domains — WordPress/Joomla workflow), reverse-proxy SSL in front of the Node process, accounts created manually after payment. AWS pay-per-action is the growth path. Not hosting the world yet.
+
+2026-07-06 wave 5 — **THE REAL PIVOT: Android flagship, VPS cancelled** (Ben: "the mistake of the vps is banging now we gotta fix it… lets make the android app the best app ever"):
+- ⛔ **VPS/account-server pivot CANCELLED and contained**: server + Dart client + tests + docs moved to `prototypes/cloud-pivot/` (reference only — `.disabled` extensions, never imported from `lib/`, removed from `dist\`). Sync screen's account card removed; About copy restored; AGENTS.md law re-affirmed (no servers, no accounts; zero-knowledge bar documented for any future revival). Containment is by ABSENCE, not `//` comments: what isn't compiled can't be re-enabled by reverse engineering.
+- ✅ **Ship builds, not source**: Android release now builds with `--obfuscate --split-debug-info` (Dart AOT + symbol obfuscation) and R8 `minifyEnabled + shrinkResources` with keep rules for Flutter/home_widget/notifications (`android/app/proguard-rules.pro`). Symbol maps in `build\symbols` for crash decoding.
+- ✅ **Share name** (family-facing identity): new `shareName` settings field (person-level — travels in .bns, unlike deviceName), `effectiveShareName` used for LAN discovery/pairing so dad sees "Yossi", not "SM-G998B". Editable on the Sync screen above the device name.
+- ✅ **Widget BUNDLE shipped (native side finally exists)** — three Android home-screen widgets, resizable, light+dark teal, huge targets:
+  1. **BNS — Today** (4×2): mission list with ✓ marks + times, "N of M handled", kind user-type-aware summary. Tap → app.
+  2. **BNS — Coming up** (4×2): next-N-days plans (default 2) + one recent memory (never `mad-vent` — sacred rule enforced in the data push). Tap → calendar.
+  3. **BNS — Quick actions** (4×1): ＋ Task (opens the new-routine form directly), ＋ Memory (capture ready to type), 🎤 Voice (**app opens already recording** — one tap from home screen to talking).
+  Deep links `bns://add-task|add-memory|record|calendar` via home_widget launch intents, handled in `main.dart`; Kotlin providers in `android/app/src/main/kotlin/com/whiteno1se/bns/`.
+- ✅ **Voice notes born small**: recording is now mono AAC 48 kbps (~1/3 of the old 128 kbps default) — clear speech, tiny files. Ben's "compress audio older than 2 days" examined honestly: .m4a is already compressed (gzip gains ~0%); the real 2-day tier would be re-encoding via Android MediaCodec — parked below with that exact scope. Fresh files stay instantly playable either way.
+- ✅ **Business model recorded** (AGENTS.md + README): premium paid-only, no ads, no free tier, no subscriptions; ~$1–2 launch price pending; on-device speech recognition only (no cloud AI APIs).
+- Testing note: two-instance LAN testing works on PC (`--data-dir`); for Android use the emulator + a real phone on one Wi-Fi, or PC exe + phone. The web satellite covers the "children's computer" family view.
+
+2026-07-06 wave 6 — **the porting wave** (Ben approved the recommended order: TTS → BNS2 → family view):
+- ✅ **TTS shipped** (`lib/services/tts_service.dart`, ported from the inbox draft and hardened): when a home-widget 🎤 tap opens the app already recording, the device speech engine first says "Tell me about today." — `awaitSpeakCompletion` so the prompt never bleeds into the recording, silent in quiet mode, silent on any engine failure. Free, on-device, no cloud AI. `flutter_tts ^4.0.2` survived the AGP 9.0.1 / legacy-Kotlin ladder (verified by full APK build immediately after adding it).
+- ✅ **BNS2 binary container ported state-of-the-art** (`lib/data/pack/bns_binary_packer.dart`, formatId `bns2-v1`): Grok's length-prefixed layout ("BNS2" magic + u32le sections) raised to house standards the draft lacked — SHA-256 integrity seal, bounds-checked reads with the friendly refusals, pure sync `BnsPacker` contract. Registered in `BnsPackers.all` as a full READER; 6 contract tests (roundtrip, detect, data-tamper, audio-tamper, truncation, foreign bytes).
+- 📊 **Benchmark verdict — dead heat, zip stays the writer**: on the 5.9MB heavy dataset, `bns2-v1 pack=85ms/unpack=53ms` vs `zip-v2 pack=83ms/unpack=54ms`. The STORE optimization already removed ZIP's real cost; directory overhead is noise at realistic sizes (BNS2 only saves ~350 bytes of container overhead per file). Verdict: no speed case for switching writers; rename-to-.zip transparency wins. The benchmark now races EVERY registered packer automatically, so any future format gets the same referee.
+- ✅ **Satellite reads BNS2 too** — the compat catch is closed: `satellite/bns-web.html` detects both containers (BNS2 magic or PK), verifies the same seal, refuses tampering. Cross-verified: Dart-written BNS2 fixture read + tamper-rejected by the JS core (16/16 harness checks), JS-written zip verified by Dart (`tool/cross_check.dart make <path> [zip|bns2]`).
+- ✅ **Family view = a satellite MODE, not a second HTML codebase** (as recommended): open `bns-web.html#family` (or the About-tab button) → read-only, dirt-simple window for the caregiver's/kid's computer. Shows "<shareName>'s days 💚", today's list with ✅/⬜, "N of M handled — skipping on purpose counts too", coming-up plans, recent good moments, encouragement footer. No editing, no save bar, mad-vents and trash NEVER surface (verified live). Transfer stays file-based: send the .bns (or the auto-imaged `BNS_Latest`) + the HTML file; nothing serves anything.
+- ✋ Not ported from the inbox: `lan_discovery.dart` as a separate module (ours lives inside the sync service — no functional gap), Grok's bare MainActivity (ours identical), the container-evolution doc (absorbed since wave 3).
+
+2026-07-06 — **Architecture decision record: Flutter stays; no native rewrites** (Ben asked "why Flutter instead of natives for all platforms?"):
+- **Why Flutter was and remains right for BNS**: one person + AI sessions maintaining five platforms. The product's value is shared logic (packers, sync protocol, retention, mad mode, kindness copy) — exactly what a shared codebase protects. Ben's own "semi-homogenous colors and structures all over the versions" requirement is a one-codebase requirement. Flutter compiles AOT to real native machine code (no webview); the APK-size cost (~53MB vs ~10MB native) is acceptable for a premium app.
+- **We already do "native where it matters"**: the widget bundle is hand-written Kotlin, file associations are native manifests/registry, TTS/recording wrap platform engines. Flutter never blocked a needed native piece — platform channels exist for the day it does.
+- **"Windows is redundant"** — as a native project it would be; in Flutter it's a build TARGET, not a codebase. Dropping it saves ~nothing, and the exe is the LAN test rig + Ben's own machine. Keep.
+- **Native Android ground-up: rejected** — months of rewriting sync/packers/widgets/mad-mode for zero user-visible gain, then permanent ×2 maintenance. Would only be justified by a wall Flutter can't cross; none hit.
+- **The real insurance against framework lock-in is the FORMAT, not a rewrite**: .bns already has two independent implementations (Dart + JS). Any future native app on any framework can speak it. The data outlives the framework.
+- **Mac window (from Friday 2026-07-10, ~2.5 weeks)**: effort goes into perfect iOS/macOS builds from THIS codebase — real IPA, TestFlight, adaptive polish — not a rewrite.
+- **Kubuntu laptop**: the Linux target finally gets exercised — see README "Working from multiple computers".
+
+## Needed / to do (next passes)
+- **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
+- **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.
+- ~~Android widget native side~~ — DONE in wave 5 (three-widget bundle, receivers + layouts + deep links).
+- **Old-audio re-encode tier** (Ben's "compress sound files older than 2 days"): a small MediaCodec platform channel that re-encodes >2-day-old .m4a to ~24 kbps mono in place (hash updates on next imaging). Real size win where gzip has none. Waiting on: first real-device profiling of how much space old audio actually takes at the new 48 kbps birth rate.
+- **Voice-note subject via on-device speech recognition** (Ben: subject line = start of the recording, free platform recognizer, NO cloud AI subscriptions): add `speech_to_text`-style plugin AFTER verifying it survives the AGP 9.0.1 / legacy-Kotlin build ladder (see Android build notes). One-shot transcribe of the first seconds → capture title.
+- Notifications: timezone is UTC until we wire `flutter_timezone` to set `tz.local` (reminders may fire at shifted times).
+- Pairing hardening: PBKDF2 (or SPAKE2) instead of single sha256 for key derivation; rate-limit attempts.
+- Keyboard navigation for Routines manager and Memories list (same ↑↓/Enter pattern as Today — reuse, keep semi-homogenous).
+- Global "mark done" toast when triggered from another screen (currently navigates to Today first — works, could be smoother).
+- Mad mode on Android widget (small flame state?) — keep gentle.
+- Day summary should *never* include mad-vents (verify when day-summary code is touched).
+
+## Ideas waiting on a feature (parked, don't lose)
+- **Family encouragement notes** (Ben, 2026-07-06: "wouldn't it need a system to import their encouragement, or we trust the family to deliver on their own"): DECISION — trust the family in person for now; the involved-whole-family case (Ben's own) is the edge case, and an inbox is one more thing for the patient to check. When wanted, the lean build already exists in the architecture: satellite family mode grows ONE "Send love 💌" box → writes a `from-family`-tagged QuickCapture into the .bns → re-seals → travels back by file/LAN → normal merge imports it → app shows `from-family` captures as gentle notes (retention applies; must never read like a scoreboard or arrive on a rage day as noise). No server, no accounts, no new sync. Waiting on: real caregiver feedback asking for it.
+- **Family social network** — REJECTED, not parked (Ben, 2026-07-06: "its bullshit, they can provide help if needed"): outside LAN requires a server (cancelled law); inside LAN it's redundant (same Wi-Fi = same house = talk). Recorded so future waves don't resurrect it.
+- **Family view: SETTLED (Ben, 2026-07-06) → the FAMILY SHARE, shipped same day.** Decision: family gets "simple information on important stuff — doctor meetings, weddings, holidays, anything the user feels is important and might forget. The rest is none of their business." Implemented as a patient-initiated **filtered export** (a wall, not a curtain):
+  - `CalendarEvent.shareWithFamily` (default false — private unless chosen; legacy events stay private). Set at creation ("Family can know" checkbox) or by tapping the 👪 icon on any event in Day view.
+  - `BnsExporter.exportFamilyShare()` → `exports/BNS_Family_<shareName>.bns`: ONLY flagged events + `{shareName}` — no routines, no captures, no diary, no audio, no preferences, no matter how the file is opened (~800 bytes typical). Button on the Sync screen: "Make the family file".
+  - Manifest carries `familyShare: true` → the satellite auto-opens such files straight into family view, retitled "<Name>'s important plans", no Today/memories sections, no full-view door, framed as invited help ("chose to share these — a reminder is welcome, gently" / "Being asked to remember is trust").
+  - The full-file family mode (`#family` on a complete backup) still exists for households where handing over everything is wanted — but the family SHARE is the product story. Skips/routines/diary never leave the patient's devices unless he hands over a full backup deliberately.
+  - Tests: flag roundtrip + private-by-default + family-file shape (18/18 green); satellite verified live both directions (family file → plans-only view; normal backup → full manager).
+- **bns-cli** (from the container evolution plan): native binaries with `inspect`, `validate`, `merge`, `export-json` — waiting on the packer abstraction settling (it has). Next natural step for the global-spread story.
+- **Faster container prototype** (zstd-in-zip or custom length-prefixed binary) — waiting on real-world numbers that beat zip-v2's 151ms/5.9MB; the benchmark test is the referee. Plug into `BnsPackers.all` when ready.
+- ~~Offline web viewer~~ — ABSORBED by wave 4, and grew into a full manager (`satellite/bns-web.html`). Servers stay banned; the satellite is a static file.
+- **Voice-to-text for vents and captures** — waiting on choosing an offline speech package (privacy: LAN-only rule forbids cloud STT). Once in: vents become searchable *only if user opts in*; default stays ephemeral.
+- **Keybind for "start venting" global** — waiting on mad mode UX feedback; could be `Ctrl+Shift+M`.
+- **macOS menu bar quick capture** — waiting on macOS build pipeline being exercised.
+- **iOS/Android home widget "today's mission" parity** — Android exists; iOS waiting on `home_widget` iOS wiring at first iOS build.
+- **Configurable mad-mode burnout duration** (a day "or so") — waiting on real user feedback; default 24h mode / 48h vents until then.
+- **Doctor-share export** (memories filtered by tag, printable) — waiting on PDF/print decision; must exclude vents always.
+
+## Rules for this file
+- Update it in the same commit as the feature it describes.
+- Ideas come in with a one-line "waiting on X" so future sessions know when to pick them up.
+- Nothing here overrides AGENTS.md non-negotiables.

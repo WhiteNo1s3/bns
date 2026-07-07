@@ -1,9 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- LAN-only sync (UDP discovery + TCP transfer on local Wi-Fi) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Voice quick capture -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Gentle reminders (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name">
+        android:label="BNS">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,6 +55,40 @@
                 <data android:host="*" />
             </intent-filter>
         </activity>
+        <!-- BNS widget bundle: three home-screen widgets, all dirt simple -->
+        <receiver
+            android:name=".BnsTodayWidgetProvider"
+            android:exported="false"
+            android:label="BNS — Today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+        <receiver
+            android:name=".BnsUpcomingWidgetProvider"
+            android:exported="false"
+            android:label="BNS — Coming up">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_upcoming_info" />
+        </receiver>
+        <receiver
+            android:name=".BnsActionsWidgetProvider"
+            android:exported="false"
+            android:label="BNS — Quick actions">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_actions_info" />
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

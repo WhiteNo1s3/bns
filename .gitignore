@@ -49,3 +49,7 @@ Thumbs.db
 *.bns
 exports/
 audio/
+
+# Built artifacts live in releases/stores, not in source control
+dist/
+build/symbols/

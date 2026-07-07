@@ -3,14 +3,17 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
-import 'package:intl/intl.dart';
 
 /// Dedicated screen for managing all routines (CRUD).
 /// This is the first major feature added after core sync & retention.
 /// Keeps it simple, large targets, forgiving, positive language.
 /// Ties into the 2-week planning window and small data philosophy.
 class RoutinesScreen extends StatefulWidget {
-  const RoutinesScreen({super.key});
+  /// True when arriving from the home-widget "+ Task" button: one tap on the
+  /// widget should land straight in the new-routine form (dirt simple).
+  final bool openNewOnStart;
+
+  const RoutinesScreen({super.key, this.openNewOnStart = false});
 
   @override
   State<RoutinesScreen> createState() => _RoutinesScreenState();
@@ -24,6 +27,10 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   void initState() {
     super.initState();
     _loadRoutines();
+    if (widget.openNewOnStart) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _addOrEditRoutine());
+    }
   }
 
   Future<void> _loadRoutines() async {
@@ -53,9 +60,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(existing != null 
-              ? 'Routine updated. Nice work keeping things organized.' 
-              : 'New routine added. You\'ve got this.'),
+            content: Text(existing != null
+                ? 'Routine updated. Nice work keeping things organized.'
+                : 'New routine added. You\'ve got this.'),
           ),
         );
       }
@@ -67,9 +74,12 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove this routine?'),
-        content: Text('This will delete "${routine.title}". No pressure – you can always add it back.'),
+        content: Text(
+            'This will delete "${routine.title}". No pressure – you can always add it back.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
@@ -96,6 +106,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       appBar: BnsAppBar(
         title: 'Manage Routines',
         leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
+        hideOnDesktopWide: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -137,22 +148,32 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                       child: ListTile(
                         onTap: () => _addOrEditRoutine(r),
                         leading: Icon(
-                          r.isActive ? Icons.check_circle_outline : Icons.pause_circle_outline,
-                          color: r.isActive ? Theme.of(context).colorScheme.primary : Colors.grey,
+                          r.isActive
+                              ? Icons.check_circle_outline
+                              : Icons.pause_circle_outline,
+                          color: r.isActive
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey,
                         ),
-                        title: Text(r.title, style: const TextStyle(fontSize: 18)),
+                        title:
+                            Text(r.title, style: const TextStyle(fontSize: 18)),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (r.description != null) Text(r.description!),
                             Text(
-                              RecurrenceUtils.describe(r) + (r.time != null ? ' at ${r.time}' : ''),
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              RecurrenceUtils.describe(r) +
+                                  (r.time != null ? ' at ${r.time}' : ''),
+                              style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant),
                             ),
                           ],
                         ),
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.redAccent),
                           onPressed: () => _deleteRoutine(r),
                           tooltip: 'Delete routine',
                         ),
@@ -215,13 +236,16 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
     final now = TimeOfDay.now();
     final picked = await showTimePicker(
       context: context,
-      initialTime: _time != null 
-        ? TimeOfDay(hour: int.parse(_time!.split(':')[0]), minute: int.parse(_time!.split(':')[1])) 
-        : now,
+      initialTime: _time != null
+          ? TimeOfDay(
+              hour: int.parse(_time!.split(':')[0]),
+              minute: int.parse(_time!.split(':')[1]))
+          : now,
     );
     if (picked != null) {
       setState(() {
-        _time = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        _time =
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       });
     }
   }
@@ -240,7 +264,8 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
   void _save() {
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Title is required – even a short one helps.')),
+        const SnackBar(
+            content: Text('Title is required – even a short one helps.')),
       );
       return;
     }
@@ -249,7 +274,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
     final routine = Routine(
       id: widget.existing?.id ?? '',
       title: _titleController.text.trim(),
-      description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+      description: _descController.text.trim().isEmpty
+          ? null
+          : _descController.text.trim(),
       recurrenceType: _recurrence,
       daysOfWeek: _daysOfWeek,
       time: _time,
@@ -285,24 +312,28 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               controller: _descController,
               maxLines: 2,
               decoration: const InputDecoration(
-                labelText: 'Description (optional – helps when memory is fuzzy)',
+                labelText:
+                    'Description (optional – helps when memory is fuzzy)',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<RecurrenceType>(
               value: _recurrence,
-              decoration: const InputDecoration(labelText: 'Repeats', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Repeats', border: OutlineInputBorder()),
               items: RecurrenceType.values.map((type) {
                 return DropdownMenuItem(
                   value: type,
-                  child: Text(type.name[0].toUpperCase() + type.name.substring(1)),
+                  child:
+                      Text(type.name[0].toUpperCase() + type.name.substring(1)),
                 );
               }).toList(),
               onChanged: (val) => setState(() => _recurrence = val!),
             ),
             const SizedBox(height: 12),
-            if (_recurrence == RecurrenceType.weekly || _recurrence == RecurrenceType.custom)
+            if (_recurrence == RecurrenceType.weekly ||
+                _recurrence == RecurrenceType.custom)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -326,11 +357,14 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               subtitle: Text(_time ?? 'Any time'),
               trailing: const Icon(Icons.access_time),
               onTap: _pickTime,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade300)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.grey.shade300)),
             ),
             SwitchListTile(
               title: const Text('First-step-only mode'),
-              subtitle: const Text('Helpful on overwhelming days – just do the tiniest part'),
+              subtitle: const Text(
+                  'Helpful on overwhelming days – just do the tiniest part'),
               value: _firstStepOnly,
               onChanged: (v) => setState(() => _firstStepOnly = v),
             ),
@@ -343,7 +377,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
         FilledButton(onPressed: _save, child: const Text('Save')),
       ],
     );

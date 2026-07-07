@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/upcoming_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="14dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🌿 Coming up"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="@color/bnsWidgetAccent" />
+
+    <TextView
+        android:id="@+id/upcoming_text"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp"
+        android:textSize="14sp"
+        android:lineSpacingExtra="4dp"
+        android:textColor="@color/bnsWidgetText" />
+
+    <TextView
+        android:id="@+id/recent_memory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="11sp"
+        android:textStyle="italic"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/bnsWidgetMuted" />
+</LinearLayout>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_today_desc">Today\'s mission — what matters now, kindly.</string>
+    <string name="widget_upcoming_desc">Coming up — the next days at a glance, plus a good memory.</string>
+    <string name="widget_actions_desc">Quick actions — add a task, keep a memory, or just start talking.</string>
+</resources>

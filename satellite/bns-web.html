@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BNS">
+<meta name="theme-color" content="#0f766e">
+<title>BNS Web — your .bns, everywhere</title>
+<!--
+  BNS Web satellite — a complete, single-file .bns manager.
+
+  Rules of the house:
+  - NO server, NO npm, NO install, NO account, NO network calls. Ever.
+  - Everything happens in this page's memory. Close the tab, nothing remains.
+  - Reads and writes the same zip-v2 .bns format as the native BNS app
+    (identity marker at bytes 30..54, SHA-256 integrity seal, CRC-verified).
+  - The .bns FILE is the sync: AirDrop / Files / USB / share it, the app merges.
+
+  Credits — open technology used as-is, no ownership claimed:
+  ZIP (PKWARE APPNOTE), DEFLATE/GZIP (RFC 1951/1952), JSON (ECMA-404),
+  SHA-256 (FIPS 180-4) via WebCrypto.
+-->
+<style>
+:root{
+  --teal:#0f766e; --teal-soft:#14b8a6; --teal-bg:#f0fdfa; --ink:#134e4a;
+  --card:#ffffff; --line:#99f6e4; --muted:#5f7a76; --warn:#b45309;
+  --danger:#b91c1c; --ok:#15803d; --chip:#ccfbf1;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --teal:#2dd4bf; --teal-soft:#14b8a6; --teal-bg:#0b1f1d; --ink:#d7f5f0;
+    --card:#12302d; --line:#1e4a45; --muted:#8fb5af; --warn:#fbbf24;
+    --danger:#f87171; --ok:#4ade80; --chip:#134e4a;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--teal-bg); color:var(--ink); min-height:100vh;
+  display:flex; flex-direction:column;
+}
+header{
+  background:linear-gradient(135deg,#0f766e,#0d9488);
+  color:#f0fdfa; padding:14px 18px; display:flex; align-items:center; gap:12px;
+  position:sticky; top:0; z-index:5;
+}
+header .brain{font-size:30px}
+header h1{font-size:19px; margin:0; font-weight:600}
+header .tag{font-size:12px; opacity:.85; margin-top:2px}
+main{flex:1; width:100%; max-width:860px; margin:0 auto; padding:14px 14px 110px}
+.banner{border-radius:12px; padding:12px 14px; margin:10px 0; font-size:14px; line-height:1.5}
+.banner.ok{background:var(--chip); color:var(--ok); border:1px solid var(--line)}
+.banner.warn{background:rgba(180,83,9,.08); color:var(--warn); border:1px solid rgba(180,83,9,.3)}
+.banner.err{background:rgba(185,28,28,.08); color:var(--danger); border:1px solid rgba(185,28,28,.3)}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:14px;
+  padding:14px; margin:10px 0; box-shadow:0 1px 3px rgba(19,78,74,.08);
+}
+.card h3{margin:0 0 4px; font-size:16px}
+.card .sub{color:var(--muted); font-size:13px; margin:2px 0}
+button{
+  font-family:inherit; font-size:15px; border:none; border-radius:12px;
+  padding:12px 18px; cursor:pointer; min-height:48px;
+  background:var(--teal); color:#f0fdfa; font-weight:600;
+}
+button.ghost{background:transparent; color:var(--teal); border:1.5px solid var(--teal)}
+button.small{min-height:38px; padding:7px 13px; font-size:13.5px; border-radius:10px}
+button.danger{background:transparent; color:var(--danger); border:1.5px solid var(--danger)}
+button:active{transform:scale(.98)}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.grow{flex:1}
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px}
+.chip{background:var(--chip); color:var(--ink); border-radius:99px; padding:3px 10px; font-size:12px}
+.done{opacity:.65}
+.done h3{text-decoration:line-through; text-decoration-color:var(--teal-soft)}
+nav.tabs{
+  display:flex; gap:4px; overflow-x:auto; padding:10px 0 2px; position:sticky;
+  top:58px; background:var(--teal-bg); z-index:4;
+}
+nav.tabs button{
+  background:transparent; color:var(--muted); border-radius:10px; min-height:42px;
+  padding:8px 14px; font-size:14px; white-space:nowrap; font-weight:600;
+}
+nav.tabs button.on{background:var(--teal); color:#f0fdfa}
+#dropzone{
+  border:2.5px dashed var(--teal-soft); border-radius:18px; padding:44px 22px;
+  text-align:center; margin:26px 0; cursor:pointer; transition:background .15s;
+}
+#dropzone.hover{background:var(--chip)}
+#dropzone .big{font-size:44px}
+#dropzone p{color:var(--muted); font-size:14px; line-height:1.6}
+#savebar{
+  position:fixed; left:0; right:0; bottom:0; z-index:6;
+  background:var(--card); border-top:1px solid var(--line);
+  padding:10px max(14px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom));
+  display:none; align-items:center; gap:10px; max-width:100%;
+}
+#savebar .fname{font-size:13px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1}
+#savebar .dot{color:var(--warn); font-size:22px; line-height:0}
+textarea,input,select{
+  font-family:inherit; font-size:15px; width:100%; padding:11px 12px;
+  border:1.5px solid var(--line); border-radius:10px; background:var(--teal-bg);
+  color:var(--ink); margin:4px 0 10px;
+}
+textarea{min-height:84px; resize:vertical}
+label{font-size:13px; font-weight:600; color:var(--muted)}
+dialog{
+  border:none; border-radius:16px; padding:18px; max-width:520px; width:92vw;
+  background:var(--card); color:var(--ink); box-shadow:0 8px 40px rgba(0,0,0,.3);
+}
+dialog::backdrop{background:rgba(15,60,55,.45)}
+.daysrow{display:flex; gap:5px; margin:4px 0 10px}
+.daysrow button{min-height:40px; padding:6px 0; flex:1; font-size:13px}
+.daysrow button.off{background:transparent; color:var(--muted); border:1.5px solid var(--line)}
+.spark{position:fixed; font-size:22px; pointer-events:none; z-index:99; animation:fly 1s ease-out forwards}
+@keyframes fly{to{transform:translateY(-90px) rotate(20deg); opacity:0}}
+.about p{font-size:14px; line-height:1.65}
+.about h3{margin:16px 0 4px}
+.datehead{font-size:13px; font-weight:700; color:var(--muted); margin:14px 2px 2px; text-transform:uppercase; letter-spacing:.4px}
+audio{width:100%; margin-top:8px; height:38px}
+</style>
+</head>
+<body>
+<header>
+  <span class="brain">🧠</span>
+  <div>
+    <h1>BNS Web</h1>
+    <div class="tag">Your .bns, everywhere. Nothing leaves this device.</div>
+  </div>
+</header>
+<main id="main"></main>
+<div id="savebar">
+  <span class="dot" id="dirtydot" style="display:none">●</span>
+  <span class="fname" id="fname"></span>
+  <button class="small ghost" id="saveasbtn">Save a copy</button>
+  <button class="small" id="savebtn">Save</button>
+</div>
+<dialog id="dlg"></dialog>
+<input type="file" id="fileinput" accept=".bns" style="display:none">
+
+<script>
+'use strict';
+/*BNS-CORE-START*/
+/* ============================================================
+   BNS container core — the second official implementation of
+   zip-v2 (the first lives in lib/data/pack/bns_zip_packer.dart).
+   Pure functions, no DOM: testable headlessly under Node.
+   ============================================================ */
+const te = new TextEncoder();
+const td = new TextDecoder();
+const BNS_MEDIA_TYPE = 'application/x-bns';
+
+class BnsError extends Error {}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c;
+  }
+  return t;
+})();
+function crc32(b) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function pipeBytes(bytes, stream) {
+  const resp = new Response(new Blob([bytes]).stream().pipeThrough(stream));
+  return new Uint8Array(await resp.arrayBuffer());
+}
+const gzipBytes = (b) => pipeBytes(b, new CompressionStream('gzip'));
+const gunzipBytes = (b) => pipeBytes(b, new DecompressionStream('gzip'));
+const inflateRaw = (b) => pipeBytes(b, new DecompressionStream('deflate-raw'));
+
+async function sha256Hex(bytes) {
+  const buf = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/* Fixed-offset identity check — mirrors BnsImporter.hasBnsMark. */
+function hasBnsMark(bytes) {
+  const name = 'mimetype', content = BNS_MEDIA_TYPE;
+  const end = 30 + name.length + content.length;
+  if (bytes.length < end || bytes[0] !== 0x50 || bytes[1] !== 0x4B) return false;
+  return td.decode(bytes.subarray(30, 38)) === name &&
+         td.decode(bytes.subarray(38, end)) === content;
+}
+
+const DAMAGED_MSG = 'This .bns file is damaged (failed the container check). ' +
+  'Try another copy — nothing on this page was changed.';
+
+/* Reads a ZIP: central-directory driven, CRC-verified, STORE + DEFLATE. */
+async function readZip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd = -1;
+  const floor = Math.max(0, bytes.length - 65557);
+  for (let i = bytes.length - 22; i >= floor; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new BnsError(DAMAGED_MSG);
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new BnsError(DAMAGED_MSG);
+    const method = dv.getUint16(off + 10, true);
+    const crc = dv.getUint32(off + 16, true) >>> 0;
+    const compSize = dv.getUint32(off + 20, true);
+    const uncompSize = dv.getUint32(off + 24, true);
+    const nLen = dv.getUint16(off + 28, true);
+    const eLen = dv.getUint16(off + 30, true);
+    const cLen = dv.getUint16(off + 32, true);
+    const lOff = dv.getUint32(off + 42, true);
+    const name = td.decode(bytes.subarray(off + 46, off + 46 + nLen));
+    if (dv.getUint32(lOff, true) !== 0x04034b50) throw new BnsError(DAMAGED_MSG);
+    const lnLen = dv.getUint16(lOff + 26, true);
+    const leLen = dv.getUint16(lOff + 28, true);
+    const start = lOff + 30 + lnLen + leLen;
+    const comp = bytes.subarray(start, start + compSize);
+    let content;
+    if (method === 0) content = comp;
+    else if (method === 8) content = await inflateRaw(comp);
+    else throw new BnsError(DAMAGED_MSG);
+    if (content.length !== uncompSize || crc32(content) !== crc) {
+      throw new BnsError(DAMAGED_MSG);
+    }
+    if (!name.endsWith('/')) out.push({ name, bytes: content });
+    off += 46 + nLen + eLen + cLen;
+  }
+  return out;
+}
+
+/* Writes a ZIP with every entry STORED — identical layout rules to
+   BnsZipPacker: 30-byte local header means entry #1's name starts at
+   byte 30, which is what puts the identity marker at bytes 30..54. */
+function writeZip(files) {
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  for (const f of files) {
+    const nameB = te.encode(f.name);
+    const crc = crc32(f.bytes);
+    const sz = f.bytes.length;
+    const lh = new Uint8Array(30 + nameB.length);
+    const dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);           // version needed
+    dv.setUint16(10, dosTime, true);
+    dv.setUint16(12, dosDate, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, sz, true);          // compressed (STORE: same)
+    dv.setUint32(22, sz, true);          // uncompressed
+    dv.setUint16(26, nameB.length, true);
+    lh.set(nameB, 30);
+    chunks.push(lh, f.bytes);
+    central.push({ nameB, crc, sz, offset });
+    offset += lh.length + sz;
+  }
+  const cdStart = offset;
+  for (const c of central) {
+    const ch = new Uint8Array(46 + c.nameB.length);
+    const dv = new DataView(ch.buffer);
+    dv.setUint32(0, 0x02014b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 20, true);
+    dv.setUint16(12, dosTime, true);
+    dv.setUint16(14, dosDate, true);
+    dv.setUint32(16, c.crc, true);
+    dv.setUint32(20, c.sz, true);
+    dv.setUint32(24, c.sz, true);
+    dv.setUint16(28, c.nameB.length, true);
+    dv.setUint32(42, c.offset, true);
+    ch.set(c.nameB, 46);
+    chunks.push(ch);
+    offset += ch.length;
+  }
+  const eocd = new Uint8Array(22);
+  const dv = new DataView(eocd.buffer);
+  dv.setUint32(0, 0x06054b50, true);
+  dv.setUint16(8, central.length, true);
+  dv.setUint16(10, central.length, true);
+  dv.setUint32(12, offset - cdStart, true);
+  dv.setUint32(16, cdStart, true);
+  chunks.push(eocd);
+  const out = new Uint8Array(offset + 22);
+  let p = 0;
+  for (const ch of chunks) { out.set(ch, p); p += ch.length; }
+  return out;
+}
+
+/* SHA-256 integrity seal check shared by both container formats. */
+async function verifySeal(manifest, dataGz, audio) {
+  const integrity = manifest.integrity;
+  if (!integrity || typeof integrity !== 'object') return false;
+  if (dataGz && typeof integrity.data === 'string' &&
+      (await sha256Hex(dataGz)) !== integrity.data) {
+    throw new BnsError('This .bns file failed its integrity check (contents were ' +
+      'altered or corrupted in transit). Nothing was opened.');
+  }
+  const audioSeals = integrity.audio;
+  if (audioSeals && typeof audioSeals === 'object') {
+    for (const a of audio) {
+      const expected = audioSeals[a.name];
+      if (typeof expected === 'string' && (await sha256Hex(a.bytes)) !== expected) {
+        throw new BnsError(`Voice note "${a.name}" failed its integrity check. Nothing was opened.`);
+      }
+    }
+  }
+  return true;
+}
+
+/* BNS2 (bns2-v1) — the length-prefixed binary container. Mirrors
+   lib/data/pack/bns_binary_packer.dart: magic "BNS2", u32le-prefixed
+   manifest / data.json.gz / audio entries, same seal, same refusals. */
+function hasBns2Magic(bytes) {
+  return bytes.length >= 16 && bytes[0] === 0x42 && bytes[1] === 0x4E &&
+         bytes[2] === 0x53 && bytes[3] === 0x32; // "BNS2"
+}
+async function parseBns2(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 4;
+  const u32 = () => {
+    if (offset + 4 > bytes.length) throw new BnsError(DAMAGED_MSG);
+    const v = dv.getUint32(offset, true);
+    offset += 4;
+    return v;
+  };
+  const take = (len) => {
+    if (len < 0 || offset + len > bytes.length) throw new BnsError(DAMAGED_MSG);
+    const s = bytes.subarray(offset, offset + len);
+    offset += len;
+    return s;
+  };
+  let manifest;
+  try { manifest = JSON.parse(td.decode(take(u32()))); }
+  catch (e) {
+    if (e instanceof BnsError) throw e;
+    throw new BnsError('Not a BNS backup — missing manifest or data inside the file.');
+  }
+  const dataGz = take(u32());
+  const count = u32();
+  const audio = [];
+  for (let i = 0; i < count; i++) {
+    const name = td.decode(take(u32()));
+    audio.push({ name, bytes: take(u32()) });
+  }
+  const sealed = await verifySeal(manifest, dataGz, audio);
+  const data = JSON.parse(td.decode(await gunzipBytes(dataGz)));
+  // The BNS2 magic at offset 0 IS the identity marker for this format.
+  return { manifest, data, audio, sealed, marked: true };
+}
+
+/* Full .bns open — detects the container (zip-v2 or bns2-v1), then runs
+   structure + CRC + SHA-256 checks with the same friendly refusals as the
+   Dart packers. Accepts legacy v1 zips. */
+async function parseBns(bytes) {
+  if (hasBns2Magic(bytes)) return parseBns2(bytes);
+  if (!(bytes.length >= 50 && bytes[0] === 0x50 && bytes[1] === 0x4B)) {
+    throw new BnsError('Not a BNS backup — only real .bns files can be opened.');
+  }
+  const entries = await readZip(bytes);
+  let manifest = null, dataGz = null, dataPlain = null;
+  const audio = [];
+  for (const e of entries) {
+    if (e.name === 'manifest.json') manifest = JSON.parse(td.decode(e.bytes));
+    else if (e.name === 'data.json.gz') dataGz = e.bytes;
+    else if (e.name === 'data.json') dataPlain = e.bytes;
+    else if (e.name.startsWith('audio/')) audio.push({ name: e.name.slice(6), bytes: e.bytes });
+  }
+  if (!manifest || (!dataGz && !dataPlain)) {
+    throw new BnsError('Not a BNS backup — missing manifest or data inside the file.');
+  }
+  const sealed = await verifySeal(manifest, dataGz, audio);
+  const raw = dataGz ? await gunzipBytes(dataGz) : dataPlain;
+  const data = JSON.parse(td.decode(raw));
+  return { manifest, data, audio, sealed, marked: hasBnsMark(bytes) };
+}
+
+/* Full .bns build: gzip-once data, seal manifest with SHA-256 block,
+   marker first — byte-compatible with what the Flutter app writes. */
+async function buildBns({ manifest, data, audio }) {
+  const gz = await gzipBytes(te.encode(JSON.stringify(data)));
+  const audioHashes = {};
+  for (const a of audio) audioHashes[a.name] = await sha256Hex(a.bytes);
+  const sealedManifest = {
+    ...manifest,
+    packer: 'zip-v2',
+    integrity: { algorithm: 'sha256', data: await sha256Hex(gz), audio: audioHashes },
+  };
+  return writeZip([
+    { name: 'mimetype', bytes: te.encode(BNS_MEDIA_TYPE) },
+    { name: 'manifest.json', bytes: te.encode(JSON.stringify(sealedManifest)) },
+    { name: 'data.json.gz', bytes: gz },
+    ...audio.map(a => ({ name: 'audio/' + a.name, bytes: a.bytes })),
+  ]);
+}
+/*BNS-CORE-END*/
+
+/* ============================================================
+   App state + helpers
+   ============================================================ */
+const S = {
+  manifest: null, data: null, audio: [],
+  dirty: false, handle: null, fileName: null,
+  sealed: false, marked: false, tab: 'today', notice: null,
+  // Family mode: a read-only, dumb-simple window for the caregiver's /
+  // kid's computer. Open the page as bns-web.html#family (or use the
+  // button in About). No editing, no saving, nothing to break.
+  family: location.hash === '#family',
+};
+const $ = (id) => document.getElementById(id);
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+    }));
+const nowIso = () => new Date().toISOString();
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function prettyWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function prettyRecurrence(r) {
+  switch (r.recurrenceType) {
+    case 'daily': return 'Every day';
+    case 'weekdays': return 'Weekdays (Mon–Fri)';
+    default: {
+      const days = (r.daysOfWeek || []).map(i => DAY_NAMES[i] ?? '?').join(', ');
+      return days ? 'On ' + days : 'Custom days';
+    }
+  }
+}
+function appliesToday(r) {
+  if (r.isActive === false) return false;
+  const dow = new Date().getDay(); // 0=Sun..6=Sat — same convention as the app
+  if (r.recurrenceType === 'daily') return true;
+  if (r.recurrenceType === 'weekdays') return dow >= 1 && dow <= 5;
+  return (r.daysOfWeek || []).includes(dow);
+}
+function markDirty() {
+  S.dirty = true;
+  updateSaveBar();
+}
+function celebrate(x, y) {
+  const picks = ['✨', '🎉', '🌿', '💚', '⭐'];
+  for (let i = 0; i < 6; i++) {
+    const s = document.createElement('span');
+    s.className = 'spark';
+    s.textContent = picks[i % picks.length];
+    s.style.left = (x + (Math.random() * 90 - 45)) + 'px';
+    s.style.top = (y - 10 + Math.random() * 20) + 'px';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1050);
+  }
+}
+
+/* ============================================================
+   Open / save
+   ============================================================ */
+async function openBytes(bytes, name, handle) {
+  try {
+    const parsed = await parseBns(bytes);
+    S.manifest = parsed.manifest;
+    S.data = parsed.data;
+    S.data.routines ??= [];
+    S.data.events ??= [];
+    S.data.captures ??= [];
+    S.data.completionLogs ??= [];
+    S.data.settings ??= {};
+    S.audio = parsed.audio;
+    S.sealed = parsed.sealed;
+    S.marked = parsed.marked;
+    S.fileName = name;
+    S.handle = handle || null;
+    S.dirty = false;
+    S.tab = 'today';
+    S.notice = null;
+    // A family-share file contains ONLY what the person chose to share —
+    // open it straight into the family view, that's what it's for. A normal
+    // backup resets to the full manager (unless the URL asked for #family).
+    S.family = parsed.manifest.familyShare === true || location.hash === '#family';
+    render();
+  } catch (err) {
+    S.notice = { kind: 'err', text: (err instanceof BnsError) ? err.message
+      : 'Could not open this file. It may not be a BNS backup.' };
+    render();
+  }
+}
+async function pickFile() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: 'BNS backup', accept: { 'application/x-bns': ['.bns'] } }],
+      });
+      const f = await h.getFile();
+      await openBytes(new Uint8Array(await f.arrayBuffer()), f.name, h);
+      return;
+    } catch (e) { if (e && e.name === 'AbortError') return; /* fall through */ }
+  }
+  $('fileinput').click();
+}
+function startFresh() {
+  const deviceId = 'web-' + uuid();
+  S.manifest = {
+    formatVersion: 2, mediaType: BNS_MEDIA_TYPE,
+    container: 'zip (PKWARE APPNOTE) + deflate/gzip (RFC 1951/1952) + json',
+    exportedAt: nowIso(), deviceId, deviceName: 'BNS Web',
+    appVersion: 'web-1.0', schema: 'bns/v2',
+  };
+  S.data = {
+    routines: [], events: [], captures: [], completionLogs: [],
+    settings: { deviceId, deviceName: 'BNS Web', themeMode: 'system', retentionDays: 14 },
+  };
+  S.audio = [];
+  S.sealed = true; S.marked = true;
+  S.fileName = 'BNS_Backup_new.bns';
+  S.handle = null; S.dirty = true; S.tab = 'today'; S.notice = null;
+  render();
+}
+function countItems() {
+  return (S.data.routines?.length || 0) + (S.data.events?.length || 0) +
+    (S.data.captures?.length || 0) + (S.data.completionLogs?.length || 0);
+}
+async function saveBns(saveAs) {
+  S.manifest = {
+    ...S.manifest,
+    formatVersion: 2, mediaType: BNS_MEDIA_TYPE,
+    exportedAt: nowIso(), editedBy: 'bns-web/1.0',
+    audioCount: S.audio.length, totalItems: countItems(),
+    dataCompressed: true, dataFormat: 'gzip+json',
+  };
+  const bytes = await buildBns({ manifest: S.manifest, data: S.data, audio: S.audio });
+  const suggested = S.fileName || 'BNS_Backup.bns';
+  if (window.showSaveFilePicker && (saveAs || !S.handle)) {
+    try {
+      S.handle = await window.showSaveFilePicker({
+        suggestedName: suggested,
+        types: [{ description: 'BNS backup', accept: { 'application/x-bns': ['.bns'] } }],
+      });
+      S.fileName = S.handle.name;
+    } catch (e) { if (e && e.name === 'AbortError') return; S.handle = null; }
+  }
+  if (S.handle && !saveAs) {
+    const w = await S.handle.createWritable();
+    await w.write(bytes);
+    await w.close();
+  } else if (S.handle && saveAs) {
+    const w = await S.handle.createWritable();
+    await w.write(bytes);
+    await w.close();
+  } else {
+    // Universal fallback (iPhone Safari etc.): download / share sheet.
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: BNS_MEDIA_TYPE }));
+    a.download = suggested;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  S.dirty = false;
+  S.notice = { kind: 'ok', text: 'Saved. Sealed with SHA-256 — the app will verify it on import. ✓' };
+  render();
+}
+function updateSaveBar() {
+  const bar = $('savebar');
+  if (!S.data || S.family) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  $('fname').textContent = S.fileName || 'new .bns';
+  $('dirtydot').style.display = S.dirty ? 'inline' : 'none';
+}
+
+/* ============================================================
+   Dialog helper
+   ============================================================ */
+function showDialog(html, onSubmit) {
+  const dlg = $('dlg');
+  dlg.innerHTML = html + `
+    <div class="row" style="justify-content:flex-end; margin-top:6px">
+      <button class="ghost" id="dlgcancel" type="button">Cancel</button>
+      <button id="dlgok" type="button">Save</button>
+    </div>`;
+  dlg.querySelector('#dlgcancel').onclick = () => dlg.close();
+  dlg.querySelector('#dlgok').onclick = () => { if (onSubmit(dlg) !== false) dlg.close(); };
+  dlg.showModal();
+}
+const tagsToStr = (t) => (t || []).join(', ');
+const strToTags = (s) => s.split(',').map(x => x.trim()).filter(Boolean);
+
+/* ============================================================
+   Views
+   ============================================================ */
+function render() {
+  const main = $('main');
+  updateSaveBar();
+  if (!S.data) { main.innerHTML = emptyView(); wireEmpty(); return; }
+  if (S.family) { familyView(main); return; }
+
+  const seal = S.sealed
+    ? `<div class="banner ok">✓ Verified — CRC + SHA-256 integrity seal intact. This is a genuine, untampered .bns.</div>`
+    : `<div class="banner warn">Opened a legacy v1 backup (no integrity seal — structure checks passed). Saving upgrades it to sealed v2.</div>`;
+  const notice = S.notice ? `<div class="banner ${S.notice.kind}">${esc(S.notice.text)}</div>` : '';
+
+  const tabs = [['today', 'Today'], ['routines', 'Routines'], ['calendar', 'Calendar'],
+    ['memories', 'Memories'], ['diary', 'Diary'], ['about', 'About']];
+  main.innerHTML = notice + seal + `
+    <nav class="tabs">${tabs.map(([id, label]) =>
+      `<button data-tab="${id}" class="${S.tab === id ? 'on' : ''}">${label}</button>`).join('')}</nav>
+    <div id="view"></div>`;
+  main.querySelectorAll('nav.tabs button').forEach(b =>
+    b.onclick = () => { S.tab = b.dataset.tab; S.notice = null; render(); });
+  const view = $('view');
+  ({ today: todayView, routines: routinesView, calendar: calendarView,
+     memories: memoriesView, diary: diaryView, about: aboutView }[S.tab])(view);
+}
+
+function emptyView() {
+  return `
+  <div id="dropzone">
+    <div class="big">🧠</div>
+    <h2>Open your .bns</h2>
+    <p>Tap here or drop a .bns file.<br>
+    No server. No upload. No account. No install.<br>
+    Everything happens on this device and vanishes when you close the tab.</p>
+  </div>
+  <div class="row" style="justify-content:center">
+    <button class="ghost" id="freshbtn">Start fresh (no file yet)</button>
+  </div>
+  <div class="card about" style="margin-top:22px">
+    <h3>What is this?</h3>
+    <p>A pocket door into your BNS data — the same .bns file the BNS app uses on
+    Windows, Android, iPhone, macOS and Linux. Open it, see your routines and
+    memories, add thoughts, mark wins, save. Then share the file back to your
+    devices (AirDrop, Files, USB — the file itself is the sync). The app checks
+    every file's cryptographic seal before importing.</p>
+  </div>`;
+}
+function wireEmpty() {
+  const dz = $('dropzone');
+  dz.onclick = pickFile;
+  $('freshbtn').onclick = startFresh;
+}
+
+/* ---------- Today ---------- */
+function todayView(view) {
+  const today = localDateStr(new Date());
+  const logsToday = S.data.completionLogs.filter(l => l.date === today);
+  const due = S.data.routines.filter(appliesToday);
+  const eventsToday = S.data.events.filter(e => e.date === today);
+  const doneCount = due.filter(r => logsToday.some(l => l.routineId === r.id)).length;
+
+  view.innerHTML = `
+    <div class="card">
+      <label>Quick capture — a thought, a win, anything</label>
+      <textarea id="qc" placeholder="It counts even if it's small."></textarea>
+      <div class="row"><button id="qcbtn">Capture 💭</button></div>
+    </div>
+    <div class="datehead">Today · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+      ${due.length ? ` · ${doneCount}/${due.length} handled` : ''}</div>
+    ${due.length === 0 ? `<div class="card"><p class="sub">No routines due today. A quiet day is a fine day. 🌿</p></div>` : ''}
+    ${due.map(r => {
+      const log = logsToday.find(l => l.routineId === r.id);
+      const state = log ? (log.status === 'done'
+        ? `<span class="chip">✓ done</span>`
+        : `<span class="chip">↷ chose to skip${log.reason ? ' — ' + esc(log.reason) : ''}</span>`) : '';
+      return `<div class="card ${log ? 'done' : ''}">
+        <h3>${esc(r.title)}</h3>
+        ${r.time ? `<div class="sub">🕐 ${esc(r.time)}</div>` : ''}
+        ${r.description ? `<div class="sub">${esc(r.description)}</div>` : ''}
+        <div class="chips">${state}</div>
+        ${!log ? `<div class="row" style="margin-top:10px">
+          <button class="small" data-done="${r.id}">Done ✓</button>
+          <button class="small ghost" data-skip="${r.id}">Skip on purpose</button>
+        </div>` : ''}
+      </div>`;
+    }).join('')}
+    ${eventsToday.length ? `<div class="datehead">Today's plans</div>` + eventsToday.map(e =>
+      `<div class="card"><h3>${esc(e.title)}</h3>
+       <div class="sub">${e.isAllDay ? 'All day' : esc(e.time || '')}${e.notes ? ' · ' + esc(e.notes) : ''}</div></div>`).join('') : ''}`;
+
+  $('qcbtn').onclick = (ev) => {
+    const text = $('qc').value.trim();
+    if (!text) return;
+    S.data.captures.push({
+      id: uuid(), at: nowIso(), text, audioPath: null, linkedRoutineId: null,
+      linkedEventId: null, tags: [], memoryLevel: 'quick', contextNote: null,
+      isDayMemory: false, deletedAt: null,
+    });
+    markDirty();
+    celebrate(ev.clientX, ev.clientY);
+    render();
+  };
+  view.querySelectorAll('[data-done]').forEach(b => b.onclick = (ev) => {
+    S.data.completionLogs.push({
+      id: uuid(), routineId: b.dataset.done, date: today, status: 'done',
+      reason: null, reasonAudioPath: null, at: nowIso(),
+    });
+    markDirty();
+    celebrate(ev.clientX, ev.clientY);
+    render();
+  });
+  view.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => {
+    const rid = b.dataset.skip;
+    showDialog(`<h3>Skipping on purpose is steering 🌿</h3>
+      <p class="sub">A reason helps future-you understand. Totally optional.</p>
+      <label>Why (optional)</label><input id="f_reason" placeholder="Bad headache day, chose rest">`,
+      (dlg) => {
+        S.data.completionLogs.push({
+          id: uuid(), routineId: rid, date: today, status: 'skipped',
+          reason: dlg.querySelector('#f_reason').value.trim() || null,
+          reasonAudioPath: null, at: nowIso(),
+        });
+        markDirty();
+        render();
+      });
+  });
+}
+
+/* ---------- Routines ---------- */
+function routineForm(r) {
+  const days = r.daysOfWeek || [];
+  return `<h3>${r.id ? 'Edit routine' : 'New routine'}</h3>
+    <label>Title</label><input id="f_title" value="${esc(r.title || '')}" placeholder="Take morning meds">
+    <label>Details (optional)</label><input id="f_desc" value="${esc(r.description || '')}">
+    <label>Repeats</label>
+    <select id="f_rec">
+      ${['daily', 'weekdays', 'weekly', 'custom'].map(t =>
+        `<option value="${t}" ${r.recurrenceType === t ? 'selected' : ''}>${
+          { daily: 'Every day', weekdays: 'Weekdays', weekly: 'Weekly (pick days)', custom: 'Custom days' }[t]}</option>`).join('')}
+    </select>
+    <div class="daysrow" id="f_days">${DAY_NAMES.map((n, i) =>
+      `<button type="button" data-day="${i}" class="small ${days.includes(i) ? '' : 'off'}">${n}</button>`).join('')}</div>
+    <label>Time (optional)</label><input id="f_time" type="time" value="${esc(r.time || '')}">
+    <label>Tags (comma separated)</label><input id="f_tags" value="${esc(tagsToStr(r.tags))}">`;
+}
+function readRoutineForm(dlg, r) {
+  const title = dlg.querySelector('#f_title').value.trim();
+  if (!title) return false;
+  r.title = title;
+  r.description = dlg.querySelector('#f_desc').value.trim() || null;
+  r.recurrenceType = dlg.querySelector('#f_rec').value;
+  r.daysOfWeek = [...dlg.querySelectorAll('#f_days button:not(.off)')].map(b => +b.dataset.day);
+  r.time = dlg.querySelector('#f_time').value || null;
+  r.tags = strToTags(dlg.querySelector('#f_tags').value);
+  r.updatedAt = nowIso();
+  return true;
+}
+function wireDayButtons() {
+  $('dlg').querySelectorAll('#f_days button').forEach(b =>
+    b.onclick = () => b.classList.toggle('off'));
+}
+function routinesView(view) {
+  const rs = [...S.data.routines].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  view.innerHTML = `
+    <div class="row" style="margin:10px 0"><button id="addr">+ New routine</button></div>
+    ${rs.length === 0 ? `<div class="card"><p class="sub">No routines yet. One small anchor is a great start.</p></div>` : ''}
+    ${rs.map(r => `<div class="card ${r.isActive === false ? 'done' : ''}">
+      <h3>${esc(r.title)}</h3>
+      <div class="sub">${prettyRecurrence(r)}${r.time ? ' · 🕐 ' + esc(r.time) : ''}</div>
+      ${r.description ? `<div class="sub">${esc(r.description)}</div>` : ''}
+      <div class="chips">${(r.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join('')}
+        ${r.isActive === false ? '<span class="chip">resting 😴</span>' : ''}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="small ghost" data-edit="${r.id}">Edit</button>
+        <button class="small ghost" data-toggle="${r.id}">${r.isActive === false ? 'Wake up' : 'Let it rest'}</button>
+      </div>
+    </div>`).join('')}`;
+  $('addr').onclick = () => {
+    const r = { id: uuid(), title: '', description: null, recurrenceType: 'daily',
+      daysOfWeek: [], time: null, isActive: true, tags: [],
+      firstStepOnlyDefault: false, createdAt: nowIso(), updatedAt: nowIso() };
+    showDialog(routineForm(r), (dlg) => {
+      if (!readRoutineForm(dlg, r)) return false;
+      S.data.routines.push(r);
+      markDirty();
+      render();
+    });
+    wireDayButtons();
+  };
+  view.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+    const r = S.data.routines.find(x => x.id === b.dataset.edit);
+    showDialog(routineForm(r), (dlg) => {
+      if (!readRoutineForm(dlg, r)) return false;
+      markDirty();
+      render();
+    });
+    wireDayButtons();
+  });
+  view.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => {
+    const r = S.data.routines.find(x => x.id === b.dataset.toggle);
+    r.isActive = r.isActive === false;
+    r.updatedAt = nowIso();
+    markDirty();
+    render();
+  });
+}
+
+/* ---------- Calendar ---------- */
+function eventForm(e) {
+  return `<h3>${e.id ? 'Edit plan' : 'New plan'}</h3>
+    <label>Title</label><input id="f_title" value="${esc(e.title || '')}" placeholder="Neurologist appointment">
+    <label>Date</label><input id="f_date" type="date" value="${esc(e.date || localDateStr(new Date()))}">
+    <label>Time (leave empty for all-day)</label><input id="f_time" type="time" value="${esc(e.time || '')}">
+    <label>Notes (optional)</label><textarea id="f_notes">${esc(e.notes || '')}</textarea>`;
+}
+function readEventForm(dlg, e) {
+  const title = dlg.querySelector('#f_title').value.trim();
+  const date = dlg.querySelector('#f_date').value;
+  if (!title || !date) return false;
+  e.title = title;
+  e.date = date;
+  e.time = dlg.querySelector('#f_time').value || null;
+  e.isAllDay = !e.time;
+  e.notes = dlg.querySelector('#f_notes').value.trim() || null;
+  e.updatedAt = nowIso();
+  return true;
+}
+function calendarView(view) {
+  const es = [...S.data.events].sort((a, b) =>
+    (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const byDate = {};
+  for (const e of es) (byDate[e.date] ??= []).push(e);
+  const today = localDateStr(new Date());
+  view.innerHTML = `
+    <div class="row" style="margin:10px 0"><button id="adde">+ New plan</button></div>
+    ${es.length === 0 ? `<div class="card"><p class="sub">Nothing planned. That's allowed.</p></div>` : ''}
+    ${Object.entries(byDate).map(([date, list]) => `
+      <div class="datehead">${date === today ? 'Today · ' : ''}${new Date(date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+      ${list.map(e => `<div class="card">
+        <h3>${esc(e.title)}</h3>
+        <div class="sub">${e.isAllDay ? 'All day' : '🕐 ' + esc(e.time || '')}</div>
+        ${e.notes ? `<div class="sub">${esc(e.notes)}</div>` : ''}
+        <div class="row" style="margin-top:10px"><button class="small ghost" data-edit="${e.id}">Edit</button></div>
+      </div>`).join('')}`).join('')}`;
+  $('adde').onclick = () => {
+    const e = { id: uuid(), title: '', date: localDateStr(new Date()), time: null,
+      notes: null, isAllDay: true, createdAt: nowIso(), updatedAt: nowIso() };
+    showDialog(eventForm(e), (dlg) => {
+      if (!readEventForm(dlg, e)) return false;
+      S.data.events.push(e);
+      markDirty();
+      render();
+    });
+  };
+  view.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+    const e = S.data.events.find(x => x.id === b.dataset.edit);
+    showDialog(eventForm(e), (dlg) => {
+      if (!readEventForm(dlg, e)) return false;
+      markDirty();
+      render();
+    });
+  });
+}
+
+/* ---------- Memories ---------- */
+function audioUrlFor(cap) {
+  if (!cap.audioPath) return null;
+  const base = cap.audioPath.split(/[\\/]/).pop();
+  const hit = S.audio.find(a => a.name === base);
+  if (!hit) return null;
+  const type = base.endsWith('.wav') ? 'audio/wav' : 'audio/mp4';
+  return URL.createObjectURL(new Blob([hit.bytes], { type }));
+}
+function memoriesView(view) {
+  const caps = S.data.captures.filter(c => !c.deletedAt)
+    .sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  const trashed = S.data.captures.length - caps.length;
+  view.innerHTML = `
+    <div class="card">
+      <label>New memory</label>
+      <textarea id="mc" placeholder="What happened? What did you manage today?"></textarea>
+      <div class="row"><button id="mcbtn">Keep it 💚</button></div>
+    </div>
+    ${trashed ? `<div class="banner warn">${trashed} in trash — the app clears trash after 3 days.</div>` : ''}
+    ${caps.length === 0 ? `<div class="card"><p class="sub">No memories here yet. They build up faster than you think.</p></div>` : ''}
+    ${caps.map(c => `<div class="card">
+      <div class="sub">${prettyWhen(c.at)} · ${esc(c.memoryLevel || 'quick')}${c.isDayMemory ? ' · day memory' : ''}</div>
+      ${c.text ? `<h3 style="font-weight:500; font-size:15px">${esc(c.text)}</h3>` : ''}
+      ${c.contextNote ? `<div class="sub">${esc(c.contextNote)}</div>` : ''}
+      <div class="chips">${(c.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      <div id="au_${c.id}"></div>
+      <div class="row" style="margin-top:10px">
+        ${c.audioPath ? `<button class="small ghost" data-play="${c.id}">▶ Voice note</button>` : ''}
+        <button class="small ghost" data-edit="${c.id}">Edit</button>
+        <button class="small danger" data-trash="${c.id}">Trash</button>
+      </div>
+    </div>`).join('')}`;
+  $('mcbtn').onclick = (ev) => {
+    const text = $('mc').value.trim();
+    if (!text) return;
+    S.data.captures.push({
+      id: uuid(), at: nowIso(), text, audioPath: null, linkedRoutineId: null,
+      linkedEventId: null, tags: [], memoryLevel: 'remember', contextNote: null,
+      isDayMemory: false, deletedAt: null,
+    });
+    markDirty();
+    celebrate(ev.clientX, ev.clientY);
+    render();
+  };
+  view.querySelectorAll('[data-play]').forEach(b => b.onclick = () => {
+    const c = S.data.captures.find(x => x.id === b.dataset.play);
+    const url = audioUrlFor(c);
+    const slot = $('au_' + c.id);
+    if (!url) { slot.innerHTML = `<div class="sub">Voice note not inside this file.</div>`; return; }
+    slot.innerHTML = `<audio controls autoplay src="${url}"></audio>`;
+  });
+  view.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => {
+    const c = S.data.captures.find(x => x.id === b.dataset.edit);
+    showDialog(`<h3>Edit memory</h3>
+      <label>Text</label><textarea id="f_text">${esc(c.text || '')}</textarea>
+      <label>Level</label>
+      <select id="f_level">${['quick', 'remember', 'memorize'].map(l =>
+        `<option ${c.memoryLevel === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <label>Tags (comma separated)</label><input id="f_tags" value="${esc(tagsToStr(c.tags))}">`,
+      (dlg) => {
+        c.text = dlg.querySelector('#f_text').value.trim() || null;
+        c.memoryLevel = dlg.querySelector('#f_level').value;
+        c.tags = strToTags(dlg.querySelector('#f_tags').value);
+        markDirty();
+        render();
+      });
+  });
+  view.querySelectorAll('[data-trash]').forEach(b => b.onclick = () => {
+    const c = S.data.captures.find(x => x.id === b.dataset.trash);
+    showDialog(`<h3>Move to trash?</h3>
+      <p class="sub">You stay in control: trash is kept 3 days by the app, then it's gone for good.</p>`,
+      () => {
+        c.deletedAt = nowIso();
+        markDirty();
+        render();
+      });
+  });
+}
+
+/* ---------- Diary ---------- */
+function diaryView(view) {
+  const logs = [...S.data.completionLogs].sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  const titleOf = (id) => S.data.routines.find(r => r.id === id)?.title || 'A routine';
+  view.innerHTML = `
+    ${logs.length === 0 ? `<div class="card"><p class="sub">The diary fills itself as you mark wins and chosen skips.</p></div>` : ''}
+    ${logs.map(l => `<div class="card">
+      <h3 style="font-size:15px">${l.status === 'done' ? '✓' : '↷'} ${esc(titleOf(l.routineId))}</h3>
+      <div class="sub">${esc(l.date)} · ${l.status === 'done' ? 'done — you made it' : 'skipped on purpose — still steering'}</div>
+      ${l.reason ? `<div class="sub">“${esc(l.reason)}”</div>` : ''}
+    </div>`).join('')}`;
+}
+
+/* ---------- Family view (read-only window for the caregiver's computer) ----------
+   Dirt simple on purpose: big text, no buttons that change anything,
+   encouragement front and center. Never shows trash or mad-vents. */
+function familyView(main) {
+  const name = (S.data.settings?.shareName || '').trim() ||
+               S.data.settings?.deviceName || 'Their';
+  const possessive = name.endsWith('s') ? `${name}'` : `${name}'s`;
+  // Family-share files carry only chosen plans — no routines, no diary, so
+  // the day/memory sections stay out entirely instead of looking empty.
+  const shareOnly = S.manifest?.familyShare === true;
+  const today = localDateStr(new Date());
+  const logsToday = S.data.completionLogs.filter(l => l.date === today);
+  const due = S.data.routines.filter(appliesToday);
+  const handled = due.filter(r => logsToday.some(l => l.routineId === r.id));
+
+  const upcoming = S.data.events
+    .filter(e => e.date >= today)
+    .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
+    .slice(0, 6);
+
+  const memories = S.data.captures
+    .filter(c => !c.deletedAt && !(c.tags || []).includes('mad-vent') &&
+                 (c.text || c.contextNote))
+    .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+    .slice(0, 5);
+
+  main.innerHTML = `
+    <div style="text-align:center; margin:18px 0 6px">
+      <div style="font-size:40px">💚</div>
+      <h2 style="margin:6px 0">${shareOnly ? esc(possessive) + ' important plans' : esc(possessive) + ' days'}</h2>
+      <p class="sub" style="color:var(--muted)">${shareOnly
+        ? esc(name) + ' chose to share these — a reminder is welcome, gently.'
+        : 'A little window, shared with love. Looking is all this page does.'}</p>
+    </div>
+    ${shareOnly ? '' : `<div class="card">
+      <h3>Today</h3>
+      ${due.length === 0
+        ? `<p style="font-size:16px">A quiet day — quiet days are good days. 🌿</p>`
+        : `<p style="font-size:16px; line-height:1.9">${due.map(r => {
+            const log = logsToday.find(l => l.routineId === r.id);
+            const mark = log ? (log.status === 'done' ? '✅' : '🌿') : '⬜';
+            return `${mark} ${esc(r.title)}${r.time ? ' <span style="color:var(--muted)">(' + esc(r.time) + ')</span>' : ''}`;
+          }).join('<br>')}</p>
+          <p class="sub">${handled.length} of ${due.length} handled — showing up counts, skipping on purpose counts too.</p>`}
+    </div>`}
+    ${upcoming.length ? `<div class="card">
+      <h3>Coming up</h3>
+      <p style="font-size:15px; line-height:1.9">${upcoming.map(e =>
+        `📅 ${esc(e.date === today ? 'Today' : new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }))}${e.time ? ' ' + esc(e.time) : ''} — ${esc(e.title)}`
+      ).join('<br>')}</p>
+    </div>` : (shareOnly ? `<div class="card"><p style="font-size:15px">Nothing shared right now — no news is fine news. 🌿</p></div>` : '')}
+    ${!shareOnly && memories.length ? `<div class="card">
+      <h3>Recent moments</h3>
+      ${memories.map(c => `<p style="font-size:14.5px; margin:8px 0">💭 ${esc(c.text || c.contextNote)}
+        <span style="color:var(--muted); font-size:12px"> — ${prettyWhen(c.at)}</span></p>`).join('')}
+    </div>` : ''}
+    <div class="card" style="text-align:center">
+      <p style="font-size:15px">${shareOnly
+        ? 'Being asked to remember is trust. Thanks for being there for ' + esc(name) + '. 💚'
+        : 'Whatever today looked like — ' + esc(name) + ' showed up. That counts. 💚'}</p>
+    </div>
+    <div class="row" style="justify-content:center; margin:14px 0 30px">
+      ${shareOnly ? '' : `<button class="small ghost" id="exitfamily">Full view</button>`}
+    </div>`;
+  const exit = $('exitfamily');
+  if (exit) exit.onclick = () => {
+    S.family = false;
+    if (location.hash === '#family') history.replaceState(null, '', location.pathname);
+    render();
+  };
+}
+
+/* ---------- About ---------- */
+function aboutView(view) {
+  const m = S.manifest || {};
+  view.innerHTML = `<div class="card about">
+    <h3>This file</h3>
+    <p>${esc(S.fileName || 'new')} — from <b>${esc(m.deviceName || 'unknown device')}</b>,
+    exported ${m.exportedAt ? prettyWhen(m.exportedAt) : 'unknown'}.
+    ${S.marked ? 'Carries the BNS identity marker.' : 'Legacy file (no marker yet).'}
+    ${S.sealed ? 'SHA-256 sealed.' : ''}</p>
+    <h3>How sync works (no server, ever)</h3>
+    <p>The .bns file <b>is</b> the sync. Save here, then get the file to your other
+    device any way you like — AirDrop, the Files app, USB stick, network share,
+    or the BNS app's own paired LAN sync between installed devices. The app
+    verifies the cryptographic seal, then merges (newest change wins). This page
+    never talks to any network: no upload, no account, no traces.</p>
+    <h3>iPhone tip</h3>
+    <p>Open this page in Safari → Share → <b>Add to Home Screen</b>. It becomes an
+    app-shaped door to your .bns — no App Store needed. Saving hands you the
+    updated file for the Files app or AirDrop.</p>
+    <h3>Family view 👪</h3>
+    <p>A read-only window for a caregiver's or kid's computer: today's list,
+    what's coming up, and recent good moments — big text, nothing to break,
+    nothing personal beyond what helps them help. Open this page as
+    <b>bns-web.html#family</b> to land straight in it.</p>
+    <div class="row"><button class="ghost" id="familybtn">Switch to family view</button></div>
+    <h3>Open technology, credited</h3>
+    <p>ZIP (PKWARE APPNOTE), DEFLATE/GZIP (RFC 1951/1952), JSON (ECMA-404) and
+    SHA-256 (WebCrypto) — used exactly as published, no ownership claimed.
+    Reads both BNS containers: zip-v2 and the bns2-v1 binary format.
+    What's BNS is the arrangement: the identity marker, the sealed manifest,
+    and the kindness.</p>
+  </div>`;
+  view.querySelector('#familybtn').onclick = () => {
+    S.family = true;
+    history.replaceState(null, '', '#family');
+    render();
+  };
+}
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+$('fileinput').onchange = async (e) => {
+  const f = e.target.files[0];
+  if (f) await openBytes(new Uint8Array(await f.arrayBuffer()), f.name, null);
+  e.target.value = '';
+};
+$('savebtn').onclick = () => saveBns(false);
+$('saveasbtn').onclick = () => saveBns(true);
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    if (S.data) saveBns(false);
+  }
+});
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  $('dropzone')?.classList.add('hover');
+});
+document.addEventListener('dragleave', () => $('dropzone')?.classList.remove('hover'));
+document.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  $('dropzone')?.classList.remove('hover');
+  const item = e.dataTransfer?.items?.[0];
+  let handle = null;
+  if (item && item.getAsFileSystemHandle) {
+    try { handle = await item.getAsFileSystemHandle(); } catch (_) { /* fallback */ }
+  }
+  const f = e.dataTransfer?.files?.[0];
+  if (f) await openBytes(new Uint8Array(await f.arrayBuffer()), f.name,
+    handle && handle.kind === 'file' ? handle : null);
+});
+window.addEventListener('beforeunload', (e) => {
+  if (S.dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+window.addEventListener('hashchange', () => {
+  S.family = location.hash === '#family';
+  render();
+});
+render();
+</script>
+</body>
+</html>

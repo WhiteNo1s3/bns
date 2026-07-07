@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:intl/intl.dart';
 
-/// Memory section: Remember this (contextual for routines/days/crises) 
+/// Memory section: Remember this (contextual for routines/days/crises)
 /// and Memorize this (permanent memories).
-/// 
+///
 /// Captures what happened in routines, why, the day itself.
 /// Not just reminders - the memory of the event/day is stored.
-/// 
+///
 /// Permanent ones are protected from pruning.
-/// 
+///
 /// User can remove memories (and other data).
 /// Everything the user wants he can do.
 /// Advise if sure (confirmation).
@@ -26,32 +27,57 @@ class MemoriesScreen extends StatefulWidget {
 }
 
 class _MemoriesScreenState extends State<MemoriesScreen> {
-  List<QuickCapture> _memories = [];
+  List<QuickCapture> _raw = []; // straight from the store (active OR trash)
+  List<QuickCapture> _memories = []; // what's shown after filter + search
   MemoryLevel? _filterLevel;
   String _searchQuery = '';
   bool _loading = true;
   bool _showGarden = false; // visual garden for good memories
   bool _showTrash = false; // trash view: deleted items, 3 days then gone
+  String _userType = 'normal';
 
-  final List<String> _predefinedTags = ['crisis', 'good', 'felt safe', 'felt confused', 'felt out of bound', 'drama', 'wonderings', 'routine'];
+  final List<String> _predefinedTags = [
+    'crisis',
+    'good',
+    'felt safe',
+    'felt confused',
+    'felt out of bound',
+    'drama',
+    'wonderings',
+    'routine'
+  ];
 
   @override
   void initState() {
     super.initState();
+    _loadUserType();
     _loadMemories();
   }
 
+  Future<void> _loadUserType() async {
+    final s = await IsarService.getSettings();
+    if (mounted) setState(() => _userType = s.userType);
+  }
+
+  double get _textScale =>
+      (_userType.contains('kid') || _userType == 'ADHD') ? 1.18 : 1.0;
+
+  /// Hits the store — only when the underlying data can actually have
+  /// changed (first open, trash toggle, delete/restore). Typing NEVER
+  /// lands here: search and level filters run in memory via [_applyFilters],
+  /// so there's no spinner flash and no disk read per key press.
   Future<void> _loadMemories() async {
     setState(() => _loading = true);
-    List<QuickCapture> filtered;
-    if (_showTrash) {
-      final trashed = await IsarService.getTrashedCaptures();
-      filtered = trashed.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
-    } else {
-      final all = await IsarService.getAllCaptures();
-      // Only show remember or memorize levels (active)
-      filtered = all.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
-    }
+    final source = _showTrash
+        ? await IsarService.getTrashedCaptures()
+        : await IsarService.getAllCaptures();
+    _raw = source.where((c) => c.memoryLevel != MemoryLevel.quick).toList();
+    if (mounted) _applyFilters();
+  }
+
+  /// Pure in-memory filtering — synchronous, instant, no loading state.
+  void _applyFilters() {
+    var filtered = _raw;
 
     if (_filterLevel != null && !_showTrash) {
       filtered = filtered.where((c) => c.memoryLevel == _filterLevel).toList();
@@ -60,23 +86,24 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       filtered = filtered.where((c) {
-        final textMatch = (c.text ?? '').toLowerCase().contains(q) || (c.contextNote ?? '').toLowerCase().contains(q);
-        final tagMatch = c.tags.any((t) => t.toLowerCase().contains(q) || _predefinedTags.contains(t) && t.toLowerCase().contains(q));
+        final textMatch = (c.text ?? '').toLowerCase().contains(q) ||
+            (c.contextNote ?? '').toLowerCase().contains(q);
+        final tagMatch = c.tags.any((t) =>
+            t.toLowerCase().contains(q) ||
+            _predefinedTags.contains(t) && t.toLowerCase().contains(q));
         return textMatch || tagMatch;
       }).toList();
     }
 
-    if (mounted) {
-      setState(() {
-        _memories = filtered;
-        _loading = false;
-      });
-    }
+    setState(() {
+      _memories = filtered;
+      _loading = false;
+    });
   }
 
   void _setFilter(MemoryLevel? level) {
-    setState(() => _filterLevel = level);
-    _loadMemories();
+    _filterLevel = level;
+    _applyFilters();
   }
 
   Future<void> _playAudio(String? path) async {
@@ -92,9 +119,12 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Move to trash?'),
-        content: Text('This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.'),
+        content: Text(
+            'This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Move to Trash'),
@@ -107,7 +137,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       await _loadMemories();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Moved to trash. You can restore within 3 days.')),
+          const SnackBar(
+              content: Text('Moved to trash. You can restore within 3 days.')),
         );
       }
     }
@@ -123,233 +154,51 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rememberCount = _memories.where((m) => m.memoryLevel == MemoryLevel.remember).length;
-    final memorizeCount = _memories.where((m) => m.memoryLevel == MemoryLevel.memorize).length;
-
-    return Scaffold(
-      appBar: BnsAppBar(
-        title: 'Memory Section',
-        leading: Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
-        actions: [
-          IconButton(
-            icon: Icon(_showTrash ? Icons.delete_forever : Icons.delete_outline),
-            tooltip: _showTrash ? 'Back to active memories' : 'Trash (deleted, 3 days then gone)',
-            onPressed: () {
-              setState(() => _showTrash = !_showTrash);
-              _loadMemories();
-            },
-          ),
-          IconButton(
-            icon: Icon(_showGarden ? Icons.list : Icons.local_florist),
-            tooltip: _showGarden ? 'List view' : 'Memory Garden (good memories visual)',
-            onPressed: () => setState(() => _showGarden = !_showGarden),
-          ),
-          PopupMenuButton<MemoryLevel?>(
-            icon: const Icon(Icons.filter_list),
-            onSelected: _setFilter,
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(value: null, child: Text('All memories')),
-              const PopupMenuItem(value: MemoryLevel.remember, child: Text('Remember this (contextual)')),
-              const PopupMenuItem(value: MemoryLevel.memorize, child: Text('Memorize permanently')),
-            ],
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Warning for past - advise keep past in past, stay grounded (common for neuro damage to relive)
-                if (_memories.any((m) => DateTime.now().difference(m.at).inDays > 7))
-                  Container(
-                    color: Colors.orange.shade100,
-                    padding: const EdgeInsets.all(8),
-                    child: const Text(
-                      '⚠️ Entering past memories? We advise keeping the past in the past and moving forward. Stay on the ground. Don\'t react. It\'s common with neurological damage to relive stuff. Take care.',
-                      style: TextStyle(color: Colors.black87, fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                // Search for routine or crisis tag - organized for doctors, confidence "you made it"
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search routine, crisis, tag... (for doctors share, see your wins)',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (val) {
-                      _searchQuery = val;
-                      _loadMemories();
-                    },
-                  ),
-                ),
-                // Summary - crisp overview
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _MemoryStat('Remember this', rememberCount, MemoryLevel.remember),
-                      _MemoryStat('Memorize this', memorizeCount, MemoryLevel.memorize),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                Expanded(
-                  child: _memories.isEmpty
-                      ? Center(
-                          child: Text(
-                            _showTrash 
-                              ? 'Trash is empty. Deleted items stay here for 3 days.'
-                              : 'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : _showGarden 
-                        ? _buildGardenView() 
-                        : ListView.builder(
-                          itemCount: _memories.length,
-                          itemBuilder: (ctx, i) {
-                            final m = _memories[i];
-                            final dateStr = DateFormat.yMMMd().format(m.at);
-                            final isPast = DateTime.now().difference(m.at).inDays > 7;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                              color: isPast ? Colors.grey.shade100 : null,
-                              child: ListTile(
-                                leading: Icon(
-                                  m.memoryLevel == MemoryLevel.memorize 
-                                    ? Icons.stars 
-                                    : Icons.bookmark,
-                                  color: m.memoryLevel == MemoryLevel.memorize 
-                                    ? Colors.amber 
-                                    : Theme.of(context).colorScheme.primary,
-                                ),
-                                title: Text(m.text ?? m.contextNote ?? 'Memory captured'),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(dateStr + (isPast ? ' (past - take care)' : '')),
-                                    if (m.contextNote != null) Text('Context: ${m.contextNote}', style: const TextStyle(fontStyle: FontStyle.italic)),
-                                    if (m.linkedRoutineId != null) const Text('Linked to a routine'),
-                                    if (m.tags.isNotEmpty) Text('Tags: ${m.tags.join(", ")}'),
-                                  ],
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (m.audioPath != null)
-                                      IconButton(
-                                        icon: const Icon(Icons.play_arrow),
-                                        onPressed: () => _playAudio(m.audioPath),
-                                      ),
-                                    if (_showTrash)
-                                      IconButton(
-                                        icon: const Icon(Icons.restore),
-                                        onPressed: () => _restoreMemory(m),
-                                        tooltip: 'Restore',
-                                      )
-                                    else
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline),
-                                        onPressed: () => _deleteMemory(m),
-                                        tooltip: 'Move to trash',
-                                      ),
-                                  ],
-                                ),
-                                onTap: () {
-                                  if (isPast) {
-                                    // Extra warning
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        title: const Text('Past memory warning'),
-                                        content: const Text('Stay on the ground and don\'t react. Keeping the past in the past helps move forward. It\'s common with neurological damage to relive. Consider if now is the right time.'),
-                                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Understood'))],
-                                      ),
-                                    );
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Memory from $dateStr. You made it through that day!')),
-                                    );
-                                  }
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Open capture pre-set to remember or memorize
-          final saved = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const QuickCaptureScreen(
-                // Could pass initial for memorize
-              ),
-            ),
-          );
-          if (saved == true) _loadMemories();
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Capture memory'),
-      ),
-    );
-  }
-
-}
-
-class _MemoryStat extends StatelessWidget {
-  final String label;
-  final int count;
-  final MemoryLevel level;
-
-  const _MemoryStat(this.label, this.count, this.level);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text('$count', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
-    );
-  }
-}
-
   Widget _buildGardenView() {
     // Visual memory garden: bright cards for good memories to make fogged users brighter
     // Garden = good memories (tags like good, felt safe)
     // Roots = ugly parts (crisis, drama, felt confused) - shown with caution, advise past in past
-    final goodMemories = _memories.where((m) => m.tags.any((t) => ['good', 'felt safe'].contains(t.toLowerCase()))).toList();
-    final rootMemories = _memories.where((m) => m.tags.any((t) => ['crisis', 'drama', 'felt confused', 'felt out of bound'].contains(t.toLowerCase()))).toList();
+    final goodMemories = _memories
+        .where((m) =>
+            m.tags.any((t) => ['good', 'felt safe'].contains(t.toLowerCase())))
+        .toList();
+    final rootMemories = _memories
+        .where((m) => m.tags.any((t) => [
+              'crisis',
+              'drama',
+              'felt confused',
+              'felt out of bound'
+            ].contains(t.toLowerCase())))
+        .toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('🌱 Memory Garden - Good memories (brighter for fogged minds)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const Text('Click to celebrate what you made it through. Tags make it organized for doctors too.', style: TextStyle(fontSize: 11)),
+          const Text(
+              '🌱 Memory Garden - Good memories (brighter for fogged minds)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+              'Click to celebrate what you made it through. Tags make it organized for doctors too.',
+              style: TextStyle(fontSize: 11)),
           const SizedBox(height: 8),
           if (goodMemories.isEmpty)
-            const Text('No good memories tagged yet. Use "good" or "felt safe" tags!')
+            const Text(
+                'No good memories tagged yet. Use "good" or "felt safe" tags!')
           else
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: goodMemories.map((m) {
-                final color = m.tags.contains('good') ? Colors.lightGreen : Colors.lightBlue;
+                final color = m.tags.contains('good')
+                    ? Colors.lightGreen
+                    : Colors.lightBlue;
                 return InkWell(
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('You made it! ${m.text ?? m.contextNote ?? ""}')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(
+                            'You made it! ${m.text ?? m.contextNote ?? ""}')));
                   },
                   child: Container(
                     width: 140,
@@ -357,15 +206,26 @@ class _MemoryStat extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: color.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                      boxShadow: [
+                        BoxShadow(color: Colors.black12, blurRadius: 4)
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(m.contextNote ?? m.text ?? 'Good memory', maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        Text(m.contextNote ?? m.text ?? 'Good memory',
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black87)),
                         const SizedBox(height: 4),
-                        Text(DateFormat.Md().format(m.at), style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                        if (m.tags.isNotEmpty) Text(m.tags.join(', '), style: const TextStyle(fontSize: 9, color: Colors.black54)),
+                        Text(DateFormat.Md().format(m.at),
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.black54)),
+                        if (m.tags.isNotEmpty)
+                          Text(m.tags.join(', '),
+                              style: const TextStyle(
+                                  fontSize: 9, color: Colors.black54)),
                       ],
                     ),
                   ),
@@ -373,8 +233,15 @@ class _MemoryStat extends StatelessWidget {
               }).toList(),
             ),
           const SizedBox(height: 24),
-          const Text('🌿 Roots - The harder parts (Alzheimer, dementia, ADHD, ADD, mental illness, crises)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown)),
-          const Text('These are the "ugly" neurological roots. We acknowledge them but advise: keep past in past, stay grounded. Use only if it helps move forward. Warning on tap.', style: TextStyle(fontSize: 10)),
+          const Text(
+              '🌿 Roots - The harder parts (Alzheimer, dementia, ADHD, ADD, mental illness, crises)',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.brown)),
+          const Text(
+              'These are the "ugly" neurological roots. We acknowledge them but advise: keep past in past, stay grounded. Use only if it helps move forward. Warning on tap.',
+              style: TextStyle(fontSize: 10)),
           const SizedBox(height: 8),
           if (rootMemories.isEmpty)
             const Text('No root memories yet.')
@@ -389,8 +256,13 @@ class _MemoryStat extends StatelessWidget {
                       context: context,
                       builder: (_) => AlertDialog(
                         title: const Text('Roots warning'),
-                        content: const Text('Stay on the ground. Don\'t react or relive. It\'s common with neurological issues (TBI, ADHD, dementia etc.) to feel it again. Consider if helpful now. Past in the past, move forward.'),
-                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Got it'))],
+                        content: const Text(
+                            'Stay on the ground. Don\'t react or relive. It\'s common with neurological issues (TBI, ADHD, dementia etc.) to feel it again. Consider if helpful now. Past in the past, move forward.'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Got it'))
+                        ],
                       ),
                     );
                   },
@@ -404,8 +276,12 @@ class _MemoryStat extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(m.contextNote ?? m.text ?? 'Hard memory', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                        Text(DateFormat.Md().format(m.at), style: const TextStyle(fontSize: 9)),
+                        Text(m.contextNote ?? m.text ?? 'Hard memory',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11)),
+                        Text(DateFormat.Md().format(m.at),
+                            style: const TextStyle(fontSize: 9)),
                       ],
                     ),
                   ),
@@ -413,8 +289,271 @@ class _MemoryStat extends StatelessWidget {
               }).toList(),
             ),
           const SizedBox(height: 16),
-          const Text('Abstract mind tags (penguin, etc.): use custom tags in capture. We secure the penguin - no judgment on how you feel.', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
+          const Text(
+              'Abstract mind tags (penguin, etc.): use custom tags in capture. We secure the penguin - no judgment on how you feel.',
+              style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
         ],
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final rememberCount =
+        _memories.where((m) => m.memoryLevel == MemoryLevel.remember).length;
+    final memorizeCount =
+        _memories.where((m) => m.memoryLevel == MemoryLevel.memorize).length;
+
+    return Scaffold(
+      appBar: BnsAppBar(
+        title: 'Memory Section',
+        leading: Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
+        hideOnDesktopWide: true,
+        actions: [
+          IconButton(
+            icon:
+                Icon(_showTrash ? Icons.delete_forever : Icons.delete_outline),
+            tooltip: _showTrash
+                ? 'Back to active memories'
+                : 'Trash (deleted, 3 days then gone)',
+            onPressed: () {
+              setState(() => _showTrash = !_showTrash);
+              _loadMemories();
+            },
+          ),
+          IconButton(
+            icon: Icon(_showGarden ? Icons.list : Icons.local_florist),
+            tooltip: _showGarden
+                ? 'List view'
+                : 'Memory Garden (good memories visual)',
+            onPressed: () => setState(() => _showGarden = !_showGarden),
+          ),
+          PopupMenuButton<MemoryLevel?>(
+            icon: const Icon(Icons.filter_list),
+            onSelected: _setFilter,
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(value: null, child: Text('All memories')),
+              const PopupMenuItem(
+                  value: MemoryLevel.remember,
+                  child: Text('Remember this (contextual)')),
+              const PopupMenuItem(
+                  value: MemoryLevel.memorize,
+                  child: Text('Memorize permanently')),
+            ],
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Warning for past - advise keep past in past, stay grounded (common for neuro damage to relive)
+                if (_memories
+                    .any((m) => DateTime.now().difference(m.at).inDays > 7))
+                  Container(
+                    color: Colors.orange.shade100,
+                    padding: const EdgeInsets.all(8),
+                    child: const Text(
+                      '⚠️ Entering past memories? We advise keeping the past in the past and moving forward. Stay on the ground. Don\'t react. It\'s common with neurological damage to relive stuff. Take care.',
+                      style: TextStyle(color: Colors.black87, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                // Search for routine or crisis tag - organized for doctors, confidence "you made it"
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText:
+                          'Search routine, crisis, tag... (for doctors share, see your wins)',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      // In-memory only — typing must never flash a spinner
+                      // or touch the disk (it felt like the UI "refreshing"
+                      // on every key press).
+                      _searchQuery = val;
+                      _applyFilters();
+                    },
+                  ),
+                ),
+                // Summary - crisp overview
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _MemoryStat(
+                          'Remember this', rememberCount, MemoryLevel.remember),
+                      _MemoryStat(
+                          'Memorize this', memorizeCount, MemoryLevel.memorize),
+                    ],
+                  ),
+                ),
+                if (_userType != 'normal')
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      _userType.contains('kid')
+                          ? '🌟 Big bright garden for you! Click to celebrate.'
+                          : 'Adapted view for your mind — you got this.',
+                      style: TextStyle(
+                          fontSize: 12 * _textScale,
+                          color: Theme.of(context).colorScheme.primary),
+                    ),
+                  ),
+                const Divider(),
+                Expanded(
+                  child: _memories.isEmpty
+                      ? Center(
+                          child: Text(
+                            _showTrash
+                                ? 'Trash is empty. Deleted items stay here for 3 days.'
+                                : 'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : _showGarden
+                          ? _buildGardenView()
+                          : ListView.builder(
+                              itemCount: _memories.length,
+                              itemBuilder: (ctx, i) {
+                                final m = _memories[i];
+                                final dateStr = DateFormat.yMMMd().format(m.at);
+                                final isPast =
+                                    DateTime.now().difference(m.at).inDays > 7;
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 6),
+                                  color: isPast ? Colors.grey.shade100 : null,
+                                  child: ListTile(
+                                    leading: Icon(
+                                      m.memoryLevel == MemoryLevel.memorize
+                                          ? Icons.stars
+                                          : Icons.bookmark,
+                                      color:
+                                          m.memoryLevel == MemoryLevel.memorize
+                                              ? Colors.amber
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                    ),
+                                    title: Text(m.text ??
+                                        m.contextNote ??
+                                        'Memory captured'),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(dateStr +
+                                            (isPast
+                                                ? ' (past - take care)'
+                                                : '')),
+                                        if (m.contextNote != null)
+                                          Text('Context: ${m.contextNote}',
+                                              style: const TextStyle(
+                                                  fontStyle: FontStyle.italic)),
+                                        if (m.linkedRoutineId != null)
+                                          const Text('Linked to a routine'),
+                                        if (m.tags.isNotEmpty)
+                                          Text('Tags: ${m.tags.join(", ")}'),
+                                      ],
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (m.audioPath != null)
+                                          IconButton(
+                                            icon: const Icon(Icons.play_arrow),
+                                            onPressed: () =>
+                                                _playAudio(m.audioPath),
+                                          ),
+                                        if (_showTrash)
+                                          IconButton(
+                                            icon: const Icon(Icons.restore),
+                                            onPressed: () => _restoreMemory(m),
+                                            tooltip: 'Restore',
+                                          )
+                                        else
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.delete_outline),
+                                            onPressed: () => _deleteMemory(m),
+                                            tooltip: 'Move to trash',
+                                          ),
+                                      ],
+                                    ),
+                                    onTap: () {
+                                      if (isPast) {
+                                        // Extra warning
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => AlertDialog(
+                                            title: const Text(
+                                                'Past memory warning'),
+                                            content: const Text(
+                                                'Stay on the ground and don\'t react. Keeping the past in the past helps move forward. It\'s common with neurological damage to relive. Consider if now is the right time.'),
+                                            actions: [
+                                              TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child:
+                                                      const Text('Understood'))
+                                            ],
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Memory from $dateStr. You made it through that day!')),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+              ],
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Open capture pre-set to remember or memorize
+          final saved = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const QuickCaptureScreen(
+                  // Could pass initial for memorize
+                  ),
+            ),
+          );
+          if (saved == true) _loadMemories();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Capture memory'),
+      ),
+    );
+  }
+}
+
+class _MemoryStat extends StatelessWidget {
+  final String label;
+  final int count;
+  final MemoryLevel level;
+
+  const _MemoryStat(this.label, this.count, this.level);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text('$count',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+}

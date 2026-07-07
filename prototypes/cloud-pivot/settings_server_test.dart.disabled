@@ -1,0 +1,31 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bns/core/models/settings.dart';
+
+void main() {
+  test('server credentials roundtrip + copyWith clearing', () {
+    const s = AppSettings(
+      deviceId: 'd1',
+      serverUrl: 'https://bns.example.com',
+      serverToken: 'secret-token',
+    );
+
+    final back = AppSettings.fromJson(s.toJson());
+    expect(back.serverUrl, 'https://bns.example.com');
+    expect(back.serverToken, 'secret-token');
+
+    // Sentinel copyWith: explicit null clears, omission keeps.
+    final cleared = s.copyWith(serverToken: null);
+    expect(cleared.serverToken, isNull);
+    expect(cleared.serverUrl, 'https://bns.example.com');
+    final untouched = s.copyWith(deviceName: 'X');
+    expect(untouched.serverToken, 'secret-token');
+  });
+
+  test('the .bns export path must strip the token (exporter contract)', () {
+    const s = AppSettings(serverUrl: 'https://x', serverToken: 'secret');
+    // Mirrors BnsExporter: settings.toJson()..remove('serverToken')
+    final exported = s.toJson()..remove('serverToken');
+    expect(exported.containsKey('serverToken'), isFalse);
+    expect(exported['serverUrl'], 'https://x');
+  });
+}

@@ -360,6 +360,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Set<String> _doneTodayIds = const {};
   Map<String, int> _stepProgress = const {}; // routineId → parts done today
   bool _nextFirstOrder = false; // false = morning→night (default)
+  bool _guidedMode = false; // level 4: only the list, inspector builds
   String? _lastSyncLine; // cached "last synced" note (no per-frame queries)
 
   @override
@@ -454,6 +455,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       setState(() {
         _userType = s.userType;
         _madActive = mad;
+        _guidedMode = s.guidedMode;
       });
       // Reassurance, never alarm: every change was already saved as it
       // happened, so an ungentle close costs nothing. Say so once.
@@ -954,15 +956,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                  'Nothing scheduled for today — that\'s perfectly fine.'),
-                              const SizedBox(height: 12),
-                              FilledButton.tonalIcon(
-                                onPressed: () => context.push('/routines'),
-                                icon: const Icon(Icons.add),
-                                label: const Text(
-                                    'Add a routine when you\'re ready'),
-                              ),
+                              Text(_guidedMode
+                                  ? 'Nothing on the list right now. All is well. 🌿'
+                                  : 'Nothing scheduled for today — that\'s perfectly fine.'),
+                              if (!_guidedMode) ...[
+                                const SizedBox(height: 12),
+                                FilledButton.tonalIcon(
+                                  onPressed: () => context.push('/routines'),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text(
+                                      'Add a routine when you\'re ready'),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -988,23 +993,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             // Order choice: the calm timeline (default) or
                             // "what's next from right now" (owner option,
                             // 2026-07-08: "now its 18:18, what is the
-                            // closest task to do").
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: _toggleTodayOrder,
-                                icon: Icon(
-                                    _nextFirstOrder
-                                        ? Icons.schedule
-                                        : Icons.wb_twilight,
-                                    size: 16),
-                                label: Text(
-                                    _nextFirstOrder
-                                        ? 'Showing: what\'s next'
-                                        : 'Showing: morning to night',
-                                    style: const TextStyle(fontSize: 12)),
+                            // closest task to do"). Hidden in guided mode —
+                            // fewer controls, the inspector decides.
+                            if (!_guidedMode)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _toggleTodayOrder,
+                                  icon: Icon(
+                                      _nextFirstOrder
+                                          ? Icons.schedule
+                                          : Icons.wb_twilight,
+                                      size: 16),
+                                  label: Text(
+                                      _nextFirstOrder
+                                          ? 'Showing: what\'s next'
+                                          : 'Showing: morning to night',
+                                      style: const TextStyle(fontSize: 12)),
+                                ),
                               ),
-                            ),
                             // Synchronous done-state from the cached set —
                             // stable frames, nothing async during rebuilds.
                             for (int i = 0; i < todaysRoutines.length; i++)
@@ -1014,6 +1021,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   routine: todaysRoutines[i],
                                   isDone: _doneTodayIds
                                       .contains(todaysRoutines[i].id),
+                                  big: _guidedMode,
                                   stepsDone: _stepProgress[
                                           todaysRoutines[i].id] ??
                                       0,
@@ -1043,39 +1051,46 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
                   // The diary: one calm box, no presets, no double-asking.
                   // (Copy is for the person, never for the developer.)
-                  Text('Diary',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    'A good thing, a hard thing — both belong here.',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _diaryController,
-                    focusNode: _diaryFocus,
-                    maxLines: 3, // more robust typing area on PC
-                    minLines: 2,
-                    decoration: InputDecoration(
-                      hintText: 'How is today going?',
-                      helperText: isDesktopWide ? 'Ctrl+D jumps here' : null,
-                      border: const OutlineInputBorder(),
+                  // Guided mode (level 4): no building, no diary box —
+                  // only the list; words go through long-press or capture.
+                  if (!_guidedMode) ...[
+                    Text('Diary',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text(
+                      'A good thing, a hard thing — both belong here.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  ElevatedButton.icon(
-                    onPressed: _saveDiaryEntry,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Keep in diary'),
-                  ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _diaryController,
+                      focusNode: _diaryFocus,
+                      maxLines: 3, // more robust typing area on PC
+                      minLines: 2,
+                      decoration: InputDecoration(
+                        hintText: 'How is today going?',
+                        helperText: isDesktopWide ? 'Ctrl+D jumps here' : null,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ElevatedButton.icon(
+                      onPressed: _saveDiaryEntry,
+                      icon: const Icon(Icons.check),
+                      label: const Text('Keep in diary'),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
                   QuickCaptureBar(
                     onTap: () => context.push('/capture'),
                   ),
                   // On PC the sidebar covers navigation — these stay for mobile.
+                  // Guided mode: the calendar stays (visual, read-mostly);
+                  // managing routines is the inspector's job, not shown here.
                   if (!isDesktopWide) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -1085,6 +1100,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           'Open calendar for appointments & day notes'),
                     ),
                     const SizedBox(height: 8),
+                    if (!_guidedMode)
                     OutlinedButton.icon(
                       onPressed: () => context.push('/routines'),
                       icon: const Icon(Icons.list_alt),

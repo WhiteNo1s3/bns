@@ -39,4 +39,16 @@ void main() {
     final next = const AppSettings().copyWith(todayOrder: 'next');
     expect(AppSettings.fromJson(next.toJson()).todayOrder, 'next');
   });
+
+  test('guided mode (level 4): off by default, roundtrips, legacy-safe', () {
+    expect(const AppSettings().guidedMode, false,
+        reason: 'nobody starts as a level 4 user');
+    final on = const AppSettings()
+        .copyWith(guidedMode: true, fullCareMode: true);
+    final back = AppSettings.fromJson(on.toJson());
+    expect(back.guidedMode, true);
+    expect(back.fullCareMode, true,
+        reason: 'level 4 rides on the inspector (full care) privilege');
+    expect(AppSettings.fromJson(const {}).guidedMode, false);
+  });
 }

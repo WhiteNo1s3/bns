@@ -142,6 +142,16 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _addEvent() async {
+    // Level 4: the day is built by the inspector, not here.
+    final settings = await IsarService.getSettings();
+    if (settings.guidedMode) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('The plan is taken care of for you. All is well. 💚')));
+      }
+      return;
+    }
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final controller = TextEditingController(text: 'Appointment');
     final timeController = TextEditingController(text: '10:00');

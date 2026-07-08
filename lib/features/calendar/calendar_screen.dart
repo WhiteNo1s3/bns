@@ -107,8 +107,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
       body: Column(
         children: [
           TableCalendar<CalendarEvent>(
-            firstDay: DateTime.utc(2020, 1, 1),
-            lastDay: DateTime.utc(2035, 12, 31),
+            // The calendar shows the days that are actually THERE (owner,
+            // 2026-07-08): 15 days of kept history, 10 days ahead. No
+            // scrolling into years nobody can touch.
+            firstDay: DateTime.now().subtract(const Duration(days: 15)),
+            lastDay: DateTime.now().add(const Duration(days: 10)),
             focusedDay: _focusedDay,
             selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
             eventLoader: _getEventsForDay,

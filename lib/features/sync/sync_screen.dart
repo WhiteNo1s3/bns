@@ -131,7 +131,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.resetRetentionToDefault();
     await _loadRetention();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Reset to default 2-week retention')),
+      const SnackBar(content: Text('Back to keeping 15 days of history')),
     );
   }
 

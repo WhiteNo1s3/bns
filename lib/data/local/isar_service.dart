@@ -280,6 +280,8 @@ class IsarService {
     String? reasonAudioPath,
   }) async {
     final d = await _load();
+    // One truth per routine per day — replace, never pile up.
+    d.logs.removeWhere((l) => l.routineId == routineId && l.date == date);
     d.logs.add(CompletionLog(
       id: _uuid.v4(),
       routineId: routineId,
@@ -289,6 +291,18 @@ class IsarService {
       reasonAudioPath: reasonAudioPath,
       at: DateTime.now(),
     ));
+    await _persist();
+  }
+
+  /// Unchecking the checkbox: the day simply has no answer for this routine
+  /// anymore — not done, not skipped, just open again. (Owner, 2026-07-08:
+  /// there was no way to take a ✓ back.)
+  static Future<void> removeCompletion({
+    required String routineId,
+    required String date,
+  }) async {
+    final d = await _load();
+    d.logs.removeWhere((l) => l.routineId == routineId && l.date == date);
     await _persist();
   }
 
@@ -495,7 +509,7 @@ class IsarService {
   }
 
   static Future<void> resetRetentionToDefault() async {
-    await updateRetentionDays(14);
+    await updateRetentionDays(15); // owner default: 15 days of history
   }
 
   // ---- Trash / Soft delete (user control) ----

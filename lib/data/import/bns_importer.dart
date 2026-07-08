@@ -96,7 +96,7 @@ class BnsImporter {
     } else {
       settings = AppSettings(
         deviceName: manifest['deviceName'] as String? ?? 'Imported Device',
-        retentionDays: 14,
+        retentionDays: 15,
       );
     }
 

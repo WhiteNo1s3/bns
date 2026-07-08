@@ -85,7 +85,7 @@ class AppSettings {
     this.notificationsEnabled = true,
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
-    this.retentionDays = 14,
+    this.retentionDays = 15,
     this.userType = 'normal',
     this.widgetForwardDays = 2,
     this.quietMode = false,
@@ -191,7 +191,7 @@ class AppSettings {
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null
             : DateTime.tryParse(json['lastFullSyncAt'] as String),
-        retentionDays: (json['retentionDays'] as num?)?.toInt() ?? 14,
+        retentionDays: (json['retentionDays'] as num?)?.toInt() ?? 15,
         userType: json['userType'] as String? ?? 'normal',
         widgetForwardDays: (json['widgetForwardDays'] as num?)?.toInt() ?? 2,
         quietMode: json['quietMode'] as bool? ?? false,

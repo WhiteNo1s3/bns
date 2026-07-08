@@ -505,21 +505,59 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     return KeyEventResult.ignored;
   }
 
+  /// The checkbox, with a gentle guard in BOTH directions (owner,
+  /// 2026-07-08): a stray tap shouldn't fake a win, and a real ✓ must be
+  /// takeable-back. Unchecking removes the log entirely — the day just has
+  /// no answer again, it never secretly becomes a "skip".
   Future<void> _toggleComplete(Routine r) async {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final isDone = await _isDoneToday(r.id, todayStr);
-
-    await IsarService.logCompletion(
-      routineId: r.id,
-      date: todayStr,
-      status: isDone ? CompletionStatus.skipped : CompletionStatus.done,
-    );
+    if (!mounted) return;
 
     if (!isDone) {
+      final sure = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(r.title),
+          content: const Text('Is it done? 🌿'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Not yet')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Done ✓')),
+          ],
+        ),
+      );
+      if (sure != true) return;
+      await IsarService.logCompletion(
+        routineId: r.id,
+        date: todayStr,
+        status: CompletionStatus.done,
+      );
       final settings = await IsarService.getSettings();
       if (!settings.quietMode) {
         _confetti.play();
       }
+    } else {
+      final takeBack = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(r.title),
+          content: const Text('Take the ✓ back? That happens — no harm.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Keep it done')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Take it back')),
+          ],
+        ),
+      );
+      if (takeBack != true) return;
+      await IsarService.removeCompletion(routineId: r.id, date: todayStr);
     }
 
     // Refresh
@@ -530,8 +568,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     AndroidBnsWidget.updateWidget();
 
     // The ✓ appearing (+ confetti unless quiet) IS the celebration.
-    // No snackbar, no follow-up question — words live behind long-press,
-    // when the person wants them (owner feedback, 2026-07-08).
+    // No snackbar, no follow-up question — words live behind long-press.
   }
 
   Future<bool> _isDoneToday(String routineId, String date) async {

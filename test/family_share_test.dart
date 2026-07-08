@@ -2,6 +2,7 @@
 // "family can know" ever leave — a filtered EXPORT, not a filtered view.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/pack/bns_packers.dart';
 
 void main() {
@@ -27,6 +28,26 @@ void main() {
     });
     expect(legacy.shareWithFamily, false,
         reason: 'private by default — sharing is always chosen');
+  });
+
+  test('the family tag: chosen moments in, rage decisions out', () {
+    expect(BnsExporter.isFamilyTagged(['family']), true);
+    expect(BnsExporter.isFamilyTagged(['#family']), true,
+        reason: 'people will type the hash — accept it');
+    expect(BnsExporter.isFamilyTagged(['Family', 'good']), true);
+    expect(BnsExporter.isFamilyTagged(['good', 'crisis']), false);
+    expect(BnsExporter.isFamilyTagged([]), false);
+    expect(BnsExporter.isFamilyTagged(['family', 'mad-vent']), false,
+        reason: 'a rage-moment decision to share must not outlive the rage');
+  });
+
+  test('fullCareMode settings field: off by default, survives roundtrip', () {
+    expect(const AppSettings().fullCareMode, false,
+        reason: 'the last resort is never the starting point');
+    final on = const AppSettings().copyWith(fullCareMode: true);
+    expect(AppSettings.fromJson(on.toJson()).fullCareMode, true);
+    // Legacy settings JSON (no field) stays off.
+    expect(AppSettings.fromJson(const {}).fullCareMode, false);
   });
 
   test('family-share manifest and filtered data survive the container', () {

@@ -964,9 +964,12 @@ function familyView(main) {
   const name = (S.data.settings?.shareName || '').trim() ||
                S.data.settings?.deviceName || 'Their';
   const possessive = name.endsWith('s') ? `${name}'` : `${name}'s`;
-  // Family-share files carry only chosen plans — no routines, no diary, so
-  // the day/memory sections stay out entirely instead of looking empty.
+  // Family-share files carry only what was chosen; in FULL CARE they carry
+  // everything ("every remembered moment is gold" — the last resort for the
+  // severely impaired, guarded on the patient's side).
   const shareOnly = S.manifest?.familyShare === true;
+  const fullCare = S.manifest?.fullCare === true;
+  const showDay = !shareOnly || fullCare;
   const today = localDateStr(new Date());
   const logsToday = S.data.completionLogs.filter(l => l.date === today);
   const due = S.data.routines.filter(appliesToday);
@@ -977,21 +980,30 @@ function familyView(main) {
     .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
     .slice(0, 6);
 
+  // Audio-only moments count too — hearing it in their own voice IS the
+  // information. Mad-vents never surface here, whatever the file.
   const memories = S.data.captures
     .filter(c => !c.deletedAt && !(c.tags || []).includes('mad-vent') &&
-                 (c.text || c.contextNote))
+                 (c.text || c.contextNote || c.audioPath))
     .sort((a, b) => (b.at || '').localeCompare(a.at || ''))
-    .slice(0, 5);
+    .slice(0, fullCare ? 30 : 5);
+
+  const heading = fullCare ? `${esc(possessive)} world`
+    : shareOnly ? `${esc(possessive)} important plans`
+    : `${esc(possessive)} days`;
+  const subline = fullCare
+    ? esc(name) + ' shares everything with you — every remembered moment is gold.'
+    : shareOnly
+      ? esc(name) + ' chose to share these — a reminder is welcome, gently.'
+      : 'A little window, shared with love. Looking is all this page does.';
 
   main.innerHTML = `
     <div style="text-align:center; margin:18px 0 6px">
       <div style="font-size:40px">💚</div>
-      <h2 style="margin:6px 0">${shareOnly ? esc(possessive) + ' important plans' : esc(possessive) + ' days'}</h2>
-      <p class="sub" style="color:var(--muted)">${shareOnly
-        ? esc(name) + ' chose to share these — a reminder is welcome, gently.'
-        : 'A little window, shared with love. Looking is all this page does.'}</p>
+      <h2 style="margin:6px 0">${heading}</h2>
+      <p class="sub" style="color:var(--muted)">${subline}</p>
     </div>
-    ${shareOnly ? '' : `<div class="card">
+    ${!showDay ? '' : `<div class="card">
       <h3>Today</h3>
       ${due.length === 0
         ? `<p style="font-size:16px">A quiet day — quiet days are good days. 🌿</p>`
@@ -1007,20 +1019,37 @@ function familyView(main) {
       <p style="font-size:15px; line-height:1.9">${upcoming.map(e =>
         `📅 ${esc(e.date === today ? 'Today' : new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }))}${e.time ? ' ' + esc(e.time) : ''} — ${esc(e.title)}`
       ).join('<br>')}</p>
-    </div>` : (shareOnly ? `<div class="card"><p style="font-size:15px">Nothing shared right now — no news is fine news. 🌿</p></div>` : '')}
-    ${!shareOnly && memories.length ? `<div class="card">
-      <h3>Recent moments</h3>
-      ${memories.map(c => `<p style="font-size:14.5px; margin:8px 0">💭 ${esc(c.text || c.contextNote)}
-        <span style="color:var(--muted); font-size:12px"> — ${prettyWhen(c.at)}</span></p>`).join('')}
+    </div>` : (shareOnly && !memories.length ? `<div class="card"><p style="font-size:15px">Nothing shared right now — no news is fine news. 🌿</p></div>` : '')}
+    ${memories.length ? `<div class="card">
+      <h3>${shareOnly ? 'Shared moments' : 'Recent moments'}</h3>
+      ${memories.map(c => `<div style="margin:10px 0">
+        <p style="font-size:14.5px; margin:0">💭 ${esc(c.text || c.contextNote || 'A voice note')}
+          <span style="color:var(--muted); font-size:12px"> — ${prettyWhen(c.at)}</span></p>
+        ${c.audioPath ? `<div class="row" style="margin-top:4px">
+          <button class="small ghost" data-famplay="${esc(c.id)}">▶ Hear it in ${esc(possessive)} voice</button>
+        </div><div id="famau_${esc(c.id)}"></div>` : ''}
+      </div>`).join('')}
     </div>` : ''}
     <div class="card" style="text-align:center">
-      <p style="font-size:15px">${shareOnly
-        ? 'Being asked to remember is trust. Thanks for being there for ' + esc(name) + '. 💚'
-        : 'Whatever today looked like — ' + esc(name) + ' showed up. That counts. 💚'}</p>
+      <p style="font-size:15px">${fullCare
+        ? 'Every fragment helps you help. Thank you for carrying this with ' + esc(name) + '. 💚'
+        : shareOnly
+          ? 'Being asked to remember is trust. Thanks for being there for ' + esc(name) + '. 💚'
+          : 'Whatever today looked like — ' + esc(name) + ' showed up. That counts. 💚'}</p>
     </div>
     <div class="row" style="justify-content:center; margin:14px 0 30px">
       ${shareOnly ? '' : `<button class="small ghost" id="exitfamily">Full view</button>`}
     </div>`;
+
+  // Voice notes inside the family file play right here — hearing the moment
+  // in the person's own voice is often the whole point.
+  main.querySelectorAll('[data-famplay]').forEach(b => b.onclick = () => {
+    const c = S.data.captures.find(x => x.id === b.dataset.famplay);
+    const url = c && audioUrlFor(c);
+    const slot = document.getElementById('famau_' + b.dataset.famplay);
+    if (!url) { if (slot) slot.innerHTML = `<p class="sub">This voice note is not inside the file.</p>`; return; }
+    slot.innerHTML = `<audio controls autoplay src="${url}"></audio>`;
+  });
   const exit = $('exitfamily');
   if (exit) exit.onclick = () => {
     S.family = false;

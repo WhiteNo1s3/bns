@@ -356,9 +356,12 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             ),
 
             // Tags for search, crisis, garden organization (good, felt safe, crisis etc.)
+            // 'family' is special: tagged items enter the family share file —
+            // sharing a moment is always the person's own choice, one tap.
             const SizedBox(height: 12),
             const Text(
-                'Tags (search by routine/crisis, visual garden, share with doctors):',
+                'Tags (search by routine/crisis, visual garden, share with doctors; '
+                '"family" puts this moment into the family file):',
                 style: TextStyle(fontSize: 12)),
             Wrap(
               spacing: 4,
@@ -371,6 +374,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 'drama',
                 'wonderings',
                 'routine',
+                'family',
                 ..._selectedTags
               }.map((tag) {
                 final selected = _selectedTags.contains(tag);

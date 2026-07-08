@@ -26,19 +26,37 @@ import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/file_handler.dart';
 import 'package:confetti/confetti.dart';
 
-void main(List<String> args) async {
+void main(List<String> args) {
+  // THE FIRST FRAME IS SACRED (black-screen fix, 2026-07-06): runApp runs
+  // immediately — nothing is awaited before it. On Android 13+ the old code
+  // awaited a notification PERMISSION DIALOG before the first frame, which
+  // can block or fail silently → app opens to a plain black screen.
+  // All startup chores now happen after the UI exists, each one guarded:
+  // a failed chore degrades a feature, never the launch.
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationsService.init();
-  await NotificationsService.rescheduleAll();
-
-  // Prune old historical data on startup to keep files small (2 week default rolling)
-  // Future planning (calendar) is preserved. Routines stay.
-  await IsarService.pruneOldData();
-
-  // Desktop: double-clicking an associated .bns file passes its path here.
-  BnsFileHandler.checkDesktopArgs(args, null);
-
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details); // log, never die silently
+  };
   runApp(const ProviderScope(child: BnsApp()));
+  _startupChores(args);
+}
+
+Future<void> _startupChores(List<String> args) async {
+  try {
+    await NotificationsService.init();
+    await NotificationsService.rescheduleAll();
+  } catch (_) {
+    // Reminders are a courtesy — the app runs fine without them today.
+  }
+  try {
+    // Prune old historical data to keep files small (2-week default rolling).
+    // Future planning (calendar) is preserved. Routines stay.
+    await IsarService.pruneOldData();
+  } catch (_) {}
+  try {
+    // Desktop: double-clicking an associated .bns file passes its path here.
+    BnsFileHandler.checkDesktopArgs(args, null);
+  } catch (_) {}
 }
 
 /// Wraps a page with the modern desktop shell when on PC (Windows/mac/Linux wide window).

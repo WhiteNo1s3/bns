@@ -22,6 +22,8 @@ class RoutinesScreen extends StatefulWidget {
 class _RoutinesScreenState extends State<RoutinesScreen> {
   List<Routine> _routines = [];
   bool _loading = true;
+  // Level 4: the list belongs to the inspector — this screen shows, only.
+  bool _guided = false;
 
   @override
   void initState() {
@@ -36,9 +38,11 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   Future<void> _loadRoutines() async {
     setState(() => _loading = true);
     final routines = await IsarService.getAllRoutines();
+    final settings = await IsarService.getSettings();
     if (mounted) {
       setState(() {
         _routines = routines;
+        _guided = settings.guidedMode;
         _loading = false;
       });
     }
@@ -146,7 +150,8 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(
-                        onTap: () => _addOrEditRoutine(r),
+                        // Level 4: look, don't touch — the inspector edits.
+                        onTap: _guided ? null : () => _addOrEditRoutine(r),
                         leading: Icon(
                           r.isActive
                               ? Icons.check_circle_outline
@@ -171,21 +176,26 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                             ),
                           ],
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.redAccent),
-                          onPressed: () => _deleteRoutine(r),
-                          tooltip: 'Delete routine',
-                        ),
+                        trailing: _guided
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                onPressed: () => _deleteRoutine(r),
+                                tooltip: 'Delete routine',
+                              ),
                       ),
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addOrEditRoutine(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Routine'),
-      ),
+      // Guided mode: no adding here — the day arrives from the inspector.
+      floatingActionButton: _guided
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _addOrEditRoutine(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Routine'),
+            ),
     );
   }
 }

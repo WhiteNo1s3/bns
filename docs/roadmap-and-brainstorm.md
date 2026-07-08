@@ -148,6 +148,14 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - ✅ **Robust long-press** — typed words save exactly once no matter how the sheet closes (button, Close, tap-outside).
 - ✅ **Level 3 = caregivers see EVERYTHING** (owner explicit): full-care Explorer view now includes rants — the frustration IS the signal. Caregivers monitor, never edit through the Explorer; check-ins flow via paired LAN auto-sync merge ("input from LAN instead of from the user" — set and forget). Attitude recorded in AGENTS.md in the owner's words.
 
+2026-07-08 wave 11 — **LEVEL 4: guided mode** (owner spec via his father — "there are situations that you cannot let the person control stuff, he needs only list… he cannot, he is a puppet… when it kills the brain only routines work"; origin: a Holocaust survivor's kid with Alzheimer's):
+- ✅ **`guidedMode` setting** — the fourth level of the care spectrum. Enabling it (guarded: typed share name + grave copy) auto-enables full care; disabling is one tap on the Sync screen.
+- ✅ **The person's device becomes the LIST**: Today shows the routines big and visual (RoutineTile `big`: larger checkbox, 22sp titles, roomier rows); no diary box, no order toggle, no add buttons, no routines-management nav. Empty day says "Nothing on the list right now. All is well. 🌿" instead of inviting building.
+- ✅ **What stays in their hands** (the whole point): ticking a task with the gentle "Is it done?" acceptance — tracked for both the person AND the inspector — and long-press to tell about a problem (typed or voice; robust save). Quick capture stays (their voice channel).
+- ✅ **Look, don't touch, everywhere**: Routines screen has no FAB/edit-tap/delete in guided mode; Day view's add-event answers "The plan is taken care of for you. All is well. 💚"; the calendar stays reachable (visual).
+- ✅ **The inspector builds the day** from their own paired device; LAN auto-sync merge delivers it — instructions, not choices. Recorded as spectrum level 4 in AGENTS.md.
+- Tests: 24 green (guided default off, roundtrip, legacy-safe, rides on full care).
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.

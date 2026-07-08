@@ -62,6 +62,15 @@ class AppSettings {
   // 'next' (closest upcoming task from right now first).
   final String todayOrder;
 
+  // GUIDED MODE — "level 4" (owner design, 2026-07-08, from a Holocaust
+  // survivor's kid with Alzheimer's: "when it kills the brain only routines
+  // work"). The person gets ONLY the list — big, visual, accessible. They
+  // can tick a task (with their acceptance) and long-press to tell about a
+  // problem; everything else is built by the INSPECTOR (the caregiver, via
+  // their paired device). No editing, no building a day — instructions,
+  // not choices. Enabling guided mode also enables full care.
+  final bool guidedMode;
+
   // FULL CARE MODE — the last resort, by owner design (2026-07-06), for the
   // severely impaired ("people who had their name and number on their back
   // in rehabilitation"). When ON, the family file contains EVERYTHING —
@@ -100,6 +109,7 @@ class AppSettings {
     this.madModeUntil,
     this.shareName = '',
     this.todayOrder = 'timeline',
+    this.guidedMode = false,
     this.fullCareMode = false,
     this.serverUrl,
     this.serverToken,
@@ -128,6 +138,7 @@ class AppSettings {
     Object? madModeUntil = _unset,
     String? shareName,
     String? todayOrder,
+    bool? guidedMode,
     bool? fullCareMode,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
@@ -155,6 +166,7 @@ class AppSettings {
           : madModeUntil as DateTime?,
       shareName: shareName ?? this.shareName,
       todayOrder: todayOrder ?? this.todayOrder,
+      guidedMode: guidedMode ?? this.guidedMode,
       fullCareMode: fullCareMode ?? this.fullCareMode,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
@@ -181,6 +193,7 @@ class AppSettings {
         'madModeUntil': madModeUntil?.toIso8601String(),
         'shareName': shareName,
         'todayOrder': todayOrder,
+        'guidedMode': guidedMode,
         'fullCareMode': fullCareMode,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
@@ -214,6 +227,7 @@ class AppSettings {
             : DateTime.tryParse(json['madModeUntil'] as String),
         shareName: json['shareName'] as String? ?? '',
         todayOrder: json['todayOrder'] as String? ?? 'timeline',
+        guidedMode: json['guidedMode'] as bool? ?? false,
         fullCareMode: json['fullCareMode'] as bool? ?? false,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,

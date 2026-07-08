@@ -43,6 +43,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _deviceName = 'My BNS Device';
   String _shareName = '';
   bool _fullCareMode = false;
+  bool _guidedMode = false;
   // PC robust keybinds (typing #1 on PC)
   Map<String, String> _keybinds = {};
   Map<String, bool> _enabledKeybinds = {};
@@ -63,6 +64,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _deviceName = settings.deviceName;
     _shareName = settings.shareName;
     _fullCareMode = settings.fullCareMode;
+    _guidedMode = settings.guidedMode;
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
     _autoImage = settings.autoImageEnabled;
@@ -482,6 +484,77 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             'Full care is on. Everything travels to the people who care.')));
   }
 
+  /// GUIDED MODE — level 4. The person gets only the list: tick a task
+  /// (with their acceptance) and tell about problems. The inspector builds
+  /// the day from their own paired device. Heavy to turn on, one tap off.
+  Future<void> _setGuidedMode(bool v) async {
+    final s = await IsarService.getSettings();
+    if (!v) {
+      await IsarService.updateSettings(s.copyWith(guidedMode: false));
+      setState(() => _guidedMode = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Guided mode is off. Full control is back here.')));
+      return;
+    }
+    final nameCtrl = TextEditingController();
+    final expected = s.effectiveShareName.trim();
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Guided mode — only the list'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'For when routines are what remains. This device shows the '
+              'list — big and clear. The person can tick what\'s done and '
+              'tell about problems (voice or writing). Everything else — '
+              'building the day, changing tasks — happens from YOUR device '
+              'and arrives here over Wi-Fi.\n\n'
+              'Full care turns on with it, so you see everything. '
+              'Turning it off later is one tap, right here.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Text('To turn it on, type the share name ("$expected"):',
+                style: const TextStyle(fontSize: 13)),
+            TextField(controller: nameCtrl, autofocus: true),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Not now')),
+          FilledButton(
+              onPressed: () => Navigator.pop(
+                  c, nameCtrl.text.trim().toLowerCase() ==
+                      expected.toLowerCase()),
+              child: const Text('Turn on guided mode')),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Nothing changed — guided mode stays off.')));
+      }
+      return;
+    }
+    await IsarService.updateSettings(
+        s.copyWith(guidedMode: true, fullCareMode: true));
+    setState(() {
+      _guidedMode = true;
+      _fullCareMode = true;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:
+            Text('Guided mode is on. This device shows the list, with love.')));
+  }
+
   Color _progressColor(BuildContext context) {
     // Prefer system / relaxing palette primary
     return Theme.of(context).colorScheme.primary;
@@ -877,7 +950,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           const SizedBox(height: 8),
           SwitchListTile(
             dense: true,
-            title: const Text('Full care (last resort)'),
+            title: const Text('Full care (level 3 — last resort)'),
             subtitle: const Text(
                 'For the hardest situations: everything matters, everything '
                 'is shared with the people who care. Guarded to turn on, one '
@@ -885,6 +958,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 style: TextStyle(fontSize: 12)),
             value: _fullCareMode,
             onChanged: _setFullCareMode,
+          ),
+          SwitchListTile(
+            dense: true,
+            title: const Text('Guided mode (level 4 — only the list)'),
+            subtitle: const Text(
+                'When routines are what remains: this device shows the list, '
+                'big and clear. Ticking and telling about problems stay; '
+                'building the day moves to the inspector\'s device.',
+                style: TextStyle(fontSize: 12)),
+            value: _guidedMode,
+            onChanged: _setGuidedMode,
           ),
 
           const SizedBox(height: 40),

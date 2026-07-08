@@ -16,6 +16,9 @@ class RoutineTile extends StatelessWidget {
   // button that handles the next one (null = routine has no parts).
   final int stepsDone;
   final VoidCallback? onStepDone;
+  // Guided mode (level 4): the list IS the interface — bigger everything,
+  // "accessible and visual" for someone for whom routines are what remains.
+  final bool big;
 
   const RoutineTile({
     super.key,
@@ -26,6 +29,7 @@ class RoutineTile extends StatelessWidget {
     this.selected = false,
     this.stepsDone = 0,
     this.onStepDone,
+    this.big = false,
   });
 
   @override
@@ -52,16 +56,20 @@ class RoutineTile extends StatelessWidget {
         onLongPress: onSkip,
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: EdgeInsets.symmetric(
+              horizontal: 16, vertical: big ? 20 : 14),
           child: Row(
             children: [
               // A real checkbox — the most recognizable "done" object there
               // is. The whole row is the tap target (big-target law); the
               // box mirrors the row so both behave identically.
               IgnorePointer(
-                child: Checkbox(
-                  value: isDone,
-                  onChanged: (_) {},
+                child: Transform.scale(
+                  scale: big ? 1.4 : 1.0,
+                  child: Checkbox(
+                    value: isDone,
+                    onChanged: (_) {},
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -72,13 +80,14 @@ class RoutineTile extends StatelessWidget {
                     Text(
                       routine.title,
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: big ? 22 : 17,
                         decoration: isDone ? TextDecoration.lineThrough : null,
                         color: isDone
                             ? colorScheme.outline
                             : colorScheme.onSurface,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: big || selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                     const SizedBox(height: 2),

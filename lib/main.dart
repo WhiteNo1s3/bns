@@ -493,7 +493,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
     if (key == LogicalKeyboardKey.keyS) {
       if (_kbSelected >= 0 && _kbSelected < _todayRoutines.length) {
-        _openSkipSheet(_todayRoutines[_kbSelected]);
+        _openTellSheet(_todayRoutines[_kbSelected]);
       }
       return KeyEventResult.handled;
     }
@@ -529,22 +529,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     // Update Android widget (gadget) with fresh data
     AndroidBnsWidget.updateWidget();
 
-    // Celebrate first, offer second — never block the happy moment with a dialog.
-    if (!isDone && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('"${r.title}" done — you made it!'),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            label: 'Remember this moment',
-            onPressed: () => _router.push('/capture', extra: {
-              'linkedRoutineId': r.id,
-              'initialText': 'What happened in this routine today? Why?',
-            }),
-          ),
-        ),
-      );
-    }
+    // The ✓ appearing (+ confetti unless quiet) IS the celebration.
+    // No snackbar, no follow-up question — words live behind long-press,
+    // when the person wants them (owner feedback, 2026-07-08).
   }
 
   Future<bool> _isDoneToday(String routineId, String date) async {
@@ -553,48 +540,110 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         (l) => l.routineId == routineId && l.status == CompletionStatus.done);
   }
 
-  void _openSkipSheet(Routine r) {
+  /// Long-press on a routine: ONE quiet place for everything with words —
+  /// how it went, what was hard, what was a win, or a voice note. Tapping
+  /// the tile stays a plain ✓ with no questions (owner feedback,
+  /// 2026-07-08: the app was asking about everything, all the time).
+  void _openTellSheet(Routine r) {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final noteCtrl = TextEditingController();
+
+    Future<void> saveNote() async {
+      final text = noteCtrl.text.trim();
+      if (text.isEmpty) return;
+      await IsarService.addCapture(QuickCapture(
+        id: '',
+        at: DateTime.now(),
+        text: text,
+        linkedRoutineId: r.id,
+        tags: const ['routine'],
+        memoryLevel: MemoryLevel.remember,
+      ));
+    }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+        padding: EdgeInsets.fromLTRB(
+            24, 24, 24, 40 + MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('No pressure at all.',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
+            Text(r.title,
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             const Text(
-                'Skipping on purpose is a decision — and deciding counts as a win.'),
-            const SizedBox(height: 4),
-            const Text(
-                'It can help to capture why. Voice or text — or just close.'),
-            const SizedBox(height: 20),
+                'How did it go? Hard parts and wins both count here. '
+                'Or just close — no explaining needed.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(
+                hintText: 'A few words, if you feel like it',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
             QuickCaptureBar(
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/capture', extra: {
                   'linkedRoutineId': r.id,
-                  'initialText': 'Reason for today / what happened: ',
                 });
               },
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await IsarService.logCompletion(
-                  routineId: r.id,
-                  date: todayStr,
-                  status: CompletionStatus.skipped,
-                );
-                ref.invalidate(routinesProvider);
-              },
-              child: const Text('Close — no need to explain'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await saveNote();
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      await IsarService.logCompletion(
+                        routineId: r.id,
+                        date: todayStr,
+                        status: CompletionStatus.skipped,
+                      );
+                      ref.invalidate(routinesProvider);
+                      await _refreshDoneToday();
+                    },
+                    child: const Text('Not today'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () async {
+                      await saveNote();
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      await IsarService.logCompletion(
+                        routineId: r.id,
+                        date: todayStr,
+                        status: CompletionStatus.done,
+                      );
+                      ref.invalidate(routinesProvider);
+                      await _refreshDoneToday();
+                    },
+                    child: const Text('Done ✓'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () async {
+                  await saveNote();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: const Text('Close'),
+              ),
             ),
           ],
         ),
@@ -621,26 +670,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     AndroidBnsWidget.updateWidget();
 
     if (mounted) {
-      // One friendly toast with an optional action — no dialog interrupting the win.
+      // Brief and quiet — the person already chose to keep it; don't ask
+      // again. (Promoting a memory to "keep forever" lives in Memories.)
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              const Text('Saved to diary — no win is too small. You made it!'),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            label: 'Keep forever',
-            onPressed: () async {
-              final memCap = QuickCapture(
-                id: '',
-                at: DateTime.now(),
-                text: text,
-                tags: ['diary', 'memorize-win', 'good'],
-                memoryLevel: MemoryLevel.memorize,
-                contextNote: 'Permanent diary win - you did it!',
-              );
-              await IsarService.addCapture(memCap);
-            },
-          ),
+        const SnackBar(
+          content: Text('In the diary. ✓'),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -866,7 +901,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   onToggle: () =>
                                       _toggleComplete(todaysRoutines[i]),
                                   onSkip: () =>
-                                      _openSkipSheet(todaysRoutines[i]),
+                                      _openTellSheet(todaysRoutines[i]),
                                 ),
                               ),
                           ],
@@ -880,12 +915,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Interactive Moving Diary integration
-                  Text('Moving Diary - Remind & Set Goals, Mark V for Done',
+                  // The diary: one calm box, no presets, no double-asking.
+                  // (Copy is for the person, never for the developer.)
+                  Text('Diary',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    'Set goals, note wins. Every step forward counts — big or small, we applaud any progress.',
+                    'A good thing, a hard thing — both belong here.',
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -896,46 +932,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     focusNode: _diaryFocus,
                     maxLines: 3, // more robust typing area on PC
                     minLines: 2,
-                    decoration: const InputDecoration(
-                      hintText:
-                          'Today\'s goal or win... (typing is #1 on PC — use Ctrl+D to focus)',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: 'How is today going?',
+                      helperText: isDesktopWide ? 'Ctrl+D jumps here' : null,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 4),
                   ElevatedButton.icon(
                     onPressed: _saveDiaryEntry,
                     icon: const Icon(Icons.check),
-                    label: const Text('Save to Diary (V = done! You made it)'),
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () {
-                          _diaryController.text =
-                              'Small win: got out of bed / brushed teeth';
-                          _saveDiaryEntry();
-                        },
-                        child: const Text('V: got out of bed'),
-                      ),
-                      OutlinedButton(
-                        onPressed: () {
-                          _diaryController.text =
-                              'Progress: used the toilet properly today';
-                          _saveDiaryEntry();
-                        },
-                        child: const Text('V: toilet progress'),
-                      ),
-                      OutlinedButton(
-                        onPressed: () {
-                          _diaryController.text = 'I showed up today.';
-                          _saveDiaryEntry();
-                        },
-                        child: const Text('V: I showed up'),
-                      ),
-                    ],
+                    label: const Text('Keep in diary'),
                   ),
 
                   const SizedBox(height: 24),

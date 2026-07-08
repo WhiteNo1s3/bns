@@ -85,7 +85,8 @@ class AppSettings {
     this.notificationsEnabled = true,
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
-    this.retentionDays = 15,
+    // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
+    this.retentionDays = 20,
     this.userType = 'normal',
     this.widgetForwardDays = 2,
     this.quietMode = false,
@@ -191,7 +192,7 @@ class AppSettings {
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null
             : DateTime.tryParse(json['lastFullSyncAt'] as String),
-        retentionDays: (json['retentionDays'] as num?)?.toInt() ?? 15,
+        retentionDays: (json['retentionDays'] as num?)?.toInt() ?? 20,
         userType: json['userType'] as String? ?? 'normal',
         widgetForwardDays: (json['widgetForwardDays'] as num?)?.toInt() ?? 2,
         quietMode: json['quietMode'] as bool? ?? false,

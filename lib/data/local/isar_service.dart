@@ -452,7 +452,7 @@ class IsarService {
   }
 
   // ---- Rolling data retention to keep files small and sync fast ----
-  // Default 14 days. Future calendar events preserved for long-term planning.
+  // Default 20 days of history. Future calendar events preserved.
   // Routines and core settings are never pruned.
   static Future<void> pruneOldData() async {
     final d = await _load();
@@ -509,7 +509,9 @@ class IsarService {
   }
 
   static Future<void> resetRetentionToDefault() async {
-    await updateRetentionDays(15); // owner default: 15 days of history
+    // Owner FINAL (2026-07-08): "20 days past, 10 days into the future" —
+    // the +10 forward is the calendar's bound (calendar_screen.dart).
+    await updateRetentionDays(20);
   }
 
   // ---- Trash / Soft delete (user control) ----

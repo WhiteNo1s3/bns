@@ -37,7 +37,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   bool _quietMode = false;
   bool _autoImage = true;
   bool _discovering = false;
-  int _retentionDays = 14;
+  int _retentionDays = 20;
   int _widgetForwardDays = 2;
   String _userType = 'normal';
   String _deviceName = 'My BNS Device';
@@ -610,7 +610,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text(
-                      'Current: ${_retentionDays == 0 ? "Unlimited (10000 years mode)" : "$_retentionDays days (default 14 = 2 weeks)"}'),
+                      'Current: ${_retentionDays == 0 ? "Unlimited (10000 years mode)" : "$_retentionDays days (default 20)"}'),
                   const SizedBox(height: 8),
                   Text(
                     'Old days auto-delete as time passes. New days open up. Routines stay. You can plan far into the future.',
@@ -623,8 +623,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     spacing: 8,
                     children: [
                       OutlinedButton(
-                        onPressed: () => _setRetention(14),
-                        child: const Text('Default (2 weeks)'),
+                        onPressed: () => _setRetention(20),
+                        child: const Text('Default (20 days)'),
                       ),
                       OutlinedButton(
                         onPressed: () => _setRetention(90),

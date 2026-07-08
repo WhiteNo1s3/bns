@@ -83,11 +83,37 @@ class _DayViewState extends State<DayView> {
     }
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final done = _isRoutineDone(r.id);
-    await IsarService.logCompletion(
-      routineId: r.id,
-      date: dateStr,
-      status: done ? CompletionStatus.skipped : CompletionStatus.done,
+
+    // Same gentle temper as Today: ask before marking, and un-checking
+    // removes the mark entirely (never a silent flip to "skipped").
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(r.title),
+        content: Text(done
+            ? 'Take the ✓ back? That happens — no harm.'
+            : 'Is it done? 🌿'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: Text(done ? 'Keep it done' : 'Not yet')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(done ? 'Take it back' : 'Done ✓')),
+        ],
+      ),
     );
+    if (confirmed != true) return;
+
+    if (done) {
+      await IsarService.removeCompletion(routineId: r.id, date: dateStr);
+    } else {
+      await IsarService.logCompletion(
+        routineId: r.id,
+        date: dateStr,
+        status: CompletionStatus.done,
+      );
+    }
     await _loadData();
   }
 

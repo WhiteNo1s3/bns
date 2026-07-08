@@ -67,7 +67,20 @@ class _DayViewState extends State<DayView> {
         (l) => l.routineId == routineId && l.status == CompletionStatus.done);
   }
 
+  /// You cannot do tomorrow's routine today — marking future days done was
+  /// a real bug (owner, 2026-07-08: "you cannot move across time").
+  bool get _isFutureDay {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return DateTime(_date.year, _date.month, _date.day).isAfter(today);
+  }
+
   Future<void> _toggleRoutine(Routine r) async {
+    if (_isFutureDay) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('That day hasn\'t come yet — it can wait for you.')));
+      return;
+    }
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final done = _isRoutineDone(r.id);
     await IsarService.logCompletion(
@@ -79,6 +92,7 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _skipRoutine(Routine r) async {
+    if (_isFutureDay) return; // future days are not ours to touch yet
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     // Open quick capture pre-linked
     final result = await Navigator.push(
@@ -323,6 +337,17 @@ class _DayViewState extends State<DayView> {
                   const SizedBox(height: 24),
                   Text('Routines for this day',
                       style: Theme.of(context).textTheme.titleMedium),
+                  if (_isFutureDay)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'These wait for their day.',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                    ),
                   if (_applicableRoutines.isEmpty)
                     const Text('No routines scheduled for this day.')
                   else
@@ -331,6 +356,7 @@ class _DayViewState extends State<DayView> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
+                          enabled: !_isFutureDay,
                           onTap: () => _toggleRoutine(r),
                           leading: Icon(
                               done ? Icons.check_circle : Icons.circle_outlined,

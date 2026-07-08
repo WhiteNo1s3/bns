@@ -364,8 +364,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   padding: const EdgeInsets.all(8),
                   child: TextField(
                     decoration: const InputDecoration(
-                      hintText:
-                          'Search routine, crisis, tag... (for doctors share, see your wins)',
+                      hintText: 'Search your memories…',
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(),
                     ),

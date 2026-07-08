@@ -58,6 +58,15 @@ class AppSettings {
   // asking. Empty = fall back to deviceName.
   final String shareName;
 
+  // FULL CARE MODE — the last resort, by owner design (2026-07-06), for the
+  // severely impaired ("people who had their name and number on their back
+  // in rehabilitation"). When ON, the family file contains EVERYTHING —
+  // every fleeting thought is gold for the people easing their path
+  // ("he thought about shaving but doesn't shave"; "super annoyed at the
+  // elevator" → assist with elevators). Default OFF; enabling is guarded
+  // behind a typed confirmation; turning it off is always one tap.
+  final bool fullCareMode;
+
   // CANCELLED feature (owner decision 2026-07-06): the 0.12a account-server
   // pivot. The client/server code is quarantined in prototypes/cloud-pivot/
   // and is NOT in any build. These two fields stay only as inert
@@ -85,6 +94,7 @@ class AppSettings {
     this.enabledKeybinds = const {},
     this.madModeUntil,
     this.shareName = '',
+    this.fullCareMode = false,
     this.serverUrl,
     this.serverToken,
   });
@@ -111,6 +121,7 @@ class AppSettings {
     Map<String, bool>? enabledKeybinds,
     Object? madModeUntil = _unset,
     String? shareName,
+    bool? fullCareMode,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
   }) {
@@ -136,6 +147,7 @@ class AppSettings {
           ? this.madModeUntil
           : madModeUntil as DateTime?,
       shareName: shareName ?? this.shareName,
+      fullCareMode: fullCareMode ?? this.fullCareMode,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
           serverToken == _unset ? this.serverToken : serverToken as String?,
@@ -160,6 +172,7 @@ class AppSettings {
         'enabledKeybinds': enabledKeybinds,
         'madModeUntil': madModeUntil?.toIso8601String(),
         'shareName': shareName,
+        'fullCareMode': fullCareMode,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
       };
@@ -191,6 +204,7 @@ class AppSettings {
             ? null
             : DateTime.tryParse(json['madModeUntil'] as String),
         shareName: json['shareName'] as String? ?? '',
+        fullCareMode: json['fullCareMode'] as bool? ?? false,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,
       );

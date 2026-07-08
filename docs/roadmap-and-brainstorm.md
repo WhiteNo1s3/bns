@@ -125,6 +125,13 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - ✅ Record button's in-place color fade kept (stationary feedback, not motion); confetti unchanged (opt-out celebration, dead in quiet mode).
 - ✅ **"The Explorer" naming settled** (README): the satellite HTML is the door for people AROUND the user — non-users, kids, loved ones — to observe and sync .bns files to a computer without installing; the user himself lives in the native Windows/Android program.
 
+2026-07-06 wave 8 — **the family spectrum: #family tag + FULL CARE mode** (Ben, from his grandfather's Alzheimer's: "whatever he remembers for a second is gold… I explained in details to secure the setting as a last resort for families with unlucky people"):
+- ✅ **`family` tag on any moment**: one tap in the capture tag row → that moment (voice note included) enters the family file. `BnsExporter.isFamilyTagged` accepts `family`/`#family`, case-insensitive; **`mad-vent` vetoes the tag** — a rage-moment decision to share must not outlive the rage.
+- ✅ **FULL CARE mode** (`Settings.fullCareMode`, default off): the last resort for the severely impaired — the family file carries EVERYTHING (all plans, all moments incl. audio, routines, diary). Guarded ON via typed share-name confirmation with grave copy ("decided together with the people who care"); one-tap OFF (reducing sharing is always the easy direction). Over LAN, trusted+approved devices already receive full content by design — full care mainly changes the FILE.
+- ✅ **Explorer**: family files now show "Shared moments" with in-page voice playback ("Hear it in <name>'s voice" — the elevator recording IS the information); `fullCare: true` files open as "<Name>'s world / shares everything with you", showing today's list, all plans, up to 30 moments. Vents live in the full-care DATA (that's the point) but the family view never headlines them — available for care, never paraded. 13 live checks green.
+- ✅ Honest note recorded: the Explorer never connects anywhere (its safety). "The page remembers the connection" = the APP's trusted-devices list + auto-sync; the Explorer path stays file-handoff (or the auto-imaged BNS_Latest on a shared folder).
+- Tests: tag semantics, fullCareMode default/roundtrip/legacy, family-file shape (21 total green).
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.

@@ -27,18 +27,59 @@ class BnsExporter {
     return exportFullSnapshot(fixedFileName: name);
   }
 
-  /// The FAMILY SHARE (owner decision, 2026-07-06): a tiny .bns containing
-  /// ONLY the events the user marked "family can know" — doctor meetings,
-  /// weddings, holidays, things he'd want a reminder about. No routines, no
-  /// captures, no diary, no audio: the rest is none of their business, and
-  /// because it's a filtered EXPORT (not a filtered view), there is nothing
-  /// else in the file no matter how it's opened. The web satellite detects
-  /// `familyShare: true` and opens straight into the read-only family view.
+  /// True when this capture was chosen for the family ('family' tag,
+  /// with or without a '#'). Mad-vents NEVER pass here even if tagged —
+  /// a rage-moment decision to share shouldn't outlive the rage.
+  static bool isFamilyTagged(Iterable<String> tags) {
+    var family = false;
+    for (final t in tags) {
+      final tag = t.toLowerCase().replaceAll('#', '').trim();
+      if (tag == 'mad-vent') return false;
+      if (tag == 'family') family = true;
+    }
+    return family;
+  }
+
+  /// The FAMILY SHARE (owner decisions, 2026-07-06) — a filtered EXPORT,
+  /// never a filtered view. Two levels, both the person's own choice:
+  ///
+  /// Normal: ONLY events marked "family can know" + moments tagged `family`
+  /// (with their voice notes). Nothing else exists in the file, no matter
+  /// how it's opened. Mad-vents never enter, even tagged.
+  ///
+  /// FULL CARE MODE (`Settings.fullCareMode`, the guarded last resort for
+  /// the severely impaired): everything matters — the complete active data
+  /// including all moments and audio, so the people easing the person's
+  /// path can catch the gold in every fleeting thought.
+  ///
+  /// The Explorer detects `familyShare: true` and opens the family view.
   static Future<File> exportFamilyShare() async {
     final settings = await IsarService.getSettings();
-    final events = (await IsarService.getAllEvents())
-        .where((e) => e.shareWithFamily)
-        .toList();
+    final fullCare = settings.fullCareMode;
+    final snapshot = await IsarService.getFullSnapshot();
+
+    final events = fullCare
+        ? snapshot.events
+        : snapshot.events.where((e) => e.shareWithFamily).toList();
+    final captures = fullCare
+        ? snapshot.captures.where((c) => c.deletedAt == null).toList()
+        : snapshot.captures
+            .where((c) => c.deletedAt == null && isFamilyTagged(c.tags))
+            .toList();
+
+    // Voice notes belonging to the shared moments travel along — hearing
+    // "super annoyed at the elevator" in his own voice IS the information.
+    final audioDir = await IsarService.getAudioDir();
+    final audioEntries = <BnsAudioEntry>[];
+    for (final cap in captures) {
+      final p = cap.audioPath;
+      if (p == null) continue;
+      final name = p.split(Platform.pathSeparator).last.split('/').last;
+      final f = File('${audioDir.path}/$name');
+      if (await f.exists()) {
+        audioEntries.add((name: name, bytes: await f.readAsBytes()));
+      }
+    }
 
     final manifest = {
       'formatVersion': 2,
@@ -50,16 +91,21 @@ class BnsExporter {
       'appVersion': '0.12a',
       'schema': 'bns/v2',
       'familyShare': true,
-      'audioCount': 0,
-      'totalItems': events.length,
+      if (fullCare) 'fullCare': true,
+      'audioCount': audioEntries.length,
+      'totalItems': events.length + captures.length,
       'dataCompressed': true,
       'dataFormat': 'gzip+json',
     };
     final data = {
-      'routines': const <Object>[],
+      'routines': fullCare
+          ? snapshot.routines.map((e) => e.toJson()).toList()
+          : const <Object>[],
       'events': events.map((e) => e.toJson()).toList(),
-      'captures': const <Object>[],
-      'completionLogs': const <Object>[],
+      'captures': captures.map((e) => e.toJson()).toList(),
+      'completionLogs': fullCare
+          ? snapshot.logs.map((e) => e.toJson()).toList()
+          : const <Object>[],
       // Only the share identity — no keybinds, no preferences, no secrets.
       'settings': {'shareName': settings.effectiveShareName},
     };
@@ -73,7 +119,7 @@ class BnsExporter {
     final encoded = BnsPackers.current.pack(
       manifest: manifest,
       data: data,
-      audioFiles: const [],
+      audioFiles: audioEntries,
     );
     final out = File(outPath);
     final tmp = File('$outPath.tmp');

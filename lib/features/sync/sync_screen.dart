@@ -42,6 +42,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _userType = 'normal';
   String _deviceName = 'My BNS Device';
   String _shareName = '';
+  bool _fullCareMode = false;
   // PC robust keybinds (typing #1 on PC)
   Map<String, String> _keybinds = {};
   Map<String, bool> _enabledKeybinds = {};
@@ -61,6 +62,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _userType = settings.userType;
     _deviceName = settings.deviceName;
     _shareName = settings.shareName;
+    _fullCareMode = settings.fullCareMode;
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
     _autoImage = settings.autoImageEnabled;
@@ -399,16 +401,85 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
   }
 
-  /// Family share: a tiny .bns with ONLY the events marked "family can know".
+  /// Family share: chosen events + `family`-tagged moments — or, in full
+  /// care mode, everything.
   Future<void> _exportFamilyShare() async {
     final f = await BnsExporter.exportFamilyShare();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(
-              'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
-              'only what you marked, nothing else.')),
+          content: Text(_fullCareMode
+              ? 'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
+                  'full care: everything is inside, for the people who care.'
+              : 'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
+                  'only what you marked, nothing else.')),
     );
+  }
+
+  /// FULL CARE MODE — the last resort for the severely impaired. Turning it
+  /// ON is deliberately heavy (typed confirmation); turning it OFF is one
+  /// tap — reducing sharing must always be the easy direction.
+  Future<void> _setFullCareMode(bool v) async {
+    final s = await IsarService.getSettings();
+    if (!v) {
+      await IsarService.updateSettings(s.copyWith(fullCareMode: false));
+      setState(() => _fullCareMode = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Full care is off. Only chosen things are shared.')));
+      return;
+    }
+    final nameCtrl = TextEditingController();
+    final expected = s.effectiveShareName.trim();
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Full care — a serious step'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This is for when someone needs the people around them to know '
+              'everything — every thought, every voice note, every day. The '
+              'family file will contain it all, and trusted devices already '
+              'receive it all.\n\n'
+              'It exists for the hardest situations, decided together with '
+              'the people who care. Turning it off later is one tap.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Text('To turn it on, type the share name ("$expected"):',
+                style: const TextStyle(fontSize: 13)),
+            TextField(controller: nameCtrl, autofocus: true),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Not now')),
+          FilledButton(
+              onPressed: () => Navigator.pop(
+                  c, nameCtrl.text.trim().toLowerCase() ==
+                      expected.toLowerCase()),
+              child: const Text('Turn on full care')),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Nothing changed — full care stays off.')));
+      }
+      return;
+    }
+    await IsarService.updateSettings(s.copyWith(fullCareMode: true));
+    setState(() => _fullCareMode = true);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Full care is on. Everything travels to the people who care.')));
   }
 
   Color _progressColor(BuildContext context) {
@@ -786,9 +857,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
-            'A small file with ONLY the plans you marked "family can know" — '
-            'doctor visits, weddings, things you\'d want a reminder about. '
-            'Nothing else is inside it, no matter how it\'s opened.',
+            _fullCareMode
+                ? 'Full care is ON: the family file carries everything — every '
+                    'plan, every moment, every voice note — for the people '
+                    'easing the path.'
+                : 'A small file with ONLY what was chosen: plans marked '
+                    '"family can know" and moments tagged "family" (voice '
+                    'notes included). Nothing else is inside it, no matter '
+                    'how it\'s opened.',
             style: TextStyle(
                 fontSize: 12.5,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -798,6 +874,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               onPressed: _exportFamilyShare,
               icon: const Icon(Icons.family_restroom),
               label: const Text('Make the family file')),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            dense: true,
+            title: const Text('Full care (last resort)'),
+            subtitle: const Text(
+                'For the hardest situations: everything matters, everything '
+                'is shared with the people who care. Guarded to turn on, one '
+                'tap to turn off.',
+                style: TextStyle(fontSize: 12)),
+            value: _fullCareMode,
+            onChanged: _setFullCareMode,
+          ),
 
           const SizedBox(height: 40),
           const Text(

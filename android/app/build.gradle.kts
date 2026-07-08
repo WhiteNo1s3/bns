@@ -34,8 +34,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             // Ship builds, not source: R8 shrinks + obfuscates the JVM side.
             // (Dart side is AOT + --obfuscate via scripts/build.ps1.)
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Diagnostic escape hatch: set env ORG_GRADLE_PROJECT_bnsNoMinify=true
+            // to build a release WITHOUT R8 — lets a device test bisect
+            // "R8 broke it" from everything else in minutes.
+            val noMinify = (project.findProperty("bnsNoMinify") as String?) == "true"
+            isMinifyEnabled = !noMinify
+            isShrinkResources = !noMinify
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

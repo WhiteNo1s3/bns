@@ -132,6 +132,13 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - ✅ Honest note recorded: the Explorer never connects anywhere (its safety). "The page remembers the connection" = the APP's trusted-devices list + auto-sync; the Explorer path stays file-handoff (or the auto-imaged BNS_Latest on a shared folder).
 - Tests: tag semantics, fullCareMode default/roundtrip/legacy, family-file shape (21 total green).
 
+2026-07-06 wave 9 — **the black screen + testing goes live** (Ben: "the app won't kick on the android, galaxy s23 ultra, just plain black screen… lets go full on"):
+- 🐛→✅ **Black screen root cause**: `main()` awaited `NotificationsService.init()` — which on Android 13+ pops the notification PERMISSION DIALOG — plus rescheduling and store pruning, all BEFORE `runApp`. Anything blocking or dying there = black screen forever, and release builds die silently. **Law now in code: THE FIRST FRAME IS SACRED** — `runApp` runs immediately, every startup chore runs after the UI exists inside its own try/catch (a failed chore degrades a feature, never the launch).
+- ✅ **R8 bisect kit**: `ORG_GRADLE_PROJECT_bnsNoMinify=true` env builds a no-R8/no-obfuscation release; `build.ps1 -DiagAndroid` ships it as `dist\BNS-android-DIAG.apk` next to the hardened one. Hardened-black-but-DIAG-fine = missing keep rule; both-black = real crash, logcat has it.
+- ✅ **Tester packaging**: `build.ps1 -PackageWindows` → `dist\BNS-windows-x64.zip` (unzip anywhere, run bns.exe, no installer/admin). dist now: hardened APK, DIAG APK, Windows zip, the Explorer.
+- ✅ **docs/testing-live.md**: the full bench playbook — S23 USB-debugging + adb install/logcat, BlueStacks as ADB second phone + LAN peer (NAT caveat noted), `flutter run` hot-reload on device, two-instance PC multi-user, Kubuntu one-time Flutter install, and the per-session 5-step checklist.
+- NOTE: the fixed APK is built but NOT yet confirmed on the S23 — that's the first item on the bench: install `dist\BNS-android.apk`, and if anything is still wrong, `adb logcat -d *:E flutter:V` now tells the truth instead of a silent black screen.
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.

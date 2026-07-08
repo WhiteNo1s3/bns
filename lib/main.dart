@@ -493,7 +493,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
     if (key == LogicalKeyboardKey.keyS) {
       if (_kbSelected >= 0 && _kbSelected < _todayRoutines.length) {
-        _openTellSheet(_todayRoutines[_kbSelected]);
+        _openDidntHappenSheet(_todayRoutines[_kbSelected]);
       }
       return KeyEventResult.handled;
     }
@@ -540,15 +540,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         (l) => l.routineId == routineId && l.status == CompletionStatus.done);
   }
 
-  /// Long-press on a routine: ONE quiet place for everything with words —
-  /// how it went, what was hard, what was a win, or a voice note. Tapping
-  /// the tile stays a plain ✓ with no questions (owner feedback,
-  /// 2026-07-08: the app was asking about everything, all the time).
-  void _openTellSheet(Routine r) {
+  /// Long-press = "it didn't happen" (owner, 2026-07-08). The checkbox is
+  /// for done; THIS is for the problem: the person states it didn't happen
+  /// and can write what got in the way — remembered, so it can get help.
+  /// No Done button here; done lives on the checkbox where it belongs.
+  void _openDidntHappenSheet(Routine r) {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final noteCtrl = TextEditingController();
 
-    Future<void> saveNote() async {
+    Future<void> saveProblemNote() async {
       final text = noteCtrl.text.trim();
       if (text.isEmpty) return;
       await IsarService.addCapture(QuickCapture(
@@ -556,8 +556,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         at: DateTime.now(),
         text: text,
         linkedRoutineId: r.id,
-        tags: const ['routine'],
+        tags: const ['routine', 'need-help'],
         memoryLevel: MemoryLevel.remember,
+        contextNote: 'What got in the way of: ${r.title}',
       ));
     }
 
@@ -576,15 +577,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             const Text(
-                'How did it go? Hard parts and wins both count here. '
-                'Or just close — no explaining needed.'),
+                'Didn\'t happen? That\'s okay. If something got in the way, '
+                'write it down — it will be remembered, so it can get help.'),
             const SizedBox(height: 16),
             TextField(
               controller: noteCtrl,
               maxLines: 3,
               minLines: 1,
+              autofocus: true,
               decoration: const InputDecoration(
-                hintText: 'A few words, if you feel like it',
+                hintText: 'What got in the way?',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -594,55 +596,30 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 Navigator.pop(ctx);
                 context.push('/capture', extra: {
                   'linkedRoutineId': r.id,
+                  'tags': ['need-help'],
                 });
               },
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      await saveNote();
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      await IsarService.logCompletion(
-                        routineId: r.id,
-                        date: todayStr,
-                        status: CompletionStatus.skipped,
-                      );
-                      ref.invalidate(routinesProvider);
-                      await _refreshDoneToday();
-                    },
-                    child: const Text('Not today'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () async {
-                      await saveNote();
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      await IsarService.logCompletion(
-                        routineId: r.id,
-                        date: todayStr,
-                        status: CompletionStatus.done,
-                      );
-                      ref.invalidate(routinesProvider);
-                      await _refreshDoneToday();
-                    },
-                    child: const Text('Done ✓'),
-                  ),
-                ),
-              ],
+            FilledButton(
+              onPressed: () async {
+                await saveProblemNote();
+                if (ctx.mounted) Navigator.pop(ctx);
+                await IsarService.logCompletion(
+                  routineId: r.id,
+                  date: todayStr,
+                  status: CompletionStatus.skipped,
+                );
+                ref.invalidate(routinesProvider);
+                await _refreshDoneToday();
+              },
+              child: const Text('It didn\'t happen today'),
             ),
             const SizedBox(height: 8),
             Center(
               child: TextButton(
-                onPressed: () async {
-                  await saveNote();
-                  if (ctx.mounted) Navigator.pop(ctx);
-                },
-                child: const Text('Close'),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close — nothing to say'),
               ),
             ),
           ],
@@ -901,7 +878,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   onToggle: () =>
                                       _toggleComplete(todaysRoutines[i]),
                                   onSkip: () =>
-                                      _openTellSheet(todaysRoutines[i]),
+                                      _openDidntHappenSheet(todaysRoutines[i]),
                                 ),
                               ),
                           ],

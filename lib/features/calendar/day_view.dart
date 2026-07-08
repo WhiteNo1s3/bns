@@ -359,7 +359,9 @@ class _DayViewState extends State<DayView> {
                           enabled: !_isFutureDay,
                           onTap: () => _toggleRoutine(r),
                           leading: Icon(
-                              done ? Icons.check_circle : Icons.circle_outlined,
+                              done
+                                  ? Icons.check_box
+                                  : Icons.check_box_outline_blank,
                               size: 28),
                           title: Text(r.title,
                               style: done

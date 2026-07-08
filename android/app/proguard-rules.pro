@@ -14,6 +14,15 @@
 # flutter_local_notifications uses reflection for notification details.
 -keep class com.dexterous.flutterlocalnotifications.** { *; }
 
+# ...and Gson under the hood, which needs generic type signatures at runtime.
+# Without these, R8 strips them and scheduling dies with "Missing type
+# parameter" (caught live on the S23 Ultra, 2026-07-08).
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep public class * implements java.lang.reflect.Type
+
 # Flutter engine references Play Core split-install (deferred components) —
 # we don't use them; the classes are absent by design. Standard suppression.
 -dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication

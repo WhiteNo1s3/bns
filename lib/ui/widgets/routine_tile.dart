@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
 
-/// Reusable tile for routines.
-/// Click to complete, long press or menu for skip-with-reason.
+/// Reusable tile for routines — a CHECKBOX row (owner, 2026-07-08: "V is
+/// for checkboxes"). Tap anywhere ticks the box; long-press is only for
+/// "didn't happen, and here's what got in the way".
 /// Directly inspired by PillMemorizer checklist rows (stateful click, strikethrough, kind treatment).
 class RoutineTile extends StatelessWidget {
   final Routine routine;
@@ -48,10 +49,14 @@ class RoutineTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(
-                isDone ? Icons.check_circle_rounded : Icons.circle_outlined,
-                size: 28,
-                color: isDone ? primary : colorScheme.outline,
+              // A real checkbox — the most recognizable "done" object there
+              // is. The whole row is the tap target (big-target law); the
+              // box mirrors the row so both behave identically.
+              IgnorePointer(
+                child: Checkbox(
+                  value: isDone,
+                  onChanged: (_) {},
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

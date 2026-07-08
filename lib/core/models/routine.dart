@@ -11,6 +11,24 @@ enum RecurrenceType {
 
 const Object _unset = Object();
 
+/// One PART of a routine — its own entity, its own information (owner,
+/// 2026-07-08: "an entity for each part of the routine… a list of classes
+/// for the activity, where we put the information"). These are the trees
+/// inside the action: "Morning meds" → [take pills, drink water, check BP].
+class RoutineStep {
+  final String title;
+  final String? note; // the information that helps with this part
+
+  const RoutineStep({required this.title, this.note});
+
+  Map<String, dynamic> toJson() => {'title': title, 'note': note};
+
+  factory RoutineStep.fromJson(Map<String, dynamic> json) => RoutineStep(
+        title: json['title'] as String? ?? '',
+        note: json['note'] as String?,
+      );
+}
+
 class Routine {
   final String id; // UUID
   final String title;
@@ -18,10 +36,12 @@ class Routine {
   final RecurrenceType recurrenceType;
   // For weekly / custom: 0=Sun ... 6=Sat. Empty means all for daily.
   final List<int> daysOfWeek;
-  final String? time; // "HH:mm" local, optional
+  final String? time; // "HH:mm" local, optional — always on a quarter hour
   final bool isActive;
   final List<String> tags;
   final bool firstStepOnlyDefault;
+  // The ordered parts of this routine (empty = a single-part routine).
+  final List<RoutineStep> steps;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -35,6 +55,7 @@ class Routine {
     this.isActive = true,
     this.tags = const [],
     this.firstStepOnlyDefault = false,
+    this.steps = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -49,6 +70,7 @@ class Routine {
     bool? isActive,
     List<String>? tags,
     bool? firstStepOnlyDefault,
+    List<RoutineStep>? steps,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -63,6 +85,7 @@ class Routine {
       isActive: isActive ?? this.isActive,
       tags: tags ?? this.tags,
       firstStepOnlyDefault: firstStepOnlyDefault ?? this.firstStepOnlyDefault,
+      steps: steps ?? this.steps,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -78,6 +101,7 @@ class Routine {
         'isActive': isActive,
         'tags': tags,
         'firstStepOnlyDefault': firstStepOnlyDefault,
+        'steps': steps.map((s) => s.toJson()).toList(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -96,6 +120,10 @@ class Routine {
         isActive: json['isActive'] as bool? ?? true,
         tags: (json['tags'] as List? ?? const []).cast<String>(),
         firstStepOnlyDefault: json['firstStepOnlyDefault'] as bool? ?? false,
+        steps: (json['steps'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(RoutineStep.fromJson)
+            .toList(),
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
             DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??

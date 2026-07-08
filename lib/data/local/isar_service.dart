@@ -296,14 +296,42 @@ class IsarService {
 
   /// Unchecking the checkbox: the day simply has no answer for this routine
   /// anymore — not done, not skipped, just open again. (Owner, 2026-07-08:
-  /// there was no way to take a ✓ back.)
+  /// there was no way to take a ✓ back.) Step progress resets with it.
   static Future<void> removeCompletion({
     required String routineId,
     required String date,
   }) async {
     final d = await _load();
     d.logs.removeWhere((l) => l.routineId == routineId && l.date == date);
+    d.stepProgress.remove('$date|$routineId');
     await _persist();
+  }
+
+  // ---- Step progress (the parts inside a routine, per day) ----
+
+  static Future<int> getStepProgress(String routineId, String date) async {
+    final d = await _load();
+    return d.stepProgress['$date|$routineId'] ?? 0;
+  }
+
+  /// One more part handled. Returns the new count.
+  static Future<int> advanceStep(
+      String routineId, String date, int totalSteps) async {
+    final d = await _load();
+    final key = '$date|$routineId';
+    final next = ((d.stepProgress[key] ?? 0) + 1).clamp(0, totalSteps);
+    d.stepProgress[key] = next;
+    await _persist();
+    return next;
+  }
+
+  static Future<Map<String, int>> stepProgressForDate(String date) async {
+    final d = await _load();
+    final out = <String, int>{};
+    d.stepProgress.forEach((k, v) {
+      if (k.startsWith('$date|')) out[k.substring(date.length + 1)] = v;
+    });
+    return out;
   }
 
   // ---- Full snapshot helpers for .bns imaging ----
@@ -479,6 +507,12 @@ class IsarService {
       d.logs.removeWhere((l) => l.date.compareTo(cutoffDateStr) < 0);
       if (d.logs.length != logsBefore) changed = true;
 
+      // Step working-state from days gone by is meaningless — clear it.
+      final stepsBefore = d.stepProgress.length;
+      d.stepProgress
+          .removeWhere((k, _) => k.split('|').first.compareTo(cutoffDateStr) < 0);
+      if (d.stepProgress.length != stepsBefore) changed = true;
+
       final capsBefore = d.captures.length;
       // Old captures beyond window ('memorize' level is permanent).
       d.captures.removeWhere((c) =>
@@ -635,6 +669,10 @@ class _Data {
   /// True only when the previous session said goodbye via markCleanExit().
   bool cleanExit;
 
+  /// Per-day step progress: 'yyyy-MM-dd|routineId' → parts done so far.
+  /// Device-local working state (the finished day travels via logs).
+  final Map<String, int> stepProgress;
+
   _Data({
     required this.routines,
     required this.events,
@@ -644,7 +682,8 @@ class _Data {
     required this.settings,
     required this.seeded,
     this.cleanExit = true,
-  });
+    Map<String, int>? stepProgress,
+  }) : stepProgress = stepProgress ?? {};
 
   factory _Data.empty() => _Data(
         routines: [],
@@ -666,6 +705,7 @@ class _Data {
         'captures': captures.map((e) => e.toJson()).toList(),
         'logs': logs.map((e) => e.toJson()).toList(),
         'trusted': trusted.map((e) => e.toJson()).toList(),
+        'stepProgress': stepProgress,
       };
 
   factory _Data.fromJson(Map<String, dynamic> json) => _Data(
@@ -689,5 +729,7 @@ class _Data {
         trusted: (json['trusted'] as List? ?? const [])
             .map((j) => TrustedDevice.fromJson(j as Map<String, dynamic>))
             .toList(),
+        stepProgress: (json['stepProgress'] as Map? ?? const {})
+            .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
       );
 }

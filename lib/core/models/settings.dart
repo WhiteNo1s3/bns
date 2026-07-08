@@ -58,6 +58,10 @@ class AppSettings {
   // asking. Empty = fall back to deviceName.
   final String shareName;
 
+  // How Today lists the day: 'timeline' (morning→night, default) or
+  // 'next' (closest upcoming task from right now first).
+  final String todayOrder;
+
   // FULL CARE MODE — the last resort, by owner design (2026-07-06), for the
   // severely impaired ("people who had their name and number on their back
   // in rehabilitation"). When ON, the family file contains EVERYTHING —
@@ -95,6 +99,7 @@ class AppSettings {
     this.enabledKeybinds = const {},
     this.madModeUntil,
     this.shareName = '',
+    this.todayOrder = 'timeline',
     this.fullCareMode = false,
     this.serverUrl,
     this.serverToken,
@@ -122,6 +127,7 @@ class AppSettings {
     Map<String, bool>? enabledKeybinds,
     Object? madModeUntil = _unset,
     String? shareName,
+    String? todayOrder,
     bool? fullCareMode,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
@@ -148,6 +154,7 @@ class AppSettings {
           ? this.madModeUntil
           : madModeUntil as DateTime?,
       shareName: shareName ?? this.shareName,
+      todayOrder: todayOrder ?? this.todayOrder,
       fullCareMode: fullCareMode ?? this.fullCareMode,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
@@ -173,6 +180,7 @@ class AppSettings {
         'enabledKeybinds': enabledKeybinds,
         'madModeUntil': madModeUntil?.toIso8601String(),
         'shareName': shareName,
+        'todayOrder': todayOrder,
         'fullCareMode': fullCareMode,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
@@ -205,6 +213,7 @@ class AppSettings {
             ? null
             : DateTime.tryParse(json['madModeUntil'] as String),
         shareName: json['shareName'] as String? ?? '',
+        todayOrder: json['todayOrder'] as String? ?? 'timeline',
         fullCareMode: json['fullCareMode'] as bool? ?? false,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,

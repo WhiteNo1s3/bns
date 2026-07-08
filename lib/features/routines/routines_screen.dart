@@ -209,6 +209,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
   String? _time;
   bool _firstStepOnly = false;
   bool _isActive = true;
+  // The parts of this routine — each its own entity, in order.
+  final List<TextEditingController> _stepTitles = [];
+  final List<TextEditingController> _stepNotes = [];
 
   @override
   void initState() {
@@ -222,6 +225,10 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       _time = r.time;
       _firstStepOnly = r.firstStepOnlyDefault;
       _isActive = r.isActive;
+      for (final s in r.steps) {
+        _stepTitles.add(TextEditingController(text: s.title));
+        _stepNotes.add(TextEditingController(text: s.note ?? ''));
+      }
     }
   }
 
@@ -229,11 +236,38 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
+    for (final c in _stepTitles) {
+      c.dispose();
+    }
+    for (final c in _stepNotes) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  void _addStepRow() {
+    setState(() {
+      _stepTitles.add(TextEditingController());
+      _stepNotes.add(TextEditingController());
+    });
+  }
+
+  void _removeStepRow(int i) {
+    setState(() {
+      _stepTitles.removeAt(i).dispose();
+      _stepNotes.removeAt(i).dispose();
+    });
+  }
+
+  /// Times snap to quarter hours — 2:07 does not exist here (owner law,
+  /// 2026-07-08: "I don't want ugly numbers in my application").
+  static TimeOfDay _roundToQuarter(TimeOfDay t) {
+    final total = ((t.hour * 60 + t.minute + 7) ~/ 15) * 15 % (24 * 60);
+    return TimeOfDay(hour: total ~/ 60, minute: total % 60);
+  }
+
   Future<void> _pickTime() async {
-    final now = TimeOfDay.now();
+    final now = _roundToQuarter(TimeOfDay.now());
     final picked = await showTimePicker(
       context: context,
       initialTime: _time != null
@@ -243,10 +277,16 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
           : now,
     );
     if (picked != null) {
+      final snapped = _roundToQuarter(picked);
       setState(() {
         _time =
-            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+            '${snapped.hour.toString().padLeft(2, '0')}:${snapped.minute.toString().padLeft(2, '0')}';
       });
+      if (snapped.minute != picked.minute && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Rounded to ${_time!} — clean quarter hours only.')));
+      }
     }
   }
 
@@ -270,6 +310,29 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       return;
     }
 
+    // FOOLPROOF (owner, 2026-07-08): a routine can never save broken.
+    // Weekly/custom with no days picked would silently never appear —
+    // auto-heal to daily and say so.
+    var recurrence = _recurrence;
+    if ((recurrence == RecurrenceType.weekly ||
+            recurrence == RecurrenceType.custom) &&
+        _daysOfWeek.isEmpty) {
+      recurrence = RecurrenceType.daily;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'No days were picked — set to every day so it never gets lost. '
+              'Edit anytime.')));
+    }
+
+    // Steps: empty titles are dropped; notes without titles don't count.
+    final steps = <RoutineStep>[];
+    for (var i = 0; i < _stepTitles.length; i++) {
+      final t = _stepTitles[i].text.trim();
+      if (t.isEmpty) continue;
+      final n = _stepNotes[i].text.trim();
+      steps.add(RoutineStep(title: t, note: n.isEmpty ? null : n));
+    }
+
     final now = DateTime.now();
     final routine = Routine(
       id: widget.existing?.id ?? '',
@@ -277,11 +340,12 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       description: _descController.text.trim().isEmpty
           ? null
           : _descController.text.trim(),
-      recurrenceType: _recurrence,
+      recurrenceType: recurrence,
       daysOfWeek: _daysOfWeek,
       time: _time,
       isActive: _isActive,
       firstStepOnlyDefault: _firstStepOnly,
+      steps: steps,
       tags: widget.existing?.tags ?? [],
       createdAt: widget.existing?.createdAt ?? now,
       updatedAt: now,
@@ -318,6 +382,65 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               ),
             ),
             const SizedBox(height: 16),
+            // The parts of this routine — each part is its own thing, with
+            // its own helping note, in the order they happen.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Parts, in order (optional):',
+                  style: Theme.of(context).textTheme.labelLarge),
+            ),
+            const SizedBox(height: 6),
+            for (var i = 0; i < _stepTitles.length; i++) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                      radius: 12,
+                      child: Text('${i + 1}',
+                          style: const TextStyle(fontSize: 12))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _stepTitles[i],
+                          decoration: const InputDecoration(
+                            hintText: 'What happens in this part?',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        TextField(
+                          controller: _stepNotes[i],
+                          decoration: const InputDecoration(
+                            hintText: 'A note that helps (optional)',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    tooltip: 'Remove this part',
+                    onPressed: () => _removeStepRow(i),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addStepRow,
+                icon: const Icon(Icons.add),
+                label: const Text('Add a part'),
+              ),
+            ),
+            const SizedBox(height: 8),
             DropdownButtonFormField<RecurrenceType>(
               value: _recurrence,
               decoration: const InputDecoration(

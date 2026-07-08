@@ -188,7 +188,8 @@ class _DayViewState extends State<DayView> {
                   id: '',
                   title: controller.text,
                   date: dateStr,
-                  time: timeController.text,
+                  // Quarter hours only — no ugly numbers (owner law).
+                  time: _snapToQuarter(timeController.text),
                   notes: '',
                   shareWithFamily: shareWithFamily,
                   createdAt: DateTime.now(),
@@ -202,6 +203,16 @@ class _DayViewState extends State<DayView> {
         ),
       ),
     );
+  }
+
+  /// 2:07 doesn't exist here — every time lands on a quarter hour.
+  static String _snapToQuarter(String raw) {
+    final parts = raw.trim().split(':');
+    final h = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 10;
+    final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+    final total = ((h.clamp(0, 23) * 60 + m.clamp(0, 59) + 7) ~/ 15) * 15 %
+        (24 * 60);
+    return '${(total ~/ 60).toString().padLeft(2, '0')}:${(total % 60).toString().padLeft(2, '0')}';
   }
 
   /// Flip "family can know" on an existing event (upsert keeps the id).

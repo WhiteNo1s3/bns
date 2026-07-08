@@ -358,6 +358,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // synchronously — no per-tile FutureBuilder re-querying the store on every
   // rebuild (that made each key press repaint/flicker the whole list).
   Set<String> _doneTodayIds = const {};
+  Map<String, int> _stepProgress = const {}; // routineId → parts done today
+  bool _nextFirstOrder = false; // false = morning→night (default)
   String? _lastSyncLine; // cached "last synced" note (no per-frame queries)
 
   @override
@@ -377,16 +379,72 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final logs = await IsarService.getLogsForDate(todayStr);
     final trusted = await IsarService.getTrustedDevices();
+    final steps = await IsarService.stepProgressForDate(todayStr);
+    final settings = await IsarService.getSettings();
     if (!mounted) return;
     setState(() {
       _doneTodayIds = logs
           .where((l) => l.status == CompletionStatus.done)
           .map((l) => l.routineId)
           .toSet();
+      _stepProgress = steps;
+      _nextFirstOrder = settings.todayOrder == 'next';
       _lastSyncLine = trusted.isEmpty
           ? null
           : 'Last synced across devices: ${trusted.map((d) => d.lastSyncedAt).reduce((a, b) => a.isAfter(b) ? a : b).toLocal().toString().substring(0, 16)}';
     });
+  }
+
+  /// Two ways to see the day (owner, 2026-07-08): morning→night (default,
+  /// the calm timeline) or "what's next" — the closest upcoming task from
+  /// right now first, so 18:18 shows the 18:30 thing on top. Done items
+  /// sink to the bottom in both.
+  void _sortForToday(List<Routine> list) {
+    int minutes(Routine r) {
+      if (r.time == null) return 24 * 60; // timeless tasks go last
+      final p = r.time!.split(':');
+      return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+    }
+
+    final nowMin = DateTime.now().hour * 60 + DateTime.now().minute;
+    list.sort((a, b) {
+      final aDone = _doneTodayIds.contains(a.id);
+      final bDone = _doneTodayIds.contains(b.id);
+      if (aDone != bDone) return aDone ? 1 : -1; // handled sinks
+      final am = minutes(a), bm = minutes(b);
+      if (!_nextFirstOrder) return am.compareTo(bm);
+      // "What's next": upcoming (>= now) first by nearness, then the
+      // earlier-today ones, then timeless.
+      int rank(int m) => m >= 24 * 60 ? 2 : (m >= nowMin ? 0 : 1);
+      final ra = rank(am), rb = rank(bm);
+      if (ra != rb) return ra.compareTo(rb);
+      return am.compareTo(bm);
+    });
+  }
+
+  Future<void> _toggleTodayOrder() async {
+    final s = await IsarService.getSettings();
+    final next = !_nextFirstOrder;
+    await IsarService.updateSettings(
+        s.copyWith(todayOrder: next ? 'next' : 'timeline'));
+    if (!mounted) return;
+    setState(() => _nextFirstOrder = next);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(next
+            ? 'Showing what\'s next first. The order follows the clock.'
+            : 'Showing the whole day, morning to night.')));
+  }
+
+  /// One more part of this routine handled — quiet micro-win. When the last
+  /// part lands, the normal gentle "Is it done?" takes over.
+  Future<void> _advanceStep(Routine r) async {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final done =
+        await IsarService.advanceStep(r.id, todayStr, r.steps.length);
+    await _refreshDoneToday();
+    if (done >= r.steps.length && mounted) {
+      await _toggleComplete(r); // asks "Is it done?" — the person decides
+    }
   }
 
   Future<void> _loadUserAdapt() async {
@@ -515,18 +573,37 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     if (!mounted) return;
 
     if (!isDone) {
+      // Consent over notes (owner, 2026-07-08): if the person wrote about a
+      // problem with this one, checking done must show it — the note STAYS
+      // kept either way; accepting done just stops today's reminding.
+      final allCaptures = await IsarService.getAllCaptures();
+      final problemNote = allCaptures
+          .where((c) =>
+              c.linkedRoutineId == r.id &&
+              c.tags.contains('need-help') &&
+              c.deletedAt == null)
+          .fold<QuickCapture?>(
+              null, (best, c) => best == null || c.at.isAfter(best.at) ? c : best);
+      if (!mounted) return;
+
       final sure = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(r.title),
-          content: const Text('Is it done? 🌿'),
+          content: problemNote == null
+              ? const Text('Is it done? 🌿')
+              : Text('You wrote about this one:\n\n'
+                  '“${problemNote.text ?? problemNote.contextNote ?? ''}”\n\n'
+                  'The note stays kept either way. Done anyway?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
                 child: const Text('Not yet')),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Done ✓')),
+                child: Text(problemNote == null
+                    ? 'Done ✓'
+                    : 'Yes — done, keep the note ✓')),
           ],
         ),
       );
@@ -584,10 +661,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   void _openDidntHappenSheet(Routine r) {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final noteCtrl = TextEditingController();
+    var noteSaved = false;
 
+    // ROBUST (owner, 2026-07-08): typed words are never lost — whichever
+    // way the sheet closes (button, Close, tapping outside), a non-empty
+    // note saves exactly once.
     Future<void> saveProblemNote() async {
       final text = noteCtrl.text.trim();
-      if (text.isEmpty) return;
+      if (text.isEmpty || noteSaved) return;
+      noteSaved = true;
       await IsarService.addCapture(QuickCapture(
         id: '',
         at: DateTime.now(),
@@ -656,13 +738,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             Center(
               child: TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close — nothing to say'),
+                child: const Text('Close'),
               ),
             ),
           ],
         ),
       ),
-    );
+      // However the sheet closes, typed words are kept.
+    ).whenComplete(saveProblemNote);
   }
 
   Future<void> _saveDiaryEntry() async {
@@ -861,6 +944,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       final todaysRoutines = routines
                           .where((r) => r.appliesOn(today) && r.isActive)
                           .toList();
+                      _sortForToday(todaysRoutines);
                       _todayRoutines =
                           todaysRoutines; // for the keyboard handler
 
@@ -901,6 +985,26 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         },
                         child: Column(
                           children: [
+                            // Order choice: the calm timeline (default) or
+                            // "what's next from right now" (owner option,
+                            // 2026-07-08: "now its 18:18, what is the
+                            // closest task to do").
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _toggleTodayOrder,
+                                icon: Icon(
+                                    _nextFirstOrder
+                                        ? Icons.schedule
+                                        : Icons.wb_twilight,
+                                    size: 16),
+                                label: Text(
+                                    _nextFirstOrder
+                                        ? 'Showing: what\'s next'
+                                        : 'Showing: morning to night',
+                                    style: const TextStyle(fontSize: 12)),
+                              ),
+                            ),
                             // Synchronous done-state from the cached set —
                             // stable frames, nothing async during rebuilds.
                             for (int i = 0; i < todaysRoutines.length; i++)
@@ -910,6 +1014,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   routine: todaysRoutines[i],
                                   isDone: _doneTodayIds
                                       .contains(todaysRoutines[i].id),
+                                  stepsDone: _stepProgress[
+                                          todaysRoutines[i].id] ??
+                                      0,
+                                  onStepDone: todaysRoutines[i]
+                                          .steps.isNotEmpty
+                                      ? () =>
+                                          _advanceStep(todaysRoutines[i])
+                                      : null,
                                   selected: _routinesFocus.hasFocus &&
                                       i == _kbSelected,
                                   onToggle: () =>

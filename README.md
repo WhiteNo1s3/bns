@@ -245,3 +245,8 @@ To test the amazing secure sync: run on two devices on same WiFi, open Sync scre
 - Tester-first (hi — thanks for testing, you're amazing).
 
 Built with ❤️ and patience. All ideas documented in the md files.
+
+## Credits
+
+Built by [WhiteNo1s3](https://github.com/WhiteNo1s3). Released under the MIT License.
+

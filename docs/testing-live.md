@@ -21,13 +21,33 @@ Build them all: `.\scripts\build.ps1 -Target host -PackageWindows -DiagAndroid`
 4. Verify: `adb devices` shows the phone (adb lives at
    `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`).
 
-Install + watch it live:
+### One command (Windows) — build, adb install, launch, live logs
+From the repo root, phone plugged in with USB debugging:
+
+```cmd
+scripts\android-dev.cmd
+```
+
+Same thing in PowerShell: `.\scripts\android-dev.ps1`
+
+| Command | What it does |
+|---|---|
+| `scripts\android-dev.cmd` | **Debug** build → `adb install -r` → open app → live `logcat` |
+| `scripts\android-dev.cmd build` | Debug APK only (`dist\BNS-android-debug.apk`) |
+| `scripts\android-dev.cmd install` | Install last debug APK |
+| `scripts\android-dev.cmd run` | Install + launch + logs (no rebuild) |
+| `scripts\android-dev.cmd release` | Obfuscated release + install + launch |
+| `scripts\android-dev.cmd logs` | Live Flutter + error logcat only |
+| `scripts\android-dev.cmd devices` | `adb devices -l` |
+
+Needs: Flutter on PATH, Android SDK platform-tools, USB debugging allowed.
+
+Manual adb (if you already have an APK):
 ```powershell
 $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
-& $adb install -r "dist\BNS-android.apk"
-& $adb logcat -c                              # clear old logs
-# launch the app on the phone, then:
-& $adb logcat -d *:E flutter:V | Select-Object -First 80   # errors + flutter output
+& $adb install -r "dist\BNS-android-debug.apk"
+& $adb logcat -c
+& $adb logcat flutter:V *:E
 ```
 
 ## Black screen triage (the 2026-07-06 bug)
@@ -90,11 +110,16 @@ flutter pub get && flutter test && flutter build linux --release
 
 ## Android device test bundle (Pass 7, 2026-07-20)
 
-Primary test surface is **Android**. Debug APK (feature bundle, reversible list):
+Primary test surface is **Android**.
 
-- Path: `dist/bns-debug-pass7.apk` (also `build/app/outputs/flutter-apk/app-debug.apk`)
-- Rebuild: `./scripts/build-android.sh` (needs Flutter + Android SDK + JAVA_HOME)
-- Install: copy to phone and open, or `adb install -r dist/bns-debug-pass7.apk`
+**On Windows (owner path):** one command does build + adb push + launch + logs:
+
+```cmd
+scripts\android-dev.cmd
+```
+
+- Debug APK also copied to `dist\BNS-android-debug.apk`
+- Linux rebuild helper: `./scripts/build-android.sh`
 
 ### What to try on the phone
 1. **Tap done** → quiet ✓. **Tap again** → "Open again. That's fine." (must never trap you)

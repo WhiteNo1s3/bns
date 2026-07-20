@@ -41,6 +41,10 @@ if ($Target -eq "host" -or $Target -eq "android") {
     # build\symbols — keep them if you ever need to read a crash stack.
     flutter build apk --release --obfuscate --split-debug-info=build\symbols
     Write-Host "APK: build\app\outputs\flutter-apk\app-release.apk"
+    New-Item -ItemType Directory -Force dist | Out-Null
+    Copy-Item "build\app\outputs\flutter-apk\app-release.apk" "dist\BNS-android.apk" -Force
+    Write-Host "Tester copy: dist\BNS-android.apk"
+    Write-Host "Day-to-day phone loop (build+adb+logs): scripts\android-dev.cmd"
     Write-Host "Install and add the BNS widgets to home. .bns files open and import."
     if ($DiagAndroid) {
         # Diagnostic twin without R8/obfuscation: if the hardened APK

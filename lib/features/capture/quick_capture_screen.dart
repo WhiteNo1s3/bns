@@ -22,6 +22,10 @@ class QuickCaptureScreen extends StatefulWidget {
   /// immediately — one tap from home screen to talking.
   final bool autoRecord;
 
+  /// Doctor / caregiver visit: long record, calm copy, family-share tags,
+  /// optional typed transcript for re-read; TTS for hear-first.
+  final bool doctorVisit;
+
   const QuickCaptureScreen({
     super.key,
     this.linkedRoutineId,
@@ -29,6 +33,7 @@ class QuickCaptureScreen extends StatefulWidget {
     this.initialText,
     this.initialTags,
     this.autoRecord = false,
+    this.doctorVisit = false,
   });
 
   @override
@@ -40,6 +45,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
   final _uuid = const Uuid();
+  final _transcriptController = TextEditingController();
 
   String? _audioPath;
   bool _isRecording = false;
@@ -61,6 +67,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (widget.initialTags != null) {
       _selectedTags.addAll(widget.initialTags!);
     }
+    if (widget.doctorVisit) {
+      _memoryLevel = MemoryLevel.remember;
+      _selectedTags.addAll(['doctor-visit', 'family']);
+    }
     // If linked to a routine, default to "Remember this" to capture what happened
     if (widget.linkedRoutineId != null && _memoryLevel == MemoryLevel.quick) {
       _memoryLevel = MemoryLevel.remember;
@@ -68,7 +78,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isPlaying = false);
     });
-    if (widget.autoRecord) {
+    if (widget.autoRecord || widget.doctorVisit) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
     }
   }
@@ -80,7 +90,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (!mounted || _isRecording) return;
     final settings = await IsarService.getSettings();
     if (!settings.quietMode) {
-      await TtsService.speakSubject('Tell me about today.');
+      await TtsService.speakSubject(widget.doctorVisit
+          ? 'Recording for the visit. Take your time.'
+          : 'Tell me about today.');
     }
     if (mounted && !_isRecording) await _toggleRecording();
   }
@@ -89,6 +101,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   void dispose() {
     _textController.dispose();
     _contextController.dispose();
+    _transcriptController.dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -170,12 +183,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   Future<void> _saveCapture() async {
     final text = _textController.text.trim();
-    if (text.isEmpty && _audioPath == null) {
+    final transcript = _transcriptController.text.trim();
+    if (text.isEmpty && _audioPath == null && transcript.isEmpty) {
       Navigator.pop(context);
       return;
     }
 
-    final tags = ['quick-thought'];
+    final tags = widget.doctorVisit ? <String>[] : <String>['quick-thought'];
     if (_memoryLevel == MemoryLevel.remember) tags.add('remember-this');
     if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
     tags.addAll(
@@ -191,8 +205,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       tags: tags,
       memoryLevel: _memoryLevel,
       contextNote: _contextController.text.trim().isEmpty
-          ? null
+          ? (widget.doctorVisit ? 'Doctor / caregiver visit' : null)
           : _contextController.text.trim(),
+      transcript: transcript.isEmpty ? null : transcript,
     );
 
     await IsarService.addCapture(capture);
@@ -201,13 +216,24 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     AndroidBnsWidget.updateWidget();
 
     if (mounted) {
+      final settings = await IsarService.getSettings();
+      final speakBack = transcript.isNotEmpty
+          ? transcript
+          : (text.isNotEmpty ? text : null);
+      if (!settings.quietMode && speakBack != null && widget.doctorVisit) {
+        // Hear first: optional read-back of what was typed.
+        // ignore: unawaited_futures
+        TtsService.speakSubject(speakBack);
+      }
       final msg = _selectedTags.contains('mad-vent')
           ? 'Vented. It burns away on its own — nothing is held against you.'
-          : _memoryLevel == MemoryLevel.memorize
-              ? 'Memorized permanently. This will stay with you.'
-              : _memoryLevel == MemoryLevel.remember
-                  ? 'Remembered. The context of what happened is saved for you.'
-                  : 'Saved. Thank you for capturing that.';
+          : widget.doctorVisit
+              ? 'Visit saved. You can play the recording or read the note anytime.'
+              : _memoryLevel == MemoryLevel.memorize
+                  ? 'Memorized permanently. This will stay with you.'
+                  : _memoryLevel == MemoryLevel.remember
+                      ? 'Remembered. The context of what happened is saved for you.'
+                      : 'Saved. Thank you for capturing that.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );
@@ -227,7 +253,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Quick thought',
+        title: widget.doctorVisit ? 'Doctor visit' : 'Quick thought',
         actions: [
           TextButton(
             onPressed: _saveCapture,
@@ -236,7 +262,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -244,40 +270,35 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             Text(
               _selectedTags.contains('mad-vent')
                   ? 'Let it out. Curse everyone and everything — only you can see this, and it burns out on its own within about 2 days.'
-                  : _memoryLevel == MemoryLevel.memorize
-                      ? 'Capture this permanently. The day and what happened will be remembered.'
-                      : _memoryLevel == MemoryLevel.remember
-                          ? 'Remember this moment. Note what happened in the routine or day for later recall.'
-                          : 'Say or write anything. No judgment, just capture.',
+                  : widget.doctorVisit
+                      ? 'Record the visit. Caregivers can listen later. '
+                          'Optional typed note if you want to re-read. '
+                          'Take your time.'
+                      : _memoryLevel == MemoryLevel.memorize
+                          ? 'Capture this permanently. The day and what happened will be remembered.'
+                          : _memoryLevel == MemoryLevel.remember
+                              ? 'Remember this moment. Note what happened in the routine or day for later recall.'
+                              : 'Say or write anything. No judgment, just capture.',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
 
-            // Big friendly record button
+            // Big friendly record button — static container (no motion, silk law).
             Center(
               child: GestureDetector(
                 onTap: _toggleRecording,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 140,
-                  height: 140,
+                child: Container(
+                  width: widget.doctorVisit ? 160 : 140,
+                  height: widget.doctorVisit ? 160 : 140,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _isRecording
                         ? Colors.red.shade400
                         : Theme.of(context).colorScheme.primaryContainer,
-                    boxShadow: _isRecording
-                        ? [
-                            BoxShadow(
-                                color: Colors.red.withOpacity(0.4),
-                                blurRadius: 24,
-                                spreadRadius: 4)
-                          ]
-                        : null,
                   ),
                   child: Icon(
                     _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                    size: 64,
+                    size: widget.doctorVisit ? 72 : 64,
                     color: _isRecording
                         ? Colors.white
                         : Theme.of(context).colorScheme.primary,
@@ -418,28 +439,61 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               maxLines: 4,
               minLines: 2,
               decoration: InputDecoration(
-                hintText: _memoryLevel == MemoryLevel.quick
-                    ? 'Or type a quick note here…'
-                    : 'Additional thoughts...',
+                hintText: widget.doctorVisit
+                    ? 'Short note about the visit…'
+                    : _memoryLevel == MemoryLevel.quick
+                        ? 'Or type a quick note here…'
+                        : 'Additional thoughts...',
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
               ),
             ),
 
-            const Spacer(),
+            // Optional re-read text (hear first via audio; read second here).
+            if (widget.doctorVisit) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _transcriptController,
+                maxLines: 5,
+                minLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Words to re-read (optional)',
+                  hintText:
+                      'Type what mattered if reading is easier later. Or leave empty and just play the recording.',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  final t = _transcriptController.text.trim().isNotEmpty
+                      ? _transcriptController.text.trim()
+                      : _textController.text.trim();
+                  if (t.isEmpty) return;
+                  await TtsService.speakSubject(t);
+                },
+                icon: const Icon(Icons.volume_up_outlined),
+                label: const Text('Hear the words'),
+              ),
+            ],
+
+            const SizedBox(height: 24),
 
             // Save + cancel
             FilledButton.icon(
               onPressed: _saveCapture,
               icon: const Icon(Icons.check),
-              label: const Text('Save this thought'),
+              label: Text(widget.doctorVisit
+                  ? 'Save the visit'
+                  : 'Save this thought'),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel (nothing saved)'),
             ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

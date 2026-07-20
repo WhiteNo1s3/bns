@@ -995,8 +995,13 @@ function familyView(main) {
   const heading = fullCare ? `${esc(possessive)} world`
     : shareOnly ? `${esc(possessive)} important plans`
     : `${esc(possessive)} days`;
+  // Unflinching care tone (owner, 2026-07-20): calm, professional, no drama.
+  // Silent "not today" without words = soft signal to assist next time, not guilt.
+  const specials = (S.data.events || []).filter(e => e.isSpecialOrder &&
+    (e.date === today || (e.endDate && e.date <= today && e.endDate >= today)));
+  const silentSkips = logsToday.filter(l => l.status === 'skipped' && !l.reason);
   const subline = fullCare
-    ? esc(name) + ' shares everything with you — every remembered moment is gold.'
+    ? 'Steady presence. Look with care — nothing here is a judgment.'
     : shareOnly
       ? esc(name) + ' chose to share these — a reminder is welcome, gently.'
       : 'A little window, shared with love. Looking is all this page does.';
@@ -1007,6 +1012,13 @@ function familyView(main) {
       <h2 style="margin:6px 0">${heading}</h2>
       <p class="sub" style="color:var(--muted)">${subline}</p>
     </div>
+    ${specials.length ? `<div class="card">
+      <h3>Something different today</h3>
+      <p style="font-size:16px; line-height:1.9">${specials.map(e =>
+        `${e.disruptive ? '📌' : '✨'} ${esc(e.title)}${e.companionNote ? ' <span style="color:var(--muted)">· with ' + esc(e.companionNote) + '</span>' : ''}`
+      ).join('<br>')}</p>
+      <p class="sub">Out of the ordinary — the usual list may wait.</p>
+    </div>` : ''}
     ${!showDay ? '' : `<div class="card">
       <h3>Today</h3>
       ${due.length === 0
@@ -1014,21 +1026,25 @@ function familyView(main) {
         : `<p style="font-size:16px; line-height:1.9">${due.map(r => {
             const log = logsToday.find(l => l.routineId === r.id);
             const mark = log ? (log.status === 'done' ? '✅' : '🌿') : '⬜';
-            return `${mark} ${esc(r.title)}${r.time ? ' <span style="color:var(--muted)">(' + esc(r.time) + ')</span>' : ''}`;
+            const soft = log && log.status === 'skipped' && !log.reason
+              ? ' <span style="color:var(--muted); font-size:13px">— no words; a hand next time is welcome</span>' : '';
+            return `${mark} ${esc(r.title)}${r.time ? ' <span style="color:var(--muted)">(' + esc(r.time) + ')</span>' : ''}${soft}`;
           }).join('<br>')}</p>
-          <p class="sub">${handled.length} of ${due.length} handled — showing up counts, skipping on purpose counts too.</p>`}
+          <p class="sub">${handled.length} of ${due.length} handled — showing up counts; not today counts too.</p>
+          ${silentSkips.length && fullCare ? `<p class="sub">${silentSkips.length} without a note — calm backup next time may help.</p>` : ''}`}
     </div>`}
     ${upcoming.length ? `<div class="card">
       <h3>Coming up</h3>
       <p style="font-size:15px; line-height:1.9">${upcoming.map(e =>
-        `📅 ${esc(e.date === today ? 'Today' : new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }))}${e.time ? ' ' + esc(e.time) : ''} — ${esc(e.title)}`
+        `📅 ${esc(e.date === today ? 'Today' : new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }))}${e.time ? ' ' + esc(e.time) : ''} — ${esc(e.title)}${e.isSpecialOrder ? ' ✨' : ''}`
       ).join('<br>')}</p>
     </div>` : (shareOnly && !memories.length ? `<div class="card"><p style="font-size:15px">Nothing shared right now — no news is fine news. 🌿</p></div>` : '')}
     ${memories.length ? `<div class="card">
       <h3>${shareOnly ? 'Shared moments' : 'Recent moments'}</h3>
       ${memories.map(c => `<div style="margin:10px 0">
-        <p style="font-size:14.5px; margin:0">💭 ${esc(c.text || c.contextNote || 'A voice note')}
+        <p style="font-size:14.5px; margin:0">💭 ${esc(c.text || c.contextNote || c.transcript || 'A voice note')}
           <span style="color:var(--muted); font-size:12px"> — ${prettyWhen(c.at)}</span></p>
+        ${c.transcript ? `<p class="sub" style="margin:2px 0 0">Words: ${esc(c.transcript)}</p>` : ''}
         ${c.audioPath ? `<div class="row" style="margin-top:4px">
           <button class="small ghost" data-famplay="${esc(c.id)}">▶ Hear it in ${esc(possessive)} voice</button>
         </div><div id="famau_${esc(c.id)}"></div>` : ''}
@@ -1036,7 +1052,7 @@ function familyView(main) {
     </div>` : ''}
     <div class="card" style="text-align:center">
       <p style="font-size:15px">${fullCare
-        ? 'Every fragment helps you help. Thank you for carrying this with ' + esc(name) + '. 💚'
+        ? 'Stay calm and present. Thank you for standing with ' + esc(name) + '. 💚'
         : shareOnly
           ? 'Being asked to remember is trust. Thanks for being there for ' + esc(name) + '. 💚'
           : 'Whatever today looked like — ' + esc(name) + ' showed up. That counts. 💚'}</p>

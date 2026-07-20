@@ -33,9 +33,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final all = await IsarService.getAllEvents();
     final grouped = <DateTime, List<CalendarEvent>>{};
     for (final e in all) {
-      final d = DateTime.parse(e.date);
-      final key = DateTime(d.year, d.month, d.day);
-      grouped.putIfAbsent(key, () => []).add(e);
+      // Multi-day special orders mark every day in the span.
+      DateTime day;
+      try {
+        day = DateTime.parse(e.date);
+      } catch (_) {
+        continue;
+      }
+      final end = e.endDate != null && e.endDate!.isNotEmpty
+          ? DateTime.tryParse(e.endDate!) ?? day
+          : day;
+      var cursor = DateTime(day.year, day.month, day.day);
+      final last = DateTime(end.year, end.month, end.day);
+      // Cap expansion so a bad endDate never freezes the UI.
+      for (var i = 0; i < 400 && !cursor.isAfter(last); i++) {
+        grouped.putIfAbsent(cursor, () => []).add(e);
+        cursor = cursor.add(const Duration(days: 1));
+      }
     }
     if (mounted) {
       setState(() => _events = grouped);

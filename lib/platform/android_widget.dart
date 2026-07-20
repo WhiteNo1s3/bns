@@ -39,26 +39,52 @@ class AndroidBnsWidget {
       final today = DateTime.now();
       final todayStr = DateFormat('yyyy-MM-dd').format(today);
 
-      // Today's mission: routines that apply today, as a friendly list.
+      // Today's mission: specials first (out of ordinary), then routines.
+      // Widget = the "folder on the desk" — rediscovery without remembering the app.
       final todayRoutines =
           allRoutines.where((r) => r.isActive && r.appliesOn(today)).toList();
+      final specials =
+          await IsarService.getSpecialOrdersForDate(todayStr);
       final logsToday = await IsarService.getLogsForDate(todayStr);
       final handledIds = logsToday.map((l) => l.routineId).toSet();
       final doneCount =
           logsToday.where((l) => l.status == CompletionStatus.done).length;
 
-      final missionLines = todayRoutines.map((r) {
-        final mark = handledIds.contains(r.id) ? '✓ ' : '• ';
-        final time = r.time != null ? '  (${r.time})' : '';
-        return '$mark${r.title}$time';
-      }).join('\n');
+      final openRoutines =
+          todayRoutines.where((r) => !handledIds.contains(r.id)).toList();
+      String nextHero = '';
+      if (specials.isNotEmpty) {
+        nextHero = '📌 Next: ${specials.first.title}';
+      } else if (openRoutines.isNotEmpty) {
+        final n = openRoutines.first;
+        nextHero = '🌿 Next: ${n.title}${n.time != null ? ' · ${n.time}' : ''}';
+      } else if (todayRoutines.isNotEmpty) {
+        nextHero = '💚 Day handled — rest is allowed';
+      } else {
+        nextHero = '🌿 Your day is here whenever you are';
+      }
+
+      final specialLines = specials
+          .map((e) =>
+              '${e.disruptive ? '📌' : '✨'} ${e.title}')
+          .join('\n');
+      final missionLines = [
+        if (specialLines.isNotEmpty) specialLines,
+        ...todayRoutines.map((r) {
+          final mark = handledIds.contains(r.id) ? '✓ ' : '• ';
+          final time = r.time != null ? '  (${r.time})' : '';
+          return '$mark${r.title}$time';
+        }),
+      ].join('\n');
 
       final handled = todayRoutines
           .where((r) => handledIds.contains(r.id))
           .length;
-      final progress = todayRoutines.isEmpty
-          ? ''
-          : '$handled of ${todayRoutines.length} handled';
+      final progress = todayRoutines.isEmpty && specials.isEmpty
+          ? nextHero
+          : todayRoutines.isEmpty
+              ? nextHero
+              : '$nextHero\n$handled of ${todayRoutines.length} handled';
 
       // Upcoming plans in the next forwardDays.
       String upcoming = '';
@@ -104,9 +130,10 @@ class AndroidBnsWidget {
       await HomeWidget.saveWidgetData<String>(
           'today_mission',
           missionLines.isEmpty
-              ? 'Nothing due today — rest is allowed 🌿'
+              ? 'Your day is here. Rest is allowed 🌿'
               : missionLines);
-      await HomeWidget.saveWidgetData<String>('today_progress', progress);
+      await HomeWidget.saveWidgetData<String>(
+          'today_progress', progress.isEmpty ? nextHero : progress);
       await HomeWidget.saveWidgetData<String>('summary', summary);
       await HomeWidget.saveWidgetData<String>('upcoming',
           upcoming.isEmpty ? 'Nothing planned ahead. That\'s allowed.' : upcoming);

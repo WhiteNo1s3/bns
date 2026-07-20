@@ -19,6 +19,9 @@ class QuickCapture {
       contextNote; // "what happened / why the crisis or event in the routine"
   final bool isDayMemory; // capture the day itself
   final DateTime? deletedAt; // trash: null = active; auto-remove after 3 days
+  // Optional readable text of a voice note (typed or future on-device STT).
+  // Hear first (audio); read second (this). Never required.
+  final String? transcript;
 
   const QuickCapture({
     required this.id,
@@ -32,6 +35,7 @@ class QuickCapture {
     this.contextNote,
     this.isDayMemory = false,
     this.deletedAt,
+    this.transcript,
   });
 
   QuickCapture copyWith({
@@ -46,6 +50,7 @@ class QuickCapture {
     Object? contextNote = _unset,
     bool? isDayMemory,
     Object? deletedAt = _unset,
+    Object? transcript = _unset,
   }) {
     return QuickCapture(
       id: id ?? this.id,
@@ -64,6 +69,8 @@ class QuickCapture {
           contextNote == _unset ? this.contextNote : contextNote as String?,
       isDayMemory: isDayMemory ?? this.isDayMemory,
       deletedAt: deletedAt == _unset ? this.deletedAt : deletedAt as DateTime?,
+      transcript:
+          transcript == _unset ? this.transcript : transcript as String?,
     );
   }
 
@@ -79,6 +86,7 @@ class QuickCapture {
         'contextNote': contextNote,
         'isDayMemory': isDayMemory,
         'deletedAt': deletedAt?.toIso8601String(),
+        'transcript': transcript,
       };
 
   factory QuickCapture.fromJson(Map<String, dynamic> json) => QuickCapture(
@@ -96,5 +104,6 @@ class QuickCapture {
         deletedAt: json['deletedAt'] == null
             ? null
             : DateTime.tryParse(json['deletedAt'] as String),
+        transcript: json['transcript'] as String?,
       );
 }

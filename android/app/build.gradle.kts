@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -7,7 +8,8 @@ plugins {
 android {
     namespace = "com.whiteno1se.bns"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Highest NDK among plugins (plugins are backward-compatible).
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -17,10 +19,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.whiteno1se.bns"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -29,14 +28,10 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Signing with the debug keys for now (personal / store later).
             signingConfig = signingConfigs.getByName("debug")
             // Ship builds, not source: R8 shrinks + obfuscates the JVM side.
-            // (Dart side is AOT + --obfuscate via scripts/build.ps1.)
-            // Diagnostic escape hatch: set env ORG_GRADLE_PROJECT_bnsNoMinify=true
-            // to build a release WITHOUT R8 — lets a device test bisect
-            // "R8 broke it" from everything else in minutes.
+            // Diagnostic: ORG_GRADLE_PROJECT_bnsNoMinify=true skips R8.
             val noMinify = (project.findProperty("bnsNoMinify") as String?) == "true"
             isMinifyEnabled = !noMinify
             isShrinkResources = !noMinify
@@ -50,7 +45,7 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

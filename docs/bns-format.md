@@ -182,13 +182,22 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
 {
   "id": "uuid",
   "title": "Neurologist appointment",
-  "date": "2026-07-15",
+  "date": "2026-07-15",           // YYYY-MM-DD start day
   "time": "14:30",
   "notes": "Bring recent MRI report",
   "isAllDay": false,
-  "createdAt": "..."
+  "shareWithFamily": false,
+  // Special order (out of the ordinary — not a repeating routine):
+  "isSpecialOrder": false,        // true → shows on Today as "something different"
+  "endDate": null,                // YYYY-MM-DD inclusive multi-day span (optional)
+  "disruptive": false,            // true → "usual list can wait" soft mode on Today
+  "companionNote": null,          // optional "who is with you" for cold feet
+  "createdAt": "...",
+  "updatedAt": "..."
 }
 ```
+Legacy events without the special-order fields import as ordinary plans
+(`isSpecialOrder: false`).
 
 ### QuickCapture
 ```ts
@@ -199,7 +208,8 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   "audioPath": "audio/cap_01f3a2b4.m4a",   // relative to zip root, or null
   "linkedRoutineId": "uuid-or-null",
   "linkedEventId": "uuid-or-null",
-  "tags": ["reflection"]
+  "tags": ["reflection"],
+  "transcript": null   // optional re-read text (typed; future: on-device STT). Hear audio first.
 }
 ```
 
@@ -210,11 +220,12 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   "routineId": "uuid",
   "date": "2026-07-04",           // YYYY-MM-DD (local)
   "status": "done" | "skipped",
-  "reason": "Had a bad headache, recorded voice note",  // optional, encouraged on skip
+  "reason": null,                 // optional — silent "not today" needs no reason
   "reasonAudioPath": "audio/...", // optional
   "at": "2026-07-04T19:05:00.000Z"
 }
 ```
+Skip with empty/null reason is first-class (owner, 2026-07-20).
 
 ### Settings
 ```ts

@@ -53,8 +53,9 @@ dependencies:
   encrypt: ^5.0.3
   crypto: ^3.0.3
 
-  # Android home widget (gadget)
-  home_widget: ^0.9.3
+  # Android home widget (gadget). 0.9.3 needs Dart 3.10+ / newer Flutter;
+  # 0.9.2 works on the stable ladder we build with (see AGP notes).
+  home_widget: 0.9.2+1
 
 dev_dependencies:
   flutter_test:

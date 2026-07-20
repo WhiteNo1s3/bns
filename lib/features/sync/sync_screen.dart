@@ -8,6 +8,7 @@ import 'package:bns/core/keybinds.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/services/notifications_service.dart';
 import 'package:bns/data/sync/lan_sync_service.dart'
     show BnsPeer, LanSyncService;
 import 'package:bns/core/models/trusted_device.dart';
@@ -36,6 +37,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   bool _autoSync = true;
   bool _quietMode = false;
   bool _autoImage = true;
+  bool _fogReading = false;
+  bool _listReadyNudge = true;
   bool _discovering = false;
   int _retentionDays = 20;
   int _widgetForwardDays = 2;
@@ -68,6 +71,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
     _autoImage = settings.autoImageEnabled;
+    _fogReading = settings.fogReading;
+    _listReadyNudge = settings.listReadyNudgeEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
     _enabledKeybinds = Map<String, bool>.from(settings.enabledKeybinds);
 
@@ -112,9 +117,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _deviceName = s.deviceName;
         _quietMode = s.quietMode;
         _autoImage = s.autoImageEnabled;
+        _fogReading = s.fogReading;
+        _listReadyNudge = s.listReadyNudgeEnabled;
         _keybinds = Map<String, String>.from(s.keybinds);
         _enabledKeybinds = Map<String, bool>.from(s.enabledKeybinds);
       });
+    }
+  }
+
+  Future<void> _setFogReading(bool v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(fogReading: v));
+    setState(() => _fogReading = v);
+    ref.invalidate(settingsProvider);
+  }
+
+  Future<void> _setListReadyNudge(bool v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(listReadyNudgeEnabled: v));
+    setState(() => _listReadyNudge = v);
+    if (v) {
+      await NotificationsService.scheduleListReadyNudge();
     }
   }
 
@@ -850,6 +873,22 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         'Quiet mode (less animations, confetti, sounds)'),
                     value: _quietMode,
                     onChanged: _setQuietMode,
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text('Easier reading'),
+                    subtitle: const Text(
+                        'Bigger words, simpler look — for foggy days'),
+                    value: _fogReading,
+                    onChanged: _setFogReading,
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text('Soft “list is ready” note'),
+                    subtitle: const Text(
+                        'A gentle daily presence so the app finds you again'),
+                    value: _listReadyNudge,
+                    onChanged: _setListReadyNudge,
                   ),
                   SwitchListTile(
                     dense: true,

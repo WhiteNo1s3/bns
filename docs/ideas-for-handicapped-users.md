@@ -169,3 +169,90 @@ this folder is the state-of-the-art program. Ideas get ported here, implemented 
 - ✅ Double-click .bns on Windows: `scripts\register-bns.ps1` registers the association (per-user, no admin needed).
 - ✅ "Keep a ready-to-share .bns fresh" toggle in Sync & PC (on by default) — the seamless imaging is now user-controllable.
 - ✅ After a crash or force-kill, the next launch says one calm line: everything was already saved as you went. Nothing lost. (True by architecture — per-change atomic saves.)
+
+## Pass 7 — Stories → features (owner lived TBI / DAI, 2026-07-20)
+
+These are **not metaphors**. They are how brain damage works day to day. Every feature below is extracted from a real story. Correct prior framing: we are **not** therapy helpers, we do **not** name clinical treatments in the UI, and we do **not** ask people to "reflect like a patient." We give structure that quietly does the useful work.
+
+### Story → feature map
+
+#### 1. Write down what you had / did / didn't (the useful part of CBT — never named)
+- **Story:** Treatment includes writing what you had, did, or didn't do. That writing is useful. We are not that kind of helper; we never say "CBT", never role-play therapist.
+- **Feature (invisible practice):** the app is already a did / didn't / had log:
+  - tick = did
+  - long-press / "not today" = didn't (reason optional, never required)
+  - diary / capture = had / felt / happened
+- **Why it works without announcing itself:** looking at the list *is* the reminder that the brain will not invent alone. It can make someone rethink something they cannot start without a reminder (e.g. eat). The rethinking is a side effect of structure — not a homework label.
+- **Build polish:** silent one-tap didn't; optional words after; day quietly holds the three kinds of fact. No clinical words anywhere in user-facing copy.
+
+#### 2. "I don't remember that I made BNS" — rediscovery
+- **Story:** Founder does not remember having made BNS. Was reminded by randomly looking at a folder. Puts all projects in a folder so picking the folder up again restarts work.
+- **Feature — presence that finds you:**
+  - Home-screen **widgets** are the "folder on the desk" — always show today's list / what's next so the tool reappears without remembering the app name.
+  - Gentle **return after a long gap**: calm "your day is here" (never "you abandoned us", never streak guilt).
+  - Soft periodic presence (low-priority "your list is ready") — same spirit as a human nudge to eat, never an alarm.
+  - Tutorial + occasional mission-line hints so controls are re-learned without a scavenger hunt.
+
+#### 3. Smoother than silk — no sudden moves
+- **Story / law:** vestibular sensitivity; sudden motion makes people sick.
+- **Feature / law (already non-negotiable):** static screens, zero content motion, theme snaps, no polish animations that fly. Stationary feedback only (color, ripple). Interface must feel calmer than ordinary apps — silk, not "delightful motion."
+
+#### 4. Long-press notes — taught and re-taught
+- **Story:** Notes live on long-press; people forget how to use tools.
+- **Feature:**
+  - **Tutorial** teaches: tap = done path, long-press = words about what got in the way (optional).
+  - **While looking at today's missions:** occasional quiet hint line ("Long-press a row if you want to leave a note") — not every second, not nagging; enough that fog does not erase the affordance.
+  - Words never required for a didn't.
+
+#### 5. Special orders — out of the ordinary that break the system
+- **Stories:**
+  - Laptop to repair — 1 hour drive, disruptive, annoying, confusing; not a routine.
+  - Month in בקעת הירדן (Jordan Valley) — completely broke the routine system.
+  - Cold feet before big disruption; parents drove and backed him up so the hard thing still happened.
+- **Feature — "special order" (working name; user-facing: plain words like "Something different" / "Out of the ordinary"):**
+  - First-class day item that is **not** a repeating routine: one-shot or multi-day, can **push into Today** among the usual list.
+  - Flags: disruptive / system-breaking (travel day, long drive, device fix, month away).
+  - While a special order is active, normal routines can show as **paused or softer** ("usual list can wait while this is on") without shame for the break.
+  - Multi-day / multi-week span (the month away case).
+  - Optional **companion / backup** note: who is coming along (parents drove) — for cold feet, not for surveillance.
+  - Caregivers in full care see special orders clearly: this day is not a normal day.
+
+#### 6. Care that does not flinch (the aunt / uncles / parents)
+- **Stories:** Uncles made him feel OK the whole time; aunt handled night accidents like a professional — nothing is bothering her. Parents at every doctor. Wish more people had this.
+- **Feature / tone law:**
+  - Caregiver-facing copy and full-care views: **calm, professional, unbothered** — no drama language around body accidents, rage vents, or silent skips.
+  - Person-facing: "you are OK here" energy without sermons.
+  - The app tries to give a slice of that backing: structure + human on LAN + no flinch when hard things are logged.
+  - Family share / full care / guided stay the spectrum; attitude is love and steadiness, not control theatre.
+
+#### 7. Nudge, health, hope, what's next
+- Cannot eat without a human nudge — app carries soft structure-nudges.
+- Routines support health; any contact with the list is good (done, didn't, or just looking).
+- No-go needs zero explanation; caregivers may assist next time when they see a quiet mark without words.
+- Doctor trips: record on the person's phone; TTS + transcript (hear first; read optional).
+- **"What's next"** one calm line + warm subtle emoji — never rude, never scoreboard.
+
+### Already partly in code
+- Done / skip logs, optional long-press note, diary, quiet mode, static transitions, widgets, full care + guided, gentle notifications, next-first sort, TTS thin layer.
+
+### Shipped Pass 7 (2026-07-20) — full efficiency pack
+- ✅ **Silent "Not today"** — one primary tap; optional note only; skipped rows sink calmly.
+- ✅ **Long-press re-hint** on Today + **first-run list tutorial** (tap / long-press / something different).
+- ✅ **Special orders** — multi-day, disruptive soft list, companion note; **tap card to edit/remove**.
+- ✅ **Rediscovery** — `lastOpenedAt` + calm "your day is here" after ≥3 day gap; widget shows specials + next hero; soft daily "list is ready" nudge (toggle on Sync).
+- ✅ **Next-on-day hero** card on Today (warm emoji + title + whenever you're ready).
+- ✅ **Caregiver unflinching copy** in satellite family/full-care (silent skip soft signal; specials visible; no drama).
+- ✅ **Doctor visit** capture mode — big mic, TTS prompt, optional re-read words + "Hear the words", tags `doctor-visit`/`family`, `transcript` field.
+- ✅ **Easier reading** (`fogReading`) — bigger global text; toggle on Sync & PC.
+- ✅ Silk: doctor mic uses static Container (no AnimatedContainer pulse).
+
+**Never in user-facing copy:** CBT, therapy homework, "reflect on your failure", clinical diagnoses as UI labels, red X, missed streaks, "you abandoned the app."
+
+**Always:** hope, target, good faith, light head, silk stillness, optional words, human backup when the system breaks.
+
+### Edge of the edge (owner, 2026-07-20) — who we design for
+- Communities: autism, Alzheimer's, TBI, stroke, and neighbors of those.
+- The founder is **worst-case**: intellect after trauma may remain; management, will, and independence may not. White-matter / frontal injury; calculation and learning that were strengths became grind. Routines that once existed **erode over years** — sometimes a little sour, sometimes many things sour, sometimes just shit. Not a "getting well" arc the app must promise.
+- Friends having kids, life going on around you, while the system of self shrinks — the app is not a scoreboard of that loss. It is structure that still works when independence is broken.
+- **Wrong check that will not reverse** would drive the owner crazy and is a product failure. Done and "not today" both undo in one tap: "Open again. That's fine."
+- Anything that **alarms people out of the app** is worse than a missing feature — it is a death sentence for people who could have used the service.

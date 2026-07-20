@@ -12,8 +12,19 @@ Cross-platform via `.bns` files over LAN — every idea below must stay compatib
 - **No web interface, permanent decision.** An app that runs all the time must not carry a web-facing surface — that's how exploits happen, and it would also endanger Apple approval for the iOS release. Native only; LAN sync is the sole network feature. (Also recorded as a non-negotiable in AGENTS.md.)
 - **PC is primary** and should be friendlier than Office: sidebar, keybinds, typing-first, keyboard-everything.
 
+### Stories → features (2026-07-20, founder lived TBI/DAI — corrections)
+Brain damage is the frame; features come from real days, not clinical product language.
+- **Did / didn't / had logging is the product.** Same useful *action* as writing treatment notes — **never named** as CBT or therapy. We are not that kind of helper. Looking at the list is the reminder the brain will not invent alone.
+- **Forgot the app exists.** Founder rediscovered BNS by randomly opening a folder. Widgets + calm return-after-gap + soft "list is ready" are the folder on the desk.
+- **Silk only.** No sudden moves — vestibular law, not polish preference.
+- **Long-press notes:** tutorial + occasional re-hint on Today missions (fog erases affordances).
+- **Special orders** break the system: laptop-fix drive, month away (בקעת הירדן). First-class out-of-ordinary items that push into Today, can span weeks, pause usual list gently, optional companion/backup note for cold feet (parents drove).
+- **Unflinching care tone** (aunt/uncles/parents stories): caregiver views stay calm and professional when hard things are logged — body accidents, rage, silent didn'ts. Wish more people had this; the app gives a slice.
+- Full story→feature map: `docs/ideas-for-handicapped-users.md` Pass 7.
+
 ## Done (implemented in code)
 - Core: routines, calendar + day view, quick voice/text capture, memory garden/roots, diary with small wins, completion logs, trash (3-day), rolling retention (14d default), user types, quiet mode.
+- Pass 7 full pack (2026-07-20): silent "Not today", long-press re-hint + list tutorial, special orders (+ edit/remove), rediscovery (welcome-back, widget folder, list-ready nudge), next-on-day hero, doctor visit capture + transcript field, fog reading, caregiver unflinching satellite copy.
 - Sync: LAN discovery, secure pairing (6-digit code + confirm), AES, trusted devices, auto-sync, progress bars, manual export/import `.bns`.
 - PC shell: sidebar with marked selection, date in top bar, comfortable reading column, no duplicated nav, shortcut hints in tooltips.
 - Flow: no blocking dialogs after wins (toast + optional action), "Mark next step done" completes next *unfinished* step, helpful empty state, deliberate-skip-is-a-win copy.
@@ -187,6 +198,7 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - **iOS/Android home widget "today's mission" parity** — Android exists; iOS waiting on `home_widget` iOS wiring at first iOS build.
 - **Configurable mad-mode burnout duration** (a day "or so") — waiting on real user feedback; default 24h mode / 48h vents until then.
 - **Doctor-share export** (memories filtered by tag, printable) — waiting on PDF/print decision; must exclude vents always.
+- **Pass 7 stories→features pack** (2026-07-20 — full map in ideas md Pass 7): ✅ shipped (silent didn't, tutorial + re-hint, special orders edit, rediscovery, next hero, doctor visit + transcript field, fog reading, caregiver satellite copy). Future: platform on-device STT to auto-fill transcript (optional; typed words already work).
 
 ## Rules for this file
 - Update it in the same commit as the feature it describes.

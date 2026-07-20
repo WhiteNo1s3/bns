@@ -62,30 +62,26 @@ class AppSettings {
   // 'next' (closest upcoming task from right now first).
   final String todayOrder;
 
-  // GUIDED MODE — "level 4" (owner design, 2026-07-08, from a Holocaust
-  // survivor's kid with Alzheimer's: "when it kills the brain only routines
-  // work"). The person gets ONLY the list — big, visual, accessible. They
-  // can tick a task (with their acceptance) and long-press to tell about a
-  // problem; everything else is built by the INSPECTOR (the caregiver, via
-  // their paired device). No editing, no building a day — instructions,
-  // not choices. Enabling guided mode also enables full care.
+  // GUIDED MODE — "level 4" (owner design, 2026-07-08).
   final bool guidedMode;
 
-  // FULL CARE MODE — the last resort, by owner design (2026-07-06), for the
-  // severely impaired ("people who had their name and number on their back
-  // in rehabilitation"). When ON, the family file contains EVERYTHING —
-  // every fleeting thought is gold for the people easing their path
-  // ("he thought about shaving but doesn't shave"; "super annoyed at the
-  // elevator" → assist with elevators). Default OFF; enabling is guarded
-  // behind a typed confirmation; turning it off is always one tap.
+  // FULL CARE MODE — the last resort (owner design, 2026-07-06).
   final bool fullCareMode;
 
-  // CANCELLED feature (owner decision 2026-07-06): the 0.12a account-server
-  // pivot. The client/server code is quarantined in prototypes/cloud-pivot/
-  // and is NOT in any build. These two fields stay only as inert
-  // compatibility placeholders (normally null); nothing in lib/ makes
-  // network use of them. serverToken is still stripped from every .bns
-  // export defensively (see BnsExporter).
+  // Rediscovery (owner, 2026-07-20): when the person last opened the app.
+  // Used for a calm "your day is here" after a long gap — never guilt.
+  final DateTime? lastOpenedAt;
+
+  // First-run list tutorial (tap / long-press / something different).
+  final bool hasSeenListTutorial;
+
+  // Fog-first reading: bigger type, simpler surfaces (owner, 2026-07-20).
+  final bool fogReading;
+
+  // Soft daily "your list is ready" presence (folder on the desk).
+  final bool listReadyNudgeEnabled;
+
+  // CANCELLED server fields — inert compatibility only.
   final String? serverUrl;
   final String? serverToken;
 
@@ -98,7 +94,6 @@ class AppSettings {
     this.notificationsEnabled = true,
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
-    // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
     this.retentionDays = 20,
     this.userType = 'normal',
     this.widgetForwardDays = 2,
@@ -111,6 +106,10 @@ class AppSettings {
     this.todayOrder = 'timeline',
     this.guidedMode = false,
     this.fullCareMode = false,
+    this.lastOpenedAt,
+    this.hasSeenListTutorial = false,
+    this.fogReading = false,
+    this.listReadyNudgeEnabled = true,
     this.serverUrl,
     this.serverToken,
   });
@@ -118,6 +117,16 @@ class AppSettings {
   /// What other people's screens show for this device.
   String get effectiveShareName =>
       shareName.trim().isEmpty ? deviceName : shareName.trim();
+
+  /// Days since last open (null if never recorded).
+  int? get daysSinceLastOpen {
+    final last = lastOpenedAt;
+    if (last == null) return null;
+    final a = DateTime(last.year, last.month, last.day);
+    final n = DateTime.now();
+    final b = DateTime(n.year, n.month, n.day);
+    return b.difference(a).inDays;
+  }
 
   AppSettings copyWith({
     String? id,
@@ -140,6 +149,10 @@ class AppSettings {
     String? todayOrder,
     bool? guidedMode,
     bool? fullCareMode,
+    Object? lastOpenedAt = _unset,
+    bool? hasSeenListTutorial,
+    bool? fogReading,
+    bool? listReadyNudgeEnabled,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
   }) {
@@ -168,6 +181,13 @@ class AppSettings {
       todayOrder: todayOrder ?? this.todayOrder,
       guidedMode: guidedMode ?? this.guidedMode,
       fullCareMode: fullCareMode ?? this.fullCareMode,
+      lastOpenedAt: lastOpenedAt == _unset
+          ? this.lastOpenedAt
+          : lastOpenedAt as DateTime?,
+      hasSeenListTutorial: hasSeenListTutorial ?? this.hasSeenListTutorial,
+      fogReading: fogReading ?? this.fogReading,
+      listReadyNudgeEnabled:
+          listReadyNudgeEnabled ?? this.listReadyNudgeEnabled,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
           serverToken == _unset ? this.serverToken : serverToken as String?,
@@ -195,6 +215,10 @@ class AppSettings {
         'todayOrder': todayOrder,
         'guidedMode': guidedMode,
         'fullCareMode': fullCareMode,
+        'lastOpenedAt': lastOpenedAt?.toIso8601String(),
+        'hasSeenListTutorial': hasSeenListTutorial,
+        'fogReading': fogReading,
+        'listReadyNudgeEnabled': listReadyNudgeEnabled,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
       };
@@ -229,6 +253,12 @@ class AppSettings {
         todayOrder: json['todayOrder'] as String? ?? 'timeline',
         guidedMode: json['guidedMode'] as bool? ?? false,
         fullCareMode: json['fullCareMode'] as bool? ?? false,
+        lastOpenedAt: json['lastOpenedAt'] == null
+            ? null
+            : DateTime.tryParse(json['lastOpenedAt'] as String),
+        hasSeenListTutorial: json['hasSeenListTutorial'] as bool? ?? false,
+        fogReading: json['fogReading'] as bool? ?? false,
+        listReadyNudgeEnabled: json['listReadyNudgeEnabled'] as bool? ?? true,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,
       );

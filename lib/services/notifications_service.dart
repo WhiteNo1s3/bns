@@ -117,5 +117,47 @@ class NotificationsService {
     for (final r in routines.where((r) => r.isActive && r.time != null)) {
       await scheduleRoutineReminder(r);
     }
+    final settings = await IsarService.getSettings();
+    if (settings.listReadyNudgeEnabled && settings.notificationsEnabled) {
+      await scheduleListReadyNudge();
+    }
+  }
+
+  /// Soft presence: the "folder on the desk" — your list is here.
+  /// Never shaming; never "you missed us." Low priority, once a day ~10:00.
+  static Future<void> scheduleListReadyNudge() async {
+    if (!_initialized || !_supported) return;
+    const id = 77001;
+    await _plugin.cancel(id);
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 10, 0);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      'bns_presence',
+      'Gentle presence',
+      channelDescription: 'A soft note that your list is here',
+      importance: Importance.low,
+      priority: Priority.low,
+      styleInformation: const BigTextStyleInformation(
+        'Whenever you are ready. No rush.',
+      ),
+    );
+
+    await _plugin.zonedSchedule(
+      id,
+      'Your list is ready 🌿',
+      'Whenever you are ready. No rush.',
+      scheduled,
+      NotificationDetails(android: androidDetails),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: 'presence:list-ready',
+    );
   }
 }

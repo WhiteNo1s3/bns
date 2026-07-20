@@ -205,7 +205,15 @@ class IsarService {
 
   static Future<List<CalendarEvent>> getEventsForDate(String date) async {
     final d = await _load();
-    return d.events.where((e) => e.date == date).toList();
+    // Includes multi-day special orders that span this day.
+    return d.events.where((e) => e.activeOn(date)).toList();
+  }
+
+  /// Special orders active on [date] (out-of-the-ordinary day items).
+  static Future<List<CalendarEvent>> getSpecialOrdersForDate(
+      String date) async {
+    final all = await getEventsForDate(date);
+    return all.where((e) => e.isSpecialOrder).toList();
   }
 
   static Future<List<CalendarEvent>> getAllEvents() async {
@@ -227,6 +235,20 @@ class IsarService {
     d.events.add(withId);
     await _persist();
     return withId;
+  }
+
+  static Future<void> updateEvent(CalendarEvent event) async {
+    final d = await _load();
+    final updated = event.copyWith(updatedAt: DateTime.now());
+    d.events.removeWhere((e) => e.id == updated.id);
+    d.events.add(updated);
+    await _persist();
+  }
+
+  static Future<void> deleteEvent(String id) async {
+    final d = await _load();
+    d.events.removeWhere((e) => e.id == id);
+    await _persist();
   }
 
   // ---- Quick Captures ----

@@ -87,3 +87,21 @@ flutter pub get && flutter test && flutter build linux --release
    the Explorer (`dist\bns-web.html`) → seal verified banner.
 5. Family file: mark an event "family can know" → Make the family file →
    open in Explorer → only that event visible.
+
+## Android device test bundle (Pass 7, 2026-07-20)
+
+Primary test surface is **Android**. Debug APK (feature bundle, reversible list):
+
+- Path: `dist/bns-debug-pass7.apk` (also `build/app/outputs/flutter-apk/app-debug.apk`)
+- Rebuild: `./scripts/build-android.sh` (needs Flutter + Android SDK + JAVA_HOME)
+- Install: copy to phone and open, or `adb install -r dist/bns-debug-pass7.apk`
+
+### What to try on the phone
+1. **Tap done** → quiet ✓. **Tap again** → "Open again. That's fine." (must never trap you)
+2. **Long-press** → Not today (no reason). Tap row again → open again
+3. **Something different** multi-day + companion; tap card to edit
+4. **Doctor visit** mic + optional re-read words
+5. Small phone: no button collisions, FAB not covering list, rotate if you want
+6. Sync: Easier reading, soft list-ready note
+
+If anything makes you want to throw the phone, that is a product bug — tell us which tap.

@@ -19,6 +19,14 @@ class RoutineTile extends StatelessWidget {
   // Guided mode (level 4): the list IS the interface — bigger everything,
   // "accessible and visual" for someone for whom routines are what remains.
   final bool big;
+  // "Didn't happen" is a TAG, never a checkmark (owner, 2026-07-26). The box
+  // stays empty; the day is answered, gently, out loud.
+  final bool skippedToday;
+  // The kept "why" from the last few days — shown right on the tile so
+  // seeing the task means meeting your own note again. `recentNoteWhen`
+  // carries the time of day it was written ("today 14:30", "Tue 09:15").
+  final String? recentNote;
+  final String? recentNoteWhen;
 
   const RoutineTile({
     super.key,
@@ -30,6 +38,9 @@ class RoutineTile extends StatelessWidget {
     this.stepsDone = 0,
     this.onStepDone,
     this.big = false,
+    this.skippedToday = false,
+    this.recentNote,
+    this.recentNoteWhen,
   });
 
   @override
@@ -98,6 +109,54 @@ class RoutineTile extends StatelessWidget {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    // Today's answer when it ISN'T a ✓: a soft tag, not a
+                    // checkmark. Skipped days are said, never faked.
+                    if (skippedToday && !isDone) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.wb_twilight,
+                              size: big ? 20 : 16,
+                              color: colorScheme.tertiary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Didn\'t happen today — that\'s okay',
+                            style: TextStyle(
+                              fontSize: big ? 16 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // The kept "why" from the last few days, with when it
+                    // was written — so the person (and the caregiver) meet
+                    // the note right where the task lives.
+                    if (recentNote != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.sticky_note_2_outlined,
+                              size: big ? 20 : 16,
+                              color: colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              recentNoteWhen == null
+                                  ? '“$recentNote”'
+                                  : '“$recentNote”  ·  $recentNoteWhen',
+                              style: TextStyle(
+                                fontSize: big ? 15 : 12.5,
+                                fontStyle: FontStyle.italic,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     // The next part of this routine, with its helping note.
                     if (!isDone &&
                         routine.steps.isNotEmpty &&

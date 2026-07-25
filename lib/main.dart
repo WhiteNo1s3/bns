@@ -106,7 +106,9 @@ final _router = GoRouter(
         final extra = state.extra as Map<String, dynamic>? ?? {};
         return _wrapForDesktop(
             context,
-            RoutinesScreen(openNewOnStart: extra['openNew'] == true),
+            RoutinesScreen(
+                openNewOnStart: extra['openNew'] == true,
+                caregiverUnlock: extra['caregiver'] == true),
             state.uri.toString());
       },
     ),
@@ -358,6 +360,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // synchronously — no per-tile FutureBuilder re-querying the store on every
   // rebuild (that made each key press repaint/flicker the whole list).
   Set<String> _doneTodayIds = const {};
+  // "Didn't happen" is a tag, not a checkmark — the tiles show it as words.
+  Set<String> _skippedTodayIds = const {};
+  // routineId → the latest kept "why" from the last few days (and when it
+  // was written), so seeing the task means meeting the note again.
+  Map<String, String> _recentNoteText = const {};
+  Map<String, String> _recentNoteWhen = const {};
   Map<String, int> _stepProgress = const {}; // routineId → parts done today
   bool _nextFirstOrder = false; // false = morning→night (default)
   bool _guidedMode = false; // level 4: only the list, inspector builds
@@ -382,18 +390,55 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final settings = await IsarService.getSettings();
+    // The kept "why"s: need-help notes from the last few days, latest one
+    // per routine. They ride the tiles so the reason is met, not searched.
+    final captures = await IsarService.getAllCaptures();
+    final noteFloor = DateTime.now().subtract(const Duration(days: 4));
+    final noteText = <String, String>{};
+    final noteWhen = <String, String>{};
+    final latestAt = <String, DateTime>{};
+    for (final c in captures) {
+      final rid = c.linkedRoutineId;
+      if (rid == null || !c.tags.contains('need-help')) continue;
+      if (c.at.isBefore(noteFloor)) continue;
+      final words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
+      if (words.isEmpty) continue;
+      final prev = latestAt[rid];
+      if (prev != null && !c.at.isAfter(prev)) continue;
+      latestAt[rid] = c.at;
+      noteText[rid] = words;
+      noteWhen[rid] = _whenLabel(c.at);
+    }
     if (!mounted) return;
     setState(() {
       _doneTodayIds = logs
           .where((l) => l.status == CompletionStatus.done)
           .map((l) => l.routineId)
           .toSet();
+      _skippedTodayIds = logs
+          .where((l) => l.status == CompletionStatus.skipped)
+          .map((l) => l.routineId)
+          .toSet();
+      _recentNoteText = noteText;
+      _recentNoteWhen = noteWhen;
       _stepProgress = steps;
       _nextFirstOrder = settings.todayOrder == 'next';
       _lastSyncLine = trusted.isEmpty
           ? null
           : 'Last synced across devices: ${trusted.map((d) => d.lastSyncedAt).reduce((a, b) => a.isAfter(b) ? a : b).toLocal().toString().substring(0, 16)}';
     });
+  }
+
+  /// When a note was written, in day-words plus the time of day — readable
+  /// to the person and the caregiver alike.
+  static String _whenLabel(DateTime at) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(at.year, at.month, at.day);
+    final hm = DateFormat('HH:mm').format(at);
+    if (day == today) return 'today $hm';
+    if (day == today.subtract(const Duration(days: 1))) return 'yesterday $hm';
+    return '${DateFormat('EEE').format(at)} $hm';
   }
 
   /// Two ways to see the day (owner, 2026-07-08): morning→night (default,
@@ -1032,6 +1077,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                       : null,
                                   selected: _routinesFocus.hasFocus &&
                                       i == _kbSelected,
+                                  skippedToday: _skippedTodayIds
+                                      .contains(todaysRoutines[i].id),
+                                  recentNote: _recentNoteText[
+                                      todaysRoutines[i].id],
+                                  recentNoteWhen: _recentNoteWhen[
+                                      todaysRoutines[i].id],
                                   onToggle: () =>
                                       _toggleComplete(todaysRoutines[i]),
                                   onSkip: () =>
@@ -1113,6 +1164,29 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       icon: const Icon(Icons.psychology),
                       label: const Text(
                           'Memory section: Remember & Memorize what happened'),
+                    ),
+                  ],
+
+                  // Caregiver door (level 4): the day can be set up right
+                  // HERE, on this device — nothing relies on the P2P sync
+                  // existing or working. A tap only explains; opening takes
+                  // a deliberate long hold, so a wandering finger never
+                  // lands in setup by accident.
+                  if (_guidedMode) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'This button is for the caregiver. '
+                                    'Hold it a moment and the setup opens.')));
+                      },
+                      onLongPress: () => context
+                          .push('/routines', extra: {'caregiver': true}),
+                      icon: const Icon(Icons.volunteer_activism),
+                      label:
+                          const Text('Caregiver — hold to set up the day'),
                     ),
                   ],
                 ],

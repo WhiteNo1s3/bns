@@ -13,7 +13,13 @@ class RoutinesScreen extends StatefulWidget {
   /// widget should land straight in the new-routine form (dirt simple).
   final bool openNewOnStart;
 
-  const RoutinesScreen({super.key, this.openNewOnStart = false});
+  /// The caregiver's door in level 4 (owner, 2026-07-26): the day gets set
+  /// up right on the person's device — no P2P, no other machine required.
+  /// Reached only through a deliberate long-hold on the Today screen.
+  final bool caregiverUnlock;
+
+  const RoutinesScreen(
+      {super.key, this.openNewOnStart = false, this.caregiverUnlock = false});
 
   @override
   State<RoutinesScreen> createState() => _RoutinesScreenState();
@@ -42,7 +48,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     if (mounted) {
       setState(() {
         _routines = routines;
-        _guided = settings.guidedMode;
+        // The caregiver's long-hold opens the same screen with hands:
+        // guided view-only melts away, changes save straight to this device.
+        _guided = settings.guidedMode && !widget.caregiverUnlock;
         _loading = false;
       });
     }
@@ -112,14 +120,49 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
         leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
         hideOnDesktopWide: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _addOrEditRoutine(),
-            tooltip: 'Add new routine',
-          ),
+          // Level 4: the + hides with the rest of the hands — look, don't
+          // touch means the app bar too. The caregiver's hold brings it back.
+          if (!_guided)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _addOrEditRoutine(),
+              tooltip: 'Add new routine',
+            ),
         ],
       ),
-      body: _loading
+      body: Column(
+        children: [
+          // Say plainly whose hands the screen is in — and that everything
+          // lands on THIS device, nothing travels anywhere.
+          if (widget.caregiverUnlock)
+            Container(
+              width: double.infinity,
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Text(
+                'Caregiver setup — changes save to this device only. '
+                'What you build here is the list they will see.',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onTertiaryContainer),
+              ),
+            ),
+          Expanded(child: _buildBody()),
+        ],
+      ),
+      // Guided mode: no adding here — the day arrives from the inspector.
+      floatingActionButton: _guided
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _addOrEditRoutine(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Routine'),
+            ),
+    );
+  }
+
+  Widget _buildBody() {
+    return _loading
           ? const Center(child: CircularProgressIndicator())
           : _routines.isEmpty
               ? Center(
@@ -187,16 +230,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                       ),
                     );
                   },
-                ),
-      // Guided mode: no adding here — the day arrives from the inspector.
-      floatingActionButton: _guided
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _addOrEditRoutine(),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Routine'),
-            ),
-    );
+                );
   }
 }
 

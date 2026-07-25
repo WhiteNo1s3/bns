@@ -36,6 +36,16 @@ class AppSettings {
   // Quiet mode: reduce animations, confetti, sounds for low-stimulation days.
   final bool quietMode;
 
+  // "STT all the time" (owner, 2026-07-26): every voice moment also becomes
+  // text via the DEVICE speech engine — live transcript while recording,
+  // dictation mics on text fields. Free, on-device, no cloud accounts.
+  // Default ON; devices without an engine degrade silently to voice+typing.
+  final bool sttEnabled;
+
+  // Speech recognition language, e.g. 'he-IL' or 'en-US'.
+  // Empty = the device's own language (the right default for almost everyone).
+  final String sttLocale;
+
   // Seamless imaging: keep BNS_Latest_<device>.bns silently fresh on
   // background/exit so a shareable database file always exists without the
   // user ever exporting. Default true (idea: 2026-07-05 reference wave).
@@ -103,6 +113,8 @@ class AppSettings {
     this.userType = 'normal',
     this.widgetForwardDays = 2,
     this.quietMode = false,
+    this.sttEnabled = true,
+    this.sttLocale = '',
     this.autoImageEnabled = true,
     this.keybinds = const {},
     this.enabledKeybinds = const {},
@@ -132,6 +144,8 @@ class AppSettings {
     String? userType,
     int? widgetForwardDays,
     bool? quietMode,
+    bool? sttEnabled,
+    String? sttLocale,
     bool? autoImageEnabled,
     Map<String, String>? keybinds,
     Map<String, bool>? enabledKeybinds,
@@ -158,6 +172,8 @@ class AppSettings {
       userType: userType ?? this.userType,
       widgetForwardDays: widgetForwardDays ?? this.widgetForwardDays,
       quietMode: quietMode ?? this.quietMode,
+      sttEnabled: sttEnabled ?? this.sttEnabled,
+      sttLocale: sttLocale ?? this.sttLocale,
       autoImageEnabled: autoImageEnabled ?? this.autoImageEnabled,
       keybinds: keybinds ?? this.keybinds,
       enabledKeybinds: enabledKeybinds ?? this.enabledKeybinds,
@@ -187,6 +203,8 @@ class AppSettings {
         'userType': userType,
         'widgetForwardDays': widgetForwardDays,
         'quietMode': quietMode,
+        'sttEnabled': sttEnabled,
+        'sttLocale': sttLocale,
         'autoImageEnabled': autoImageEnabled,
         'keybinds': keybinds,
         'enabledKeybinds': enabledKeybinds,
@@ -217,6 +235,8 @@ class AppSettings {
         userType: json['userType'] as String? ?? 'normal',
         widgetForwardDays: (json['widgetForwardDays'] as num?)?.toInt() ?? 2,
         quietMode: json['quietMode'] as bool? ?? false,
+        sttEnabled: json['sttEnabled'] as bool? ?? true,
+        sttLocale: json['sttLocale'] as String? ?? '',
         autoImageEnabled: json['autoImageEnabled'] as bool? ?? true,
         keybinds: (json['keybinds'] as Map? ?? const {})
             .map((k, v) => MapEntry(k.toString(), v.toString())),

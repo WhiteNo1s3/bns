@@ -11,6 +11,8 @@ class QuickCapture {
   final String? text;
   final String?
       audioPath; // relative inside .bns or absolute in app docs after import
+  final String?
+      transcript; // what the device speech engine understood from the audio
   final String? linkedRoutineId;
   final String? linkedEventId;
   final List<String> tags;
@@ -25,6 +27,7 @@ class QuickCapture {
     required this.at,
     this.text,
     this.audioPath,
+    this.transcript,
     this.linkedRoutineId,
     this.linkedEventId,
     this.tags = const [],
@@ -39,6 +42,7 @@ class QuickCapture {
     DateTime? at,
     Object? text = _unset,
     Object? audioPath = _unset,
+    Object? transcript = _unset,
     Object? linkedRoutineId = _unset,
     Object? linkedEventId = _unset,
     List<String>? tags,
@@ -52,6 +56,8 @@ class QuickCapture {
       at: at ?? this.at,
       text: text == _unset ? this.text : text as String?,
       audioPath: audioPath == _unset ? this.audioPath : audioPath as String?,
+      transcript:
+          transcript == _unset ? this.transcript : transcript as String?,
       linkedRoutineId: linkedRoutineId == _unset
           ? this.linkedRoutineId
           : linkedRoutineId as String?,
@@ -72,6 +78,7 @@ class QuickCapture {
         'at': at.toIso8601String(),
         'text': text,
         'audioPath': audioPath,
+        'transcript': transcript,
         'linkedRoutineId': linkedRoutineId,
         'linkedEventId': linkedEventId,
         'tags': tags,
@@ -86,6 +93,7 @@ class QuickCapture {
         at: DateTime.tryParse(json['at'] as String? ?? '') ?? DateTime.now(),
         text: json['text'] as String?,
         audioPath: json['audioPath'] as String?,
+        transcript: json['transcript'] as String?,
         linkedRoutineId: json['linkedRoutineId'] as String?,
         linkedEventId: json['linkedEventId'] as String?,
         tags: (json['tags'] as List? ?? const []).cast<String>(),

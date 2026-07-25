@@ -105,5 +105,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Speech-to-text: lets the app see the device's recognition service
+             on Android 11+ (package visibility). On-device engine, no cloud. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
     </queries>
 </manifest>

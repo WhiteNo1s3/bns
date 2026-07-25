@@ -53,5 +53,10 @@
 		</dict>
 	</array>
 	<!-- For clean native macOS support with Apple Silicon (M1/M2+) - relevant and affordable for all users -->
+	<!-- Voice quick capture + speech-to-text (device engine, on-device) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BNS records short voice notes only when you tap the mic. Nothing leaves your devices.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>BNS turns your voice notes into text so you can read them later. Recognition uses the device engine.</string>
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -278,7 +279,8 @@ class LanSyncService {
           return;
         }
         final f = await BnsExporter.exportFullSnapshot();
-        final cipher = _encrypt(await f.readAsBytes(), trusted.sharedSecret!);
+        final cipher =
+            await _encryptFileInIsolate(f.path, trusted.sharedSecret!);
         socket.add(cipher);
       }
       await socket.flush();
@@ -299,12 +301,11 @@ class LanSyncService {
     _emitProgress(const SyncProgress(
         progress: 0.75, message: 'Receiving your updated information...'));
 
-    final plain = _decrypt(Uint8List.fromList(body), trusted.sharedSecret!);
-    // Only a genuine .bns payload is ever accepted — wrong key, truncated
-    // data, or a hostile file all fail this structural check and go nowhere.
-    BnsImporter.validateBnsBytes(plain);
-    final temp = File('${(await getTemporaryDirectory()).path}/lan_recv.bns');
-    await temp.writeAsBytes(plain);
+    final tempPath = '${(await getTemporaryDirectory()).path}/lan_recv.bns';
+    final decrypted = await _decryptToFileInIsolate(
+        Uint8List.fromList(body), trusted.sharedSecret!, tempPath);
+    if (decrypted == null) return;
+    final temp = File(decrypted);
     await BnsImporter.importMerge(temp);
     try {
       await temp.delete();
@@ -345,12 +346,12 @@ class LanSyncService {
           message: 'Creating a full picture of your current data...'));
 
       final bns = await BnsExporter.exportFullSnapshot();
-      final plain = await bns.readAsBytes();
 
       _emitProgress(const SyncProgress(
           progress: 0.4, message: 'Locking it safely for transfer...'));
 
-      final cipher = _encrypt(plain, trusted.sharedSecret!);
+      final cipher =
+          await _encryptFileInIsolate(bns.path, trusted.sharedSecret!);
 
       _emitProgress(SyncProgress(
           progress: 0.6, message: 'Sending to ${peer.deviceName}...'));
@@ -395,10 +396,11 @@ class LanSyncService {
     final encBytes = b.takeBytes();
     if (encBytes.isEmpty) return;
 
-    final plain = _decrypt(Uint8List.fromList(encBytes), secret);
-    BnsImporter.validateBnsBytes(plain); // .bns payloads only, ever
-    final f = File('${(await getTemporaryDirectory()).path}/pull.bns');
-    await f.writeAsBytes(plain);
+    final outPath = '${(await getTemporaryDirectory()).path}/pull.bns';
+    final decrypted = await _decryptToFileInIsolate(
+        Uint8List.fromList(encBytes), secret, outPath);
+    if (decrypted == null) return;
+    final f = File(decrypted);
     await BnsImporter.importMerge(f);
     try {
       await f.delete();
@@ -469,7 +471,11 @@ class LanSyncService {
     return enc.Key(Uint8List.fromList(d.bytes.sublist(0, 32)));
   }
 
-  Uint8List _encrypt(List<int> data, String secret) {
+  // Static + pure so they can run inside Isolate.run without capturing the
+  // service (sockets/streams can't cross isolates). Crypto on a big .bns is
+  // real CPU work — off the UI thread it never freezes a progress bar.
+
+  static Uint8List _encryptBytes(List<int> data, String secret) {
     final k = enc.Key.fromBase64(secret);
     final e = enc.Encrypter(enc.AES(k, mode: enc.AESMode.cbc));
     final iv = enc.IV.fromSecureRandom(16);
@@ -477,14 +483,35 @@ class LanSyncService {
     return Uint8List.fromList(iv.bytes + encrypted.bytes);
   }
 
-  /// Counterpart of [_encrypt]: first 16 bytes are the IV.
-  List<int> _decrypt(Uint8List data, String secret) {
+  /// Counterpart of [_encryptBytes]: first 16 bytes are the IV.
+  static List<int> _decryptBytes(Uint8List data, String secret) {
     if (data.length <= 16) return const [];
     final k = enc.Key.fromBase64(secret);
     final e = enc.Encrypter(enc.AES(k, mode: enc.AESMode.cbc));
     final iv = enc.IV(Uint8List.fromList(data.sublist(0, 16)));
     return e.decryptBytes(enc.Encrypted(Uint8List.fromList(data.sublist(16))),
         iv: iv);
+  }
+
+  /// Read a .bns from disk and encrypt it, all off the UI thread.
+  static Future<Uint8List> _encryptFileInIsolate(String path, String secret) {
+    return Isolate.run(
+        () async => _encryptBytes(await File(path).readAsBytes(), secret));
+  }
+
+  /// Decrypt to a temp .bns file, off the UI thread. Returns the file path,
+  /// or null when the payload is empty/too short (wrong key, dead stream).
+  static Future<String?> _decryptToFileInIsolate(
+      Uint8List cipher, String secret, String outPath) {
+    return Isolate.run(() async {
+      final plain = _decryptBytes(cipher, secret);
+      if (plain.isEmpty) return null;
+      // Only a genuine .bns payload is ever accepted — wrong key, truncated
+      // data, or a hostile file all fail this structural check and go nowhere.
+      BnsImporter.validateBnsBytes(plain);
+      await File(outPath).writeAsBytes(plain, flush: true);
+      return outPath;
+    });
   }
 
   // Helpers

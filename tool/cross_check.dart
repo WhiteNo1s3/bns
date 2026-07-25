@@ -4,16 +4,20 @@
 // (lib/data/pack/bns_zip_packer.dart, used by the app) and the JS core inside
 // satellite/bns-web.html. This tool lets each side verify the other's files:
 //
-//   dart run tool/cross_check.dart make <out.bns> [zip|bns2]  # write a fixture
+//   dart run tool/cross_check.dart make <out.bns> [zip|bns2|streamed]  # write a fixture
 //   dart run tool/cross_check.dart verify <file.bns>          # unpack + verify any .bns
+//
+// 'streamed' writes through BnsFileImager (the large-file streaming writer
+// the app uses for exports) — the fixture must verify identically to 'zip'.
 //
 // Pure Dart (archive + crypto only) — runs with `dart run`, no device needed.
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bns/data/pack/bns_file_imager.dart';
 import 'package:bns/data/pack/bns_packers.dart';
 
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   if (args.length < 2) {
     stderr.writeln('usage: cross_check.dart make|verify <path>');
     exit(2);
@@ -55,16 +59,38 @@ void main(List<String> args) {
       (name: 'cap_fix_b.m4a', bytes: List<int>.generate(1024, (i) => (i * 13) & 0xFF)),
     ];
     final format = args.length > 2 ? args[2] : 'zip';
+    final manifest = {
+      'formatVersion': 2,
+      'mediaType': 'application/x-bns',
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      'deviceId': 'dart-fixture',
+      'deviceName': 'Dart Fixture',
+      'schema': 'bns/v2',
+    };
+
+    if (format == 'streamed') {
+      // The app's large-file writer: audio referenced by path, streamed in.
+      final tmpDir = Directory.systemTemp.createTempSync('bns_xcheck_');
+      final refs = <({String name, String path})>[];
+      for (final a in audio) {
+        final f = File('${tmpDir.path}/${a.name}')..writeAsBytesSync(a.bytes);
+        refs.add((name: a.name, path: f.path));
+      }
+      await BnsFileImager.packToFile(
+        manifest: manifest,
+        data: data,
+        audioFiles: refs,
+        outPath: path,
+      );
+      tmpDir.deleteSync(recursive: true);
+      stdout.writeln(
+          'wrote $path (${File(path).lengthSync()} bytes, zip-v2 streamed)');
+      return;
+    }
+
     final packer = format == 'bns2' ? BnsBinaryPacker() : BnsPackers.current;
     final bytes = packer.pack(
-      manifest: {
-        'formatVersion': 2,
-        'mediaType': 'application/x-bns',
-        'exportedAt': DateTime.now().toUtc().toIso8601String(),
-        'deviceId': 'dart-fixture',
-        'deviceName': 'Dart Fixture',
-        'schema': 'bns/v2',
-      },
+      manifest: manifest,
       data: data,
       audioFiles: audio,
     );

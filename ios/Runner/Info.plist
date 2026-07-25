@@ -50,6 +50,10 @@
 	<!-- Voice quick capture -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BNS records short voice notes only when you tap the mic. Nothing leaves your devices.</string>
+	<!-- Speech-to-text: your words become text with the device engine.
+	     On-device where iOS supports it; never stored anywhere but your file. -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>BNS turns your voice notes into text so you can read them later. Recognition uses the device engine.</string>
 	<!-- LAN-only sync between your own devices (iOS 14+ local network prompt) -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>BNS finds your own devices on your Wi-Fi to sync privately. No cloud, no internet.</string>

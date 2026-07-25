@@ -888,6 +888,7 @@ function memoriesView(view) {
     ${caps.map(c => `<div class="card">
       <div class="sub">${prettyWhen(c.at)} · ${esc(c.memoryLevel || 'quick')}${c.isDayMemory ? ' · day memory' : ''}</div>
       ${c.text ? `<h3 style="font-weight:500; font-size:15px">${esc(c.text)}</h3>` : ''}
+      ${c.transcript && c.transcript !== c.text ? `<div class="sub">🎙 “${esc(c.transcript)}”</div>` : ''}
       ${c.contextNote ? `<div class="sub">${esc(c.contextNote)}</div>` : ''}
       <div class="chips">${(c.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
       <div id="au_${c.id}"></div>
@@ -1027,7 +1028,7 @@ function familyView(main) {
     ${memories.length ? `<div class="card">
       <h3>${shareOnly ? 'Shared moments' : 'Recent moments'}</h3>
       ${memories.map(c => `<div style="margin:10px 0">
-        <p style="font-size:14.5px; margin:0">💭 ${esc(c.text || c.contextNote || 'A voice note')}
+        <p style="font-size:14.5px; margin:0">💭 ${esc(c.text || c.transcript || c.contextNote || 'A voice note')}
           <span style="color:var(--muted); font-size:12px"> — ${prettyWhen(c.at)}</span></p>
         ${c.audioPath ? `<div class="row" style="margin-top:4px">
           <button class="small ghost" data-famplay="${esc(c.id)}">▶ Hear it in ${esc(possessive)} voice</button>

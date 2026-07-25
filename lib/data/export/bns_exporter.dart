@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/data/pack/bns_file_imager.dart';
 import 'package:bns/data/pack/bns_packers.dart';
 
 /// Fully self-contained .bns exporter.
@@ -69,15 +70,17 @@ class BnsExporter {
 
     // Voice notes belonging to the shared moments travel along — hearing
     // "super annoyed at the elevator" in his own voice IS the information.
+    // Referenced by path: they stream into the file, never through memory
+    // (full care mode ships EVERY recording — that can be a lot of audio).
     final audioDir = await IsarService.getAudioDir();
-    final audioEntries = <BnsAudioEntry>[];
+    final audioEntries = <BnsAudioFileRef>[];
     for (final cap in captures) {
       final p = cap.audioPath;
       if (p == null) continue;
       final name = p.split(Platform.pathSeparator).last.split('/').last;
       final f = File('${audioDir.path}/$name');
       if (await f.exists()) {
-        audioEntries.add((name: name, bytes: await f.readAsBytes()));
+        audioEntries.add((name: name, path: f.path));
       }
     }
 
@@ -116,17 +119,18 @@ class BnsExporter {
     final safeName = settings.effectiveShareName.replaceAll(' ', '_');
     final outPath = '${exportsDir.path}/BNS_Family_$safeName.bns';
 
-    final encoded = BnsPackers.current.pack(
-      manifest: manifest,
-      data: data,
-      audioFiles: audioEntries,
-    );
-    final out = File(outPath);
-    final tmp = File('$outPath.tmp');
-    await tmp.writeAsBytes(encoded, flush: true);
-    if (await out.exists()) await out.delete();
-    await tmp.rename(out.path);
-    return out;
+    // Streamed + atomic (temp+rename inside packToFile), same zip-v2 format.
+    final manifestJson = jsonEncode(manifest);
+    final dataJson = jsonEncode(data);
+    await Isolate.run(() async {
+      await BnsFileImager.packToFile(
+        manifest: jsonDecode(manifestJson) as Map<String, dynamic>,
+        data: jsonDecode(dataJson) as Map<String, dynamic>,
+        audioFiles: audioEntries,
+        outPath: outPath,
+      );
+    });
+    return File(outPath);
   }
 
   /// Creates a complete backup file of everything (full active data).
@@ -196,30 +200,26 @@ class BnsExporter {
         'BNS_Backup_${snapshot.settings.deviceName.replaceAll(' ', '_')}_$timestamp.bns';
     final outPath = '${exportsDir.path}/$fileName';
 
-    // All the heavy lifting — reading audio, packing, disk write — happens
-    // off the UI thread. Only dart:io + pure packers inside (isolate-safe).
+    // All the heavy lifting — hashing audio, packing, disk write — happens
+    // off the UI thread. Audio STREAMS disk→zip in small chunks (never one
+    // big buffer), so a .bns full of recordings exports in flat memory —
+    // this is what lets the database file sustain large audio collections.
+    // Atomic temp+rename happens inside packToFile.
     await Isolate.run(() async {
-      final audioEntries = <BnsAudioEntry>[];
+      final audioRefs = <BnsAudioFileRef>[];
       for (final path in audioPaths) {
         final f = File(path);
         if (await f.exists()) {
-          audioEntries.add(
-              (name: f.uri.pathSegments.last, bytes: await f.readAsBytes()));
+          audioRefs.add((name: f.uri.pathSegments.last, path: f.path));
         }
       }
 
-      final encoded = BnsPackers.current.pack(
+      await BnsFileImager.packToFile(
         manifest: jsonDecode(manifestJson) as Map<String, dynamic>,
         data: jsonDecode(dataJson) as Map<String, dynamic>,
-        audioFiles: audioEntries,
+        audioFiles: audioRefs,
+        outPath: outPath,
       );
-
-      // Atomic like the store itself: never leave a half-written .bns behind.
-      final out = File(outPath);
-      final tmp = File('$outPath.tmp');
-      await tmp.writeAsBytes(encoded, flush: true);
-      if (await out.exists()) await out.delete();
-      await tmp.rename(out.path);
     });
 
     return File(outPath);

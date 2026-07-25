@@ -1,18 +1,22 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/data/pack/bns_file_imager.dart';
 import 'package:bns/data/pack/bns_packers.dart';
 
 /// Imports a .bns file (the reverse of imaging).
 /// Supports replace-all or smart merge.
 ///
 /// Only valid BNS images are accepted — part of the "only .bns ever traverses
-/// the LAN" guarantee. The container work happens behind the [BnsPacker]
-/// registry: the right format is detected from raw bytes, structural checks
-/// AND SHA-256 integrity verification run inside the packer, and anything
-/// invalid, tampered, or truncated is rejected before a single byte reaches
-/// the database.
+/// the LAN" guarantee. Structural checks AND SHA-256 integrity verification
+/// run before a single byte reaches the database.
+///
+/// Large files: the standard zip container is read STREAMED — every voice
+/// note flows zip→disk in small chunks off the UI thread, so a .bns with
+/// hours of audio imports in flat memory. The in-memory packer registry
+/// remains the fallback reader for non-zip formats (LAN-sized by design).
 class BnsImporter {
   /// Fast structural pre-check used by the LAN layer on decrypted payloads.
   /// Throws a friendly [FormatException] for anything no packer claims.
@@ -30,7 +34,7 @@ class BnsImporter {
   static bool hasBnsMark(List<int> bytes) {
     const name = 'mimetype';
     const content = BnsZipPacker.mediaType;
-    final end = 30 + name.length + content.length;
+    const end = 30 + name.length + content.length;
     if (bytes.length < end) return false;
     if (bytes[0] != 0x50 || bytes[1] != 0x4B) return false;
     final nameBytes = bytes.sublist(30, 30 + name.length);
@@ -50,30 +54,56 @@ class BnsImporter {
         AppSettings settings,
         List<File> audioFiles, // temporarily extracted
       })> readBns(File bnsFile) async {
-    final bytes = await bnsFile.readAsBytes();
-
-    final packer = BnsPackers.detect(bytes);
-    if (packer == null) {
+    // Cheap sniff from the header only — never the whole file.
+    final head = <int>[];
+    await for (final chunk in bnsFile.openRead(0, 64)) {
+      head.addAll(chunk);
+    }
+    if (head.length < 4) {
       throw const FormatException(
           'Not a BNS backup — only real .bns files can be imported.');
     }
-    // Unpack + verify (structure, CRCs, SHA-256 integrity) inside the packer.
-    final unpacked = packer.unpack(bytes);
-    final manifest = unpacked.manifest;
-    final data = unpacked.data;
 
-    // Extract audio blobs to temp files for the remap step.
     final tempDir = await getTemporaryDirectory();
     final extractDir = Directory(
         '${tempDir.path}/bns_import_${DateTime.now().millisecondsSinceEpoch}');
     await extractDir.create(recursive: true);
+    final audioExtractPath = '${extractDir.path}/audio';
 
+    Map<String, dynamic> manifest;
+    Map<String, dynamic> data;
     final extractedAudios = <File>[];
-    for (final audio in unpacked.audioFiles) {
-      final outFile = File('${extractDir.path}/audio/${audio.name}');
-      await outFile.parent.create(recursive: true);
-      await outFile.writeAsBytes(audio.bytes);
-      extractedAudios.add(outFile);
+
+    if (head[0] == 0x50 && head[1] == 0x4B) {
+      // Standard zip container (v1+v2): streamed, off the UI thread.
+      final bnsPath = bnsFile.path;
+      final unpacked = await Isolate.run(() => BnsFileImager.unpackToDir(
+            bnsPath: bnsPath,
+            audioOutDir: audioExtractPath,
+          ));
+      manifest = unpacked.manifest;
+      data = unpacked.data;
+      for (final a in unpacked.audioFiles) {
+        extractedAudios.add(File(a.path));
+      }
+    } else {
+      // Other containers (bns2 …): in-memory registry, LAN-sized by design.
+      final bytes = await bnsFile.readAsBytes();
+      final packer = BnsPackers.detect(bytes);
+      if (packer == null) {
+        throw const FormatException(
+            'Not a BNS backup — only real .bns files can be imported.');
+      }
+      // Unpack + verify (structure, CRCs, SHA-256 integrity) in the packer.
+      final unpacked = packer.unpack(bytes);
+      manifest = unpacked.manifest;
+      data = unpacked.data;
+      for (final audio in unpacked.audioFiles) {
+        final outFile = File('$audioExtractPath/${audio.name}');
+        await outFile.parent.create(recursive: true);
+        await outFile.writeAsBytes(audio.bytes);
+        extractedAudios.add(outFile);
+      }
     }
 
     // Convert JSON to models
@@ -111,7 +141,9 @@ class BnsImporter {
     );
   }
 
-  /// Copy extracted audio files into the app's audio directory and update paths in captures.
+  /// Move extracted audio files into the app's audio directory and update
+  /// paths in captures. Rename (instant) with a streamed-copy fallback for
+  /// temp dirs on another volume — audio bytes never pass through memory.
   static Future<List<QuickCapture>> _remapAudioPaths(
       List<QuickCapture> captures, List<File> audioFiles) async {
     final audioDir = await IsarService.getAudioDir();
@@ -130,9 +162,14 @@ class BnsImporter {
       );
 
       if (await matching.exists()) {
-        final dest = File('${audioDir.path}/$originalName');
-        await dest.writeAsBytes(await matching.readAsBytes());
-        updated.add(cap.copyWith(audioPath: dest.path));
+        final destPath = '${audioDir.path}/$originalName';
+        try {
+          if (await File(destPath).exists()) await File(destPath).delete();
+          await matching.rename(destPath);
+        } on FileSystemException {
+          await matching.copy(destPath);
+        }
+        updated.add(cap.copyWith(audioPath: destPath));
       } else {
         updated.add(cap);
       }

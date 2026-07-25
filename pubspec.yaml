@@ -44,6 +44,11 @@ dependencies:
   # Device speech engine (free, on-device, no cloud AI, no subscriptions):
   # speaks the gentle prompt when a widget starts a voice capture.
   flutter_tts: ^4.0.2
+  # Device speech-to-text (same rules: free, device engine, no cloud accounts).
+  # Powers "STT all the time": live transcript while recording + dictation
+  # into any text field. 7.x is plugin-v2 era and rides the same Gradle path
+  # as flutter_tts (no AGP built-in Kotlin requirement).
+  speech_to_text: ^7.0.0
 
   # Utils
   uuid: ^4.4.2

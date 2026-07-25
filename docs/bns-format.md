@@ -197,6 +197,12 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   "at": "2026-07-04T10:22:00.000Z",
   "text": "Felt overwhelmed after the call, but I wrote it down anyway",
   "audioPath": "audio/cap_01f3a2b4.m4a",   // relative to zip root, or null
+  // What the DEVICE speech engine understood while the note was recorded
+  // ("STT all the time", added 2026-07-26). Voice-only captures also copy
+  // this into `text` so every reader/searcher sees words without special
+  // handling. Additive + optional: old files simply have no field, old
+  // readers ignore it. Never sent to any cloud — the engine runs on-device.
+  "transcript": "string-or-null",
   "linkedRoutineId": "uuid-or-null",
   "linkedEventId": "uuid-or-null",
   "tags": ["reflection"]
@@ -233,7 +239,20 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
 - Preferred format in MVP: `.m4a` (AAC) from the `record` package (good size/quality).
 - Fallback: `.wav` if needed.
 - Filenames: `cap_<short-uuid>.m4a`
-- On import the app copies them into its documents directory and updates paths.
+- On import the app moves them into its documents directory and updates paths.
+
+## Large files (2026-07-26)
+A .bns must sustain hours of recordings. The app therefore STREAMS the zip
+container in both directions (`lib/data/pack/bns_file_imager.dart`):
+- Export: each voice note flows disk→zip in small chunks (STORED, since .m4a
+  is already compressed); SHA-256 seals are computed chunked. Memory stays
+  flat no matter how much audio the file carries.
+- Import: each `audio/` entry flows zip→disk, then its seal is verified;
+  anything tampered/truncated is deleted and rejected. Nothing partial
+  survives.
+The on-disk format is UNCHANGED (still plain zip-v2) — the in-memory packers
+and the satellite Explorer read/write the exact same bytes; streaming is an
+implementation detail of the app, not a format change.
 
 ## Import / Merge Rules (MVP)
 1. Load manifest + validate formatVersion.

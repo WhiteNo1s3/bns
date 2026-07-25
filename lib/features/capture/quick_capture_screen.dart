@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -7,8 +9,10 @@ import 'package:uuid/uuid.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -45,6 +49,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   bool _isRecording = false;
   bool _isPlaying = false;
   Duration _recordDuration = Duration.zero;
+  Timer? _durationTimer;
+
+  /// Live speech-to-text while recording ("STT all the time"). The transcript
+  /// is saved WITH the voice note and travels inside the .bns, so a voice
+  /// to-do is readable text everywhere — app, family Explorer, other devices.
+  String _liveTranscript = '';
+  bool _sttActive = false;
 
   MemoryLevel _memoryLevel = MemoryLevel.quick;
   final _contextController =
@@ -87,6 +98,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   @override
   void dispose() {
+    _durationTimer?.cancel();
+    if (_sttActive) SttService.stop();
     _textController.dispose();
     _contextController.dispose();
     _audioRecorder.dispose();
@@ -110,11 +123,18 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     await _requestMic();
 
     if (_isRecording) {
-      // Stop recording
+      // Stop recording — and close the live transcript with it.
       final path = await _audioRecorder.stop();
+      _durationTimer?.cancel();
+      String transcript = _liveTranscript;
+      if (_sttActive) {
+        transcript = await SttService.stop();
+        _sttActive = false;
+      }
       setState(() {
         _isRecording = false;
         _audioPath = path;
+        _liveTranscript = transcript;
       });
     } else {
       // Start recording
@@ -142,17 +162,34 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         _isRecording = true;
         _audioPath = null;
         _recordDuration = Duration.zero;
+        _liveTranscript = '';
       });
 
-      // Simple duration ticker
-      Future.doWhile(() async {
-        await Future.delayed(const Duration(seconds: 1));
+      _durationTimer?.cancel();
+      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (_isRecording && mounted) {
           setState(() => _recordDuration += const Duration(seconds: 1));
-          return true;
         }
-        return false;
       });
+
+      // Live transcript alongside the recording. The recorder always comes
+      // first: on devices where the speech engine can't share the mic, STT
+      // just fails quietly and the voice note still records perfectly.
+      final settings = await IsarService.getSettings();
+      if (settings.sttEnabled && _isRecording) {
+        _sttActive = await SttService.start(
+          localeId: settings.sttLocale,
+          onText: (text) {
+            if (mounted) setState(() => _liveTranscript = text);
+          },
+          onState: (s) {
+            if (s == SttState.unavailable && mounted) {
+              setState(() => _sttActive = false);
+            }
+          },
+        );
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -170,7 +207,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   Future<void> _saveCapture() async {
     final text = _textController.text.trim();
-    if (text.isEmpty && _audioPath == null) {
+    final transcript = _liveTranscript.trim();
+    if (text.isEmpty && _audioPath == null && transcript.isEmpty) {
       Navigator.pop(context);
       return;
     }
@@ -184,8 +222,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final capture = QuickCapture(
       id: _uuid.v4(),
       at: DateTime.now(),
-      text: text.isEmpty ? null : text,
+      // A voice-only thought still saves readable words: the transcript
+      // stands in as the text when nothing was typed.
+      text: text.isNotEmpty
+          ? text
+          : (transcript.isNotEmpty ? transcript : null),
       audioPath: _audioPath,
+      transcript: transcript.isEmpty ? null : transcript,
       linkedRoutineId: widget.linkedRoutineId,
       linkedEventId: widget.linkedEventId,
       tags: tags,
@@ -299,9 +342,42 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               ),
             ),
 
+            // Live transcript while talking — your words appearing as text.
+            if (_isRecording && _sttActive) ...[
+              const SizedBox(height: 12),
+              Card(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.graphic_eq,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _liveTranscript.isEmpty
+                              ? 'Listening… your words will appear here.'
+                              : _liveTranscript,
+                          style: TextStyle(
+                            fontStyle: _liveTranscript.isEmpty
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 24),
 
-            // Playback
+            // Playback (+ what the device engine understood, editable-adjacent:
+            // the transcript is also placed in the text flow on save)
             if (hasAudio) ...[
               Card(
                 child: ListTile(
@@ -313,12 +389,20 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                     onPressed: _playPauseAudio,
                   ),
                   title: const Text('Voice note'),
-                  subtitle: Text(p.basename(_audioPath!)),
+                  subtitle: Text(
+                    _liveTranscript.trim().isNotEmpty
+                        ? '“${_liveTranscript.trim()}”'
+                        : p.basename(_audioPath!),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline),
                     onPressed: () {
                       setState(() {
+                        // Transcript belongs to the recording — goes with it.
                         _audioPath = null;
+                        _liveTranscript = '';
                         _isPlaying = false;
                       });
                       _audioPlayer.stop();
@@ -399,14 +483,16 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               TextField(
                 controller: _contextController,
                 maxLines: 3,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText:
                       'What happened? Why? (context for this day/routine)',
                   hintText:
                       'e.g. Felt overwhelmed after the call, routine triggered anxiety',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                   helperText:
                       'This helps memorize the "why" and the day itself',
+                  suffixIcon:
+                      DictationMicButton(controller: _contextController),
                 ),
               ),
             ],
@@ -419,11 +505,12 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               minLines: 2,
               decoration: InputDecoration(
                 hintText: _memoryLevel == MemoryLevel.quick
-                    ? 'Or type a quick note here…'
+                    ? 'Or type a quick note here… (tap the small mic to speak it)'
                     : 'Additional thoughts...',
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
+                suffixIcon: DictationMicButton(controller: _textController),
               ),
             ),
 

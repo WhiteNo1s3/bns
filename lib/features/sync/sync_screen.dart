@@ -35,6 +35,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   SyncProgress _progress = SyncProgress.idle;
   bool _autoSync = true;
   bool _quietMode = false;
+  bool _sttEnabled = true;
   bool _autoImage = true;
   bool _discovering = false;
   int _retentionDays = 20;
@@ -67,6 +68,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _guidedMode = settings.guidedMode;
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
+    _sttEnabled = settings.sttEnabled;
     _autoImage = settings.autoImageEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
     _enabledKeybinds = Map<String, bool>.from(settings.enabledKeybinds);
@@ -111,6 +113,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _userType = s.userType;
         _deviceName = s.deviceName;
         _quietMode = s.quietMode;
+        _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
         _keybinds = Map<String, String>.from(s.keybinds);
         _enabledKeybinds = Map<String, bool>.from(s.enabledKeybinds);
@@ -194,6 +197,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       SnackBar(
           content: Text(
               v ? 'Quiet mode on — less stimulation.' : 'Quiet mode off.')),
+    );
+  }
+
+  Future<void> _setSttEnabled(bool v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(sttEnabled: v));
+    await _loadRetention();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(v
+              ? 'Speech-to-text on — your voice becomes text everywhere.'
+              : 'Speech-to-text off. Voice notes still record as audio.')),
     );
   }
 
@@ -850,6 +865,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         'Quiet mode (less animations, confetti, sounds)'),
                     value: _quietMode,
                     onChanged: _setQuietMode,
+                  ),
+                  SwitchListTile(
+                    dense: true,
+                    title: const Text('Speech-to-text everywhere'),
+                    subtitle: const Text(
+                        'Voice notes become readable text as you speak, and every '
+                        'text field gets a small dictation mic. Device engine only '
+                        '— free, private, no cloud.'),
+                    value: _sttEnabled,
+                    onChanged: _setSttEnabled,
                   ),
                   SwitchListTile(
                     dense: true,

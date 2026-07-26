@@ -94,6 +94,16 @@ class AppSettings {
   // behind a typed confirmation; turning it off is always one tap.
   final bool fullCareMode;
 
+  // CARE LEVEL — the whole care spectrum as ONE visible choice (1..4):
+  //   1 Independent — nothing leaves the device unless chosen.
+  //   2 Family knows the important things — chosen plans in the family file.
+  //   3 Full care — the people who care see everything (fullCareMode).
+  //   4 Guided — only the list; the caregiver builds the day (guidedMode,
+  //     which also implies fullCareMode).
+  // The level is the story; guidedMode/fullCareMode stay the source of
+  // truth for behavior and are kept coherent by the selector.
+  final int careLevel;
+
   // CANCELLED feature (owner decision 2026-07-06): the 0.12a account-server
   // pivot. The client/server code is quarantined in prototypes/cloud-pivot/
   // and is NOT in any build. These two fields stay only as inert
@@ -128,6 +138,7 @@ class AppSettings {
     this.todayOrder = 'timeline',
     this.guidedMode = false,
     this.fullCareMode = false,
+    this.careLevel = 1,
     this.serverUrl,
     this.serverToken,
   });
@@ -160,6 +171,7 @@ class AppSettings {
     String? todayOrder,
     bool? guidedMode,
     bool? fullCareMode,
+    int? careLevel,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
   }) {
@@ -191,6 +203,7 @@ class AppSettings {
       todayOrder: todayOrder ?? this.todayOrder,
       guidedMode: guidedMode ?? this.guidedMode,
       fullCareMode: fullCareMode ?? this.fullCareMode,
+      careLevel: careLevel ?? this.careLevel,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
           serverToken == _unset ? this.serverToken : serverToken as String?,
@@ -221,6 +234,7 @@ class AppSettings {
         'todayOrder': todayOrder,
         'guidedMode': guidedMode,
         'fullCareMode': fullCareMode,
+        'careLevel': careLevel,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
       };
@@ -258,6 +272,12 @@ class AppSettings {
         todayOrder: json['todayOrder'] as String? ?? 'timeline',
         guidedMode: json['guidedMode'] as bool? ?? false,
         fullCareMode: json['fullCareMode'] as bool? ?? false,
+        // Migration for existing users (pre-careLevel): derive the level
+        // from the flags they already live with.
+        careLevel: (json['careLevel'] as num?)?.toInt() ??
+            (json['guidedMode'] == true
+                ? 4
+                : (json['fullCareMode'] == true ? 3 : 1)),
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,
       );

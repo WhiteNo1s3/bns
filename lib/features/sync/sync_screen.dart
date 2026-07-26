@@ -49,6 +49,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _shareName = '';
   bool _fullCareMode = false;
   bool _guidedMode = false;
+  // The care spectrum as ONE visible choice (1..4) — the card is the story,
+  // the two switches below stay as the fine-grained controls.
+  int _careLevel = 1;
   // PC robust keybinds (typing #1 on PC)
   Map<String, String> _keybinds = {};
   Map<String, bool> _enabledKeybinds = {};
@@ -70,6 +73,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _shareName = settings.shareName;
     _fullCareMode = settings.fullCareMode;
     _guidedMode = settings.guidedMode;
+    _careLevel = settings.careLevel;
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
     _sttEnabled = settings.sttEnabled;
@@ -121,6 +125,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _quietMode = s.quietMode;
         _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
+        _fullCareMode = s.fullCareMode;
+        _guidedMode = s.guidedMode;
+        _careLevel = s.careLevel;
         _keybinds = Map<String, String>.from(s.keybinds);
         _enabledKeybinds = Map<String, bool>.from(s.enabledKeybinds);
       });
@@ -518,21 +525,23 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// FULL CARE MODE — the last resort for the severely impaired. Turning it
   /// ON is deliberately heavy (typed confirmation); turning it OFF is one
   /// tap — reducing sharing must always be the easy direction.
-  Future<void> _setFullCareMode(bool v) async {
+  /// Returns true when the change was applied, false when the person
+  /// cancelled — so the care-level selector can snap back untouched.
+  Future<bool> _setFullCareMode(bool v) async {
     final s = await IsarService.getSettings();
     if (!v) {
       await IsarService.updateSettings(s.copyWith(fullCareMode: false));
       setState(() => _fullCareMode = false);
-      if (!mounted) return;
+      if (!mounted) return true;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(L.t(
               'Full care is off. Only chosen things are shared.',
               'טיפול מלא כבוי. רק דברים שבחרת משותפים.'))));
-      return;
+      return true;
     }
     final nameCtrl = TextEditingController();
     final expected = s.effectiveShareName.trim();
-    if (!mounted) return;
+    if (!mounted) return false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -583,34 +592,37 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             content: Text(L.t('Nothing changed — full care stays off.',
                 'שום דבר לא השתנה — טיפול מלא נשאר כבוי.'))));
       }
-      return;
+      return false;
     }
     await IsarService.updateSettings(s.copyWith(fullCareMode: true));
     setState(() => _fullCareMode = true);
-    if (!mounted) return;
+    if (!mounted) return true;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(L.t(
             'Full care is on. Everything travels to the people who care.',
             'טיפול מלא פועל. הכול מגיע לאנשים שאכפת להם.'))));
+    return true;
   }
 
   /// GUIDED MODE — level 4. The person gets only the list: tick a task
   /// (with their acceptance) and tell about problems. The inspector builds
   /// the day from their own paired device. Heavy to turn on, one tap off.
-  Future<void> _setGuidedMode(bool v) async {
+  /// Returns true when the change was applied, false when cancelled — so
+  /// the care-level selector can snap back untouched.
+  Future<bool> _setGuidedMode(bool v) async {
     final s = await IsarService.getSettings();
     if (!v) {
       await IsarService.updateSettings(s.copyWith(guidedMode: false));
       setState(() => _guidedMode = false);
-      if (!mounted) return;
+      if (!mounted) return true;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(L.t('Guided mode is off. Full control is back here.',
               'מצב מונחה כבוי. השליטה המלאה חזרה לכאן.'))));
-      return;
+      return true;
     }
     final nameCtrl = TextEditingController();
     final expected = s.effectiveShareName.trim();
-    if (!mounted) return;
+    if (!mounted) return false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -663,7 +675,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             content: Text(L.t('Nothing changed — guided mode stays off.',
                 'שום דבר לא השתנה — מצב מונחה נשאר כבוי.'))));
       }
-      return;
+      return false;
     }
     await IsarService.updateSettings(
         s.copyWith(guidedMode: true, fullCareMode: true));
@@ -671,11 +683,95 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       _guidedMode = true;
       _fullCareMode = true;
     });
-    if (!mounted) return;
+    if (!mounted) return true;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(L.t(
             'Guided mode is on. This device shows the list, with love.',
             'מצב מונחה פועל. המכשיר הזה מציג את הרשימה, באהבה.'))));
+    return true;
+  }
+
+  /// THE CARE SPECTRUM AS ONE CHOICE — selecting a level sets the flags
+  /// coherently: 1–2 → nothing heavy; 3 → full care; 4 → guided (which
+  /// brings full care with it). Raising to 3 or 4 rides the existing
+  /// typed-confirmation flows; cancelling there means the selector snaps
+  /// back untouched. Lowering is always instant — reducing sharing must
+  /// stay the easy direction.
+  Future<void> _setCareLevel(int level) async {
+    if (level == _careLevel) return;
+    if (level >= 4) {
+      // The heavy door: guided mode's own guarded flow (turns full care on).
+      if (!_guidedMode) {
+        final ok = await _setGuidedMode(true);
+        if (!ok) return; // cancelled — level stays where it was
+      }
+    } else if (level == 3) {
+      // Any cancellable step comes FIRST — a cancel must leave everything
+      // exactly as it was, so nothing is lowered before the door is passed.
+      if (!_fullCareMode) {
+        final ok = await _setFullCareMode(true); // typed confirmation
+        if (!ok) return; // cancelled — nothing changed, level stays put
+      }
+      if (_guidedMode) await _setGuidedMode(false); // lowering: one tap
+    } else {
+      // Levels 1–2: only chosen things ever leave this device.
+      if (_guidedMode) await _setGuidedMode(false);
+      if (_fullCareMode) await _setFullCareMode(false);
+    }
+    await _persistCareLevel(level);
+  }
+
+  /// Save the chosen level and let the whole app re-read settings.
+  Future<void> _persistCareLevel(int level) async {
+    final s = await IsarService.getSettings();
+    if (s.careLevel != level) {
+      await IsarService.updateSettings(s.copyWith(careLevel: level));
+    }
+    if (mounted) setState(() => _careLevel = level);
+    ref.invalidate(settingsProvider);
+  }
+
+  /// The level the flags tell right now: guided → 4, full care → 3,
+  /// otherwise keep the light level the person chose (2 stays 2, else 1).
+  int _deriveCareLevel() {
+    if (_guidedMode) return 4;
+    if (_fullCareMode) return 3;
+    return _careLevel == 2 ? 2 : 1;
+  }
+
+  /// The fine-grained switches below the card keep working — and after any
+  /// switch change the card's level follows, so the story stays honest.
+  Future<void> _onFullCareSwitch(bool v) async {
+    final ok = await _setFullCareMode(v);
+    if (ok) await _persistCareLevel(_deriveCareLevel());
+  }
+
+  Future<void> _onGuidedSwitch(bool v) async {
+    final ok = await _setGuidedMode(v);
+    if (ok) await _persistCareLevel(_deriveCareLevel());
+  }
+
+  /// One selectable row of the care-level card — a large, honest target.
+  /// Radio-style visuals without motion: the mark simply is, or isn't.
+  Widget _careLevelOption(int level, String text) {
+    final selected = _careLevel == level;
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      onTap: () => _setCareLevel(level),
+      selected: selected,
+      minVerticalPadding: 10,
+      leading: Icon(
+        selected ? Icons.radio_button_checked : Icons.radio_button_off,
+        size: 28,
+        color: selected ? scheme.primary : scheme.onSurfaceVariant,
+      ),
+      title: Text(
+        L.t('Level $level', 'רמה $level'),
+        style:
+            TextStyle(fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+      ),
+      subtitle: Text(text, style: const TextStyle(fontSize: 13)),
+    );
   }
 
   Color _progressColor(BuildContext context) {
@@ -801,6 +897,49 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             value: _autoSync,
             onChanged: _toggleAutoSync,
             activeColor: color,
+          ),
+
+          const SizedBox(height: 16),
+
+          // === CARE LEVEL — the whole care spectrum in one glance ===
+          // Four levels, one selected. 1–2 share nothing sensitive; 3 opens
+          // everything to the people who care; 4 hands the day to the
+          // caregiver. Raising to 3/4 goes through the guarded flows below;
+          // lowering is always one tap.
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                    child: Text(L.t('Care level', 'רמת ליווי'),
+                        style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  _careLevelOption(
+                      1,
+                      L.t(
+                          'Independent — everything in your hands, nothing leaves this device unless you choose.',
+                          'עצמאי — הכול בידיים שלך, שום דבר לא יוצא מהמכשיר אלא אם תבחר.')),
+                  _careLevelOption(
+                      2,
+                      L.t(
+                          'Family knows the important things — chosen plans go into the family file.',
+                          'המשפחה בעניינים — תוכניות שבחרת נכנסות לקובץ המשפחה.')),
+                  _careLevelOption(
+                      3,
+                      L.t(
+                          'Full care — the people who care see everything, including the hard moments.',
+                          'ליווי מלא — האנשים שאכפת להם רואים הכול, כולל הרגעים הקשים.')),
+                  _careLevelOption(
+                      4,
+                      L.t(
+                          'Guided — only the list. The day is built by the caregiver.',
+                          'מונחה — רק הרשימה. את היום בונה המלווה.')),
+                ],
+              ),
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -1202,7 +1341,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     'שאכפת להם. מוגן בהפעלה, נגיעה אחת לכיבוי.'),
                 style: const TextStyle(fontSize: 12)),
             value: _fullCareMode,
-            onChanged: _setFullCareMode,
+            onChanged: _onFullCareSwitch,
           ),
           SwitchListTile(
             dense: true,
@@ -1221,7 +1360,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     'ארוכה על כפתור "מטפל" מאפשרת לסדר את היום ישר על המכשיר הזה.'),
                 style: const TextStyle(fontSize: 12)),
             value: _guidedMode,
-            onChanged: _setGuidedMode,
+            onChanged: _onGuidedSwitch,
           ),
 
           const SizedBox(height: 40),

@@ -5,6 +5,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/services/audio_playback_service.dart';
+import 'package:bns/services/tts_service.dart';
 import 'package:intl/intl.dart';
 
 /// Memory section: Remember this (contextual for routines/days/crises)
@@ -89,6 +90,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       final q = _searchQuery.toLowerCase();
       filtered = filtered.where((c) {
         final textMatch = (c.text ?? '').toLowerCase().contains(q) ||
+            (c.transcript ?? '').toLowerCase().contains(q) ||
             (c.contextNote ?? '').toLowerCase().contains(q);
         final tagMatch = c.tags.any((t) =>
             t.toLowerCase().contains(q) ||
@@ -128,8 +130,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(L.t('Move to trash?', 'להעביר לאשפה?')),
         content: Text(L.t(
-            'This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.',
-            'זה יעביר את "${mem.text ?? mem.contextNote ?? L.t('memory', 'זיכרון')}" לאשפה. אחרי 3 ימים המחיקה סופית. אפשר לשחזר מהאשפה.')),
+            'This will move "${mem.text ?? mem.transcript ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.',
+            'זה יעביר את "${mem.text ?? mem.transcript ?? mem.contextNote ?? 'זיכרון'}" לאשפה. אחרי 3 ימים המחיקה סופית. אפשר לשחזר מהאשפה.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -214,8 +216,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content: Text(L.t(
-                            'You made it! ${m.text ?? m.contextNote ?? ""}',
-                            'עברת את זה! ${m.text ?? m.contextNote ?? ""}'))));
+                            'You made it! ${m.text ?? m.transcript ?? m.contextNote ?? ""}',
+                            'עברת את זה! ${m.text ?? m.transcript ?? m.contextNote ?? ""}'))));
                   },
                   child: Container(
                     width: 140,
@@ -231,9 +233,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                            m.contextNote ??
-                                m.text ??
-                                L.t('Good memory', 'זיכרון טוב'),
+                            m.text ??
+                                m.transcript ??
+                                m.contextNote ??
+                                L.t('A voice-only moment (no words yet)',
+                                    'רגע קולי בלבד (עדיין בלי מילים)'),
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -302,9 +306,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                            m.contextNote ??
-                                m.text ??
-                                L.t('Hard memory', 'זיכרון קשה'),
+                            m.text ??
+                                m.transcript ??
+                                m.contextNote ??
+                                L.t('A voice-only moment (no words yet)',
+                                    'רגע קולי בלבד (עדיין בלי מילים)'),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 11)),
@@ -465,6 +471,13 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                 final dateStr = DateFormat.yMMMd().format(m.at);
                                 final isPast =
                                     DateTime.now().difference(m.at).inDays > 7;
+                                // Words are always there: typed text, or what
+                                // the device engine heard, or the context.
+                                final words = (m.text ??
+                                        m.transcript ??
+                                        m.contextNote ??
+                                        '')
+                                    .trim();
                                 return Card(
                                   margin: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 6),
@@ -481,9 +494,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                                   .colorScheme
                                                   .primary,
                                     ),
-                                    title: Text(m.text ??
-                                        m.contextNote ??
-                                        L.t('Memory captured', 'זיכרון שנשמר')),
+                                    title: Text(words.isEmpty
+                                        ? L.t(
+                                            'A voice-only moment (no words yet)',
+                                            'רגע קולי בלבד (עדיין בלי מילים)')
+                                        : words),
                                     subtitle: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -510,6 +525,22 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        // The app reads the kept words aloud
+                                        // — default manner, relaxed.
+                                        if (words.isNotEmpty)
+                                          IconButton(
+                                            tooltip: L.t('Hear it read aloud',
+                                                'להקריא בקול'),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(
+                                                minWidth: 32, minHeight: 32),
+                                            iconSize: 20,
+                                            icon: const Icon(Icons.volume_up),
+                                            onPressed: () =>
+                                                TtsService.speak(words),
+                                          ),
                                         if (m.audioPath != null)
                                           IconButton(
                                             icon: const Icon(Icons.play_arrow),

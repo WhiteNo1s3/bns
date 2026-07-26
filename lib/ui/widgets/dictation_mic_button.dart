@@ -97,7 +97,7 @@ class _DictationMicButtonState extends State<DictationMicButton> {
           }
         });
         if (s == SttState.unavailable) {
-          _tellOnce(L.t(
+          _tellUnavailable(L.t(
               'Voice typing is not available right now. Typing works as always.',
               'הקלדה קולית לא זמינה כרגע. הקלדה רגילה עובדת כמו תמיד.'));
         }
@@ -106,10 +106,27 @@ class _DictationMicButtonState extends State<DictationMicButton> {
 
     if (mounted) setState(() => _dictating = started);
     if (!started) {
-      _tellOnce(L.t(
+      _tellUnavailable(L.t(
           'Voice typing is not available on this device. Typing works as always.',
           'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.'));
     }
+  }
+
+  /// Unavailable is not always the same story. When the engine said WHY —
+  /// a missing language pack — say THAT, gently, instead of a vague shrug.
+  void _tellUnavailable(String fallback) {
+    final err = SttService.lastErrorMsg ?? '';
+    if (err.contains('language')) {
+      _tellOnce(L.t(
+          "The phone's speech engine doesn't have Hebrew installed. "
+          "You can add it in the phone's Google voice-typing settings — "
+          "meanwhile the mic uses the phone's language.",
+          'נראה שמנוע הדיבור של הטלפון לא כולל עברית. '
+          'אפשר להוסיף אותה בהגדרות ההקלדה הקולית של Google — '
+          'בינתיים המיקרופון ישתמש בשפת הטלפון.'));
+      return;
+    }
+    _tellOnce(fallback);
   }
 
   /// Once per ATTEMPT (reset in [_toggle]) — not once per app lifetime,

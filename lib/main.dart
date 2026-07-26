@@ -1547,6 +1547,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           'מלווה — לחיצה ארוכה לסידור היום')),
                     ),
                   ],
+
+                  // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26):
+                  // the floating ✓ button used to sit ON the last button
+                  // (Memory section) — unreadable, untappable. The list now
+                  // ends with clear air taller than the button, so every
+                  // last control scrolls fully past it.
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -1569,9 +1576,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           ),
         ],
       ),
+      // Shorter words on the floating button (owner's phone, 2026-07-26):
+      // the long label made a WIDE pill that sat on top of the last row.
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _markNextDone,
-        label: Text(L.t('Mark next step done', 'לסמן שהצעד הבא נעשה')),
+        label: Text(L.t('Mark next ✓', 'לסמן את הבא ✓')),
         icon: const Icon(Icons.check_rounded),
       ),
     );

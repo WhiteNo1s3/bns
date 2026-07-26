@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
+import 'package:bns/services/tts_service.dart';
 
 /// Reusable tile for routines — a CHECKBOX row (owner, 2026-07-08: "V is
 /// for checkboxes"). Tap anywhere ticks the box; long-press is only for
@@ -127,13 +128,17 @@ class RoutineTile extends StatelessWidget {
                               size: big ? 20 : 16,
                               color: colorScheme.tertiary),
                           const SizedBox(width: 6),
-                          Text(
-                            L.t('Didn\'t happen today — that\'s okay',
-                                'לא קרה היום — זה בסדר גמור'),
-                            style: TextStyle(
-                              fontSize: big ? 16 : 13,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.tertiary,
+                          // Expanded so long Hebrew wraps instead of
+                          // pushing past the row edge (RTL safety).
+                          Expanded(
+                            child: Text(
+                              L.t('Didn\'t happen today — that\'s okay',
+                                  'לא קרה היום — זה בסדר גמור'),
+                              style: TextStyle(
+                                fontSize: big ? 16 : 13,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.tertiary,
+                              ),
                             ),
                           ),
                         ],
@@ -163,6 +168,20 @@ class RoutineTile extends StatelessWidget {
                                 color: colorScheme.onSurfaceVariant,
                               ),
                             ),
+                          ),
+                          // The app can read the kept words back — default
+                          // manner, relaxed (owner: "always transcript...
+                          // reading out loud the complaints").
+                          IconButton(
+                            tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
+                            iconSize: big ? 22 : 18,
+                            icon: Icon(Icons.volume_up,
+                                color: colorScheme.onSurfaceVariant),
+                            onPressed: () => TtsService.speak(recentNote!),
                           ),
                         ],
                       ),

@@ -429,24 +429,42 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                     onPressed: _playPauseAudio,
                   ),
                   title: Text(L.t('Voice note', 'הקלטה קולית')),
+                  // The words WRAP — a transcript carries meaning, so it is
+                  // never cut off with an ellipsis. No words at all is said
+                  // honestly, never a raw file name.
                   subtitle: Text(
                     _liveTranscript.trim().isNotEmpty
                         ? '“${_liveTranscript.trim()}”'
-                        : p.basename(_audioPath!),
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
+                        : L.t('A voice-only moment (no words yet)',
+                            'רגע קולי בלבד (עדיין בלי מילים)'),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () {
-                      setState(() {
-                        // Transcript belongs to the recording — goes with it.
-                        _audioPath = null;
-                        _liveTranscript = '';
-                        _isPlaying = false;
-                      });
-                      _audioPlayer.stop();
-                    },
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // The app reads the transcript back — hear your own
+                      // words, relaxed, before saving.
+                      if (_liveTranscript.trim().isNotEmpty)
+                        IconButton(
+                          tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.volume_up),
+                          onPressed: () =>
+                              TtsService.speak(_liveTranscript.trim()),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () {
+                          setState(() {
+                            // Transcript belongs to the recording — goes
+                            // with it.
+                            _audioPath = null;
+                            _liveTranscript = '';
+                            _isPlaying = false;
+                          });
+                          _audioPlayer.stop();
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ),

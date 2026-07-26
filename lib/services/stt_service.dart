@@ -49,6 +49,11 @@ class SttService {
   static Timer? _restartTimer;
   static int _consecutiveErrors = 0;
 
+  /// The engine's reason for the most recent PERMANENT error (e.g.
+  /// 'error_language_not_supported'), so the UI can say WHY dictation
+  /// stopped instead of failing silently. Cleared when a session starts.
+  static String? lastErrorMsg;
+
   /// True after a successful [init]. When false, dictation quietly does
   /// nothing — recording and typing are always the safety net.
   static bool get isAvailable => _available;
@@ -112,10 +117,19 @@ class SttService {
 
     _onText = onText;
     _onState = onState;
+    lastErrorMsg = null;
     // No explicit choice? Follow the app language — Hebrew app, Hebrew ears.
-    _localeId = (localeId == null || localeId.trim().isEmpty)
+    final want = (localeId == null || localeId.trim().isEmpty)
         ? (L.isHebrew ? 'he_IL' : null)
-        : localeId;
+        : localeId.trim();
+    // Build the ladder ONCE per session; the error handler steps down it
+    // when the engine rejects a language, so Hebrew gets its honest try
+    // before anything falls back.
+    _localeCandidates = await _buildLocaleCandidates(want);
+    _candIdx = 0;
+    _localeId = _activeLocaleId;
+    debugPrint('BNS STT: ladder for ${want ?? '(device default)'}: '
+        '${_localeCandidates.map((c) => c.isEmpty ? '(default)' : c).join(' -> ')}');
     _finalText = '';
     _partialText = '';
     _consecutiveErrors = 0;
@@ -159,6 +173,71 @@ class SttService {
 
   // --- Engine plumbing ---
 
+  /// The ladder of locale ids to TRY, in order. '' means device default.
+  /// FIELD TRUTH (owner's phone, 2026-07-26, round 2): the engine's
+  /// advertised list LIES — it often only names installed offline packs,
+  /// while online recognition happily does more languages. Surrendering to
+  /// the list turned a Hebrew app into an English mic. So: engine match
+  /// first when one exists, then OPTIMISM — the wanted id anyway, then its
+  /// sibling spelling (Hebrew answers to both 'he' and 'iw'), and only
+  /// then the device default. A language the engine truly rejects answers
+  /// with error_language_not_supported and the ladder steps down.
+  static List<String> _localeCandidates = const [''];
+  static int _candIdx = 0;
+
+  static String? get _activeLocaleId {
+    final id = _localeCandidates[_candIdx];
+    return id.isEmpty ? null : id;
+  }
+
+  /// 'he_IL' <-> 'iw_IL' — Hebrew's two ISO spellings. Null for others.
+  static String? _siblingSpelling(String id) {
+    final parts = id.replaceAll('-', '_').split('_');
+    final lang = parts.first.toLowerCase();
+    if (lang != 'he' && lang != 'iw') return null;
+    parts[0] = lang == 'he' ? 'iw' : 'he';
+    return parts.join('_');
+  }
+
+  static Future<List<String>> _buildLocaleCandidates(String? want) async {
+    if (want == null) return const [''];
+    List<LocaleName> engineLocales;
+    try {
+      engineLocales = await _speech.locales();
+    } catch (_) {
+      engineLocales = const [];
+    }
+    String norm(String s) => s.toLowerCase().replaceAll('-', '_');
+    final wantNorm = norm(want);
+    final out = <String>[];
+    // The engine's own id for this language, when it admits to one.
+    for (final l in engineLocales) {
+      if (norm(l.localeId) == wantNorm) {
+        out.add(l.localeId);
+        break;
+      }
+    }
+    if (out.isEmpty) {
+      final lang = wantNorm.split('_').first;
+      final prefixes =
+          (lang == 'he' || lang == 'iw') ? const ['he', 'iw'] : [lang];
+      for (final l in engineLocales) {
+        if (prefixes.contains(norm(l.localeId).split('_').first)) {
+          out.add(l.localeId);
+          break;
+        }
+      }
+    }
+    // Optimism: ask for what we want even if unadvertised.
+    if (!out.map(norm).contains(wantNorm)) out.add(want);
+    final sibling = _siblingSpelling(want);
+    if (sibling != null && !out.map(norm).contains(norm(sibling))) {
+      out.add(sibling);
+    }
+    out.add(''); // device default — the mic must never die over language
+    return out;
+  }
+
   static Future<bool> _listenOnce() async {
     try {
       await _speech.listen(
@@ -186,7 +265,13 @@ class SttService {
     _consecutiveErrors = 0;
     if (result.finalResult) {
       // Engine run finished a sentence — bank it, clear the forming buffer.
-      final words = result.recognizedWords.trim();
+      // WORDS NEVER DELETE THEMSELVES (owner's phone, 2026-07-26): when the
+      // engine's final result comes back EMPTIER than the partial the
+      // person already saw on screen, the partial is the truth — bank it.
+      var words = result.recognizedWords.trim();
+      if (words.length < _partialText.trim().length) {
+        words = _partialText.trim();
+      }
       if (words.isNotEmpty) {
         _finalText = _finalText.isEmpty ? words : '$_finalText $words';
       }
@@ -207,7 +292,21 @@ class SttService {
 
   static void _handleError(SpeechRecognitionError error) {
     debugPrint('BNS STT: error ${error.errorMsg} permanent=${error.permanent}');
+    if (error.permanent) lastErrorMsg = error.errorMsg;
     if (!_wantListening) return;
+    // Language rejected? Step DOWN the ladder and go again — this is how
+    // he_IL -> iw_IL -> device default happens without the person noticing
+    // anything but a working mic.
+    if (error.errorMsg.contains('language') &&
+        _candIdx + 1 < _localeCandidates.length) {
+      _candIdx++;
+      _localeId = _activeLocaleId;
+      _consecutiveErrors = 0;
+      debugPrint('BNS STT: language rejected, stepping to '
+          '${_localeId ?? '(device default)'}');
+      _scheduleRestart();
+      return;
+    }
     _consecutiveErrors++;
     // A run of permanent errors means it's truly not working (no permission,
     // no engine, mic taken) — stop pretending, tell the UI once.
@@ -223,6 +322,14 @@ class SttService {
 
   static void _scheduleRestart() {
     if (!_wantListening || (_restartTimer?.isActive ?? false)) return;
+    // The engine gave up mid-utterance: the forming words on screen must
+    // SURVIVE the restart, not vanish — bank them before the new run.
+    final forming = _partialText.trim();
+    if (forming.isNotEmpty) {
+      _finalText = _finalText.isEmpty ? forming : '$_finalText $forming';
+      _partialText = '';
+      _onText?.call(currentText);
+    }
     _emitState(SttState.restarting);
     // Small backoff so repeated errors don't spin the mic.
     final delay = Duration(milliseconds: 250 + 500 * _consecutiveErrors);

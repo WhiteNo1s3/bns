@@ -7,6 +7,7 @@ import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/services/audio_playback_service.dart';
+import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 
 /// Day detail view.
@@ -507,14 +508,12 @@ class _DayViewState extends State<DayView> {
                             children: [
                               Text(RecurrenceUtils.describe(r)),
                               // The skip is a tag with its why right there —
-                              // never just an unexplained empty box.
-                              if (skipped)
+                              // never just an unexplained empty box. And the
+                              // why can be read aloud, relaxed.
+                              if (skipped && why == null)
                                 Text(
-                                  why == null
-                                      ? L.t('Didn\'t happen — no reason was kept',
-                                          'לא קרה — לא נשמרה סיבה')
-                                      : L.t('Didn\'t happen — “$why”',
-                                          'לא קרה — ״$why״'),
+                                  L.t('Didn\'t happen — no reason was kept',
+                                      'לא קרה — לא נשמרה סיבה'),
                                   style: TextStyle(
                                       fontStyle: FontStyle.italic,
                                       color: Theme.of(context)
@@ -522,13 +521,29 @@ class _DayViewState extends State<DayView> {
                                           .tertiary),
                                 )
                               else if (why != null)
-                                Text(
-                                  L.t('“$why”', '״$why״'),
-                                  style: TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant),
+                                Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        skipped
+                                            ? L.t('Didn\'t happen — “$why”',
+                                                'לא קרה — ״$why״')
+                                            : L.t('“$why”', '״$why״'),
+                                        style: TextStyle(
+                                            fontStyle: FontStyle.italic,
+                                            color: skipped
+                                                ? Theme.of(context)
+                                                    .colorScheme
+                                                    .tertiary
+                                                : Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant),
+                                      ),
+                                    ),
+                                    _SpeakButton(why),
+                                  ],
                                 ),
                             ],
                           ),
@@ -574,19 +589,33 @@ class _DayViewState extends State<DayView> {
                             'No memories captured for this day yet. Use Remember this in routines or capture.',
                             'עוד אין זיכרונות מהיום הזה. אפשר להשתמש ב"לזכור את זה" בשגרות או בלכידה.'))
                   else
-                    ..._dayMemories.map((m) => ListTile(
-                          leading: Icon(m.memoryLevel == MemoryLevel.memorize
-                              ? Icons.stars
-                              : Icons.bookmark),
-                          title: Text(m.contextNote ??
-                              m.text ??
-                              L.t('Memory of the day', 'זיכרון של היום')),
-                          subtitle: Text(DateFormat.Hm().format(m.at) +
-                              (m.linkedRoutineId != null
-                                  ? L.t(' • from routine', ' • משגרה')
-                                  : '')),
-                          onTap: () => _playCapture(m),
-                        )),
+                    ..._dayMemories.map((m) {
+                      // Words are always there: text, or what the device
+                      // engine heard, or the context — never a blank title.
+                      final words =
+                          (m.text ?? m.transcript ?? m.contextNote ?? '')
+                              .trim();
+                      return ListTile(
+                        leading: Icon(m.memoryLevel == MemoryLevel.memorize
+                            ? Icons.stars
+                            : Icons.bookmark),
+                        title: Text(words.isEmpty
+                            ? L.t('A voice-only moment (no words yet)',
+                                'רגע קולי בלבד (עדיין בלי מילים)')
+                            : words),
+                        subtitle: Text(DateFormat.Hm().format(m.at) +
+                            (m.linkedRoutineId != null
+                                ? L.t(' • from routine', ' • משגרה')
+                                : '')),
+                        trailing: words.isEmpty
+                            ? null
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [_SpeakButton(words)],
+                              ),
+                        onTap: () => _playCapture(m),
+                      );
+                    }),
 
                   const SizedBox(height: 16),
                   Row(
@@ -631,13 +660,27 @@ class _DayViewState extends State<DayView> {
                     Text(L.t('No thoughts captured yet.',
                         'עוד אין מחשבות שמורות.'))
                   else
-                    ..._captures.map((c) => ListTile(
-                          leading: Icon(
-                              c.audioPath != null ? Icons.mic : Icons.notes),
-                          title: Text(c.text ?? L.t('Voice note', 'הקלטה קולית')),
-                          subtitle: Text(DateFormat.Hm().format(c.at)),
-                          onTap: () => _playCapture(c),
-                        )),
+                    ..._captures.map((c) {
+                      final words =
+                          (c.text ?? c.transcript ?? c.contextNote ?? '')
+                              .trim();
+                      return ListTile(
+                        leading: Icon(
+                            c.audioPath != null ? Icons.mic : Icons.notes),
+                        title: Text(words.isEmpty
+                            ? L.t('A voice-only moment (no words yet)',
+                                'רגע קולי בלבד (עדיין בלי מילים)')
+                            : words),
+                        subtitle: Text(DateFormat.Hm().format(c.at)),
+                        trailing: words.isEmpty
+                            ? null
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [_SpeakButton(words)],
+                              ),
+                        onTap: () => _playCapture(c),
+                      );
+                    }),
 
                   const SizedBox(height: 40),
                   FilledButton.tonal(
@@ -648,6 +691,30 @@ class _DayViewState extends State<DayView> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+/// Small unobtrusive speaker: the app reads the kept words aloud with the
+/// device voice (owner: "the tts suppose to be default manner, always
+/// transcript — reading out loud the complaints, relaxed"). No motion,
+/// no network — just the words, spoken.
+class _SpeakButton extends StatelessWidget {
+  final String words;
+
+  const _SpeakButton(this.words);
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      iconSize: 18,
+      icon: Icon(Icons.volume_up,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      onPressed: () => TtsService.speak(words),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
@@ -322,38 +323,25 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _memorizeDayWithAutoSummary() async {
-    // Auto generate summary of the day's routines (what was done, skipped, etc.)
-    // This fulfills "memorize a day auto generate summary that day's routine"
-    final doneRoutines = _applicableRoutines
-        .where((r) => _isRoutineDone(r.id))
-        .map((r) => r.title)
-        .toList();
-    final skipped =
-        _logs.where((l) => l.status == CompletionStatus.skipped).length;
-    final eventsSummary = _events.map((e) => e.title).join(', ');
-    final capturesCount = _captures.length + _dayMemories.length;
-
+    // Wave 13: one pure summary builder — mad-vents NEVER enter (sacred).
     final dayLabel = DateFormat.yMMMd().format(_date);
-    String summary = L.t('Day summary for $dayLabel:\n', 'סיכום היום $dayLabel:\n');
-    if (doneRoutines.isNotEmpty) {
-      summary += L.t('Completed: ${doneRoutines.join(", ")}\n',
-          'הושלמו: ${doneRoutines.join(", ")}\n');
+    final allForDay = [..._captures, ..._dayMemories];
+    // Dedupe by id if a capture sits in both lists.
+    final seen = <String>{};
+    final unique = <QuickCapture>[];
+    for (final c in allForDay) {
+      if (seen.add(c.id)) unique.add(c);
     }
-    if (skipped > 0) {
-      summary += L.t('Skipped $skipped routines (see reasons in captures)\n',
-          'דילגת על $skipped שגרות (הסיבות שמורות במחשבות)\n');
-    }
-    if (eventsSummary.isNotEmpty) {
-      summary += L.t('Events: $eventsSummary\n', 'אירועים: $eventsSummary\n');
-    }
-    if (capturesCount > 0) {
-      summary += L.t('$capturesCount thoughts/memories captured today.\n',
-          '$capturesCount מחשבות וזיכרונות נשמרו היום.\n');
-    }
-    summary += L.t('You showed up. Small or big, it counts.',
-        'היית כאן היום. קטן או גדול — זה נחשב.');
+    final summary = buildDayAutoSummary(
+      date: _date,
+      applicableRoutines: _applicableRoutines,
+      logs: _logs,
+      captures: unique,
+      events: _events,
+      t: L.t,
+      dayLabel: dayLabel,
+    );
 
-    // Create a permanent memorize capture for the day
     final dayCapture = QuickCapture(
       id: '',
       at: DateTime.now(),
@@ -375,10 +363,9 @@ class _DayViewState extends State<DayView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(L.t(
-                'Day memorized with auto summary! Great job tracking your progress.',
-                'היום נשמר עם סיכום אוטומטי! כל הכבוד על המעקב.'))),
+                'Day kept. You showed up.',
+                'היום נשמר. היית כאן.'))),
       );
-      // Also open memories to see it
       context.push('/memories');
     }
   }
@@ -402,6 +389,11 @@ class _DayViewState extends State<DayView> {
               icon: const Icon(Icons.add),
               onPressed: _addEvent,
               tooltip: L.t('Add event', 'הוספת אירוע')),
+          IconButton(
+              icon: const Icon(Icons.menu_book_outlined),
+              onPressed: () => context.push(
+                  '/day?date=${DateFormat('yyyy-MM-dd').format(_date)}'),
+              tooltip: L.t('Day diary thread', 'שרשור יומן היום')),
           IconButton(
               icon: const Icon(Icons.mic),
               onPressed: _quickCapture,

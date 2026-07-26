@@ -164,6 +164,14 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - Capture text/context mics, `SttService` locale ladder, Windows Vosk-after-WAV: kept as-is.
 - Parked: Days thread UI, inspector-only pattern summary, offline Android file STT, Hebrew Vosk model.
 
+2026-07-27 wave 13 — **the day, complete** (day thread + care glance + mad-vent-safe summary):
+- ✅ **`lib/core/day_feed.dart`** — pure day diary feed (done / skip+reason / need-help / diary / thought / event / optional mad-vent), chronological morning→night; `buildDayAutoSummary` **never** includes mad-vents; `buildCareGlance` soft caregiver patterns (no scoreboard, vents not headlined).
+- ✅ **Day diary screen** (`/day`, `DayThreadScreen`) — everything said and done on a day; in-place date change (static law); search over words/reasons; TTS + voice play; full-care care-glance card; mad-vents only when full care or active mad mode.
+- ✅ **Wiring** — desktop sidebar + View menu + Ctrl+Y; Today “Today’s words” button (guided-safe read path); Day view book icon → same date’s thread.
+- ✅ **Memorize day** uses the pure summary builder (sacred mad exclusion).
+- ✅ Tests: `test/day_feed_test.dart` (order, mad exclusion, summary, care glance, search).
+- Still verify on two machines: LAN + `.bns` roundtrip with transcripts/reasons (manual live checklist).
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.
@@ -175,7 +183,7 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - Keyboard navigation for Routines manager and Memories list (same ↑↓/Enter pattern as Today — reuse, keep semi-homogenous).
 - Global "mark done" toast when triggered from another screen (currently navigates to Today first — works, could be smoother).
 - Mad mode on Android widget (small flame state?) — keep gentle.
-- Day summary should *never* include mad-vents (verify when day-summary code is touched).
+- ~~Day summary should *never* include mad-vents~~ — enforced in `buildDayAutoSummary` + tests (wave 13).
 
 ## Ideas waiting on a feature (parked, don't lose)
 - **Family encouragement notes** (Ben, 2026-07-06: "wouldn't it need a system to import their encouragement, or we trust the family to deliver on their own"): DECISION — trust the family in person for now; the involved-whole-family case (Ben's own) is the edge case, and an inbox is one more thing for the patient to check. When wanted, the lean build already exists in the architecture: satellite family mode grows ONE "Send love 💌" box → writes a `from-family`-tagged QuickCapture into the .bns → re-seals → travels back by file/LAN → normal merge imports it → app shows `from-family` captures as gentle notes (retention applies; must never read like a scoreboard or arrive on a rage day as noise). No server, no accounts, no new sync. Waiting on: real caregiver feedback asking for it.
@@ -190,7 +198,8 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - **Faster container prototype** (zstd-in-zip or custom length-prefixed binary) — waiting on real-world numbers that beat zip-v2's 151ms/5.9MB; the benchmark test is the referee. Plug into `BnsPackers.all` when ready.
 - ~~Offline web viewer~~ — ABSORBED by wave 4, and grew into a full manager (`satellite/bns-web.html`). Servers stay banned; the satellite is a static file.
 - ~~**Voice-to-text for vents and captures**~~ — largely absorbed by wave 12 (device STT + dictation mics on comments; live-while-record still forbidden on Android). Remaining: offline *file* STT on Android after record without a second speak; vents stay non-searchable in summaries unless user promoted to Memorize.
-- **Days thread UI** (massive diary view) — waiting on real-user feedback that voice comments land reliably (wave 12).
+- ~~**Days thread UI**~~ — shipped wave 13 (`/day`, day_feed).
+- ~~**Inspector care glance**~~ — shipped wave 13 (full-care card on day diary; soft lines only).
 - **Keybind for "start venting" global** — waiting on mad mode UX feedback; could be `Ctrl+Shift+M`.
 - **macOS menu bar quick capture** — waiting on macOS build pipeline being exercised.
 - **iOS/Android home widget "today's mission" parity** — Android exists; iOS waiting on `home_widget` iOS wiring at first iOS build.

@@ -224,12 +224,18 @@ Never put diary *construction* on level 4. Words yes; planning no.
 | Capture after Android record | “no words yet” unless user finds small mic | Gentle “Speak words for this note” once mic is free; still optional, never blocks save |
 | Capture text / context | Already had mics | Unchanged |
 
+### Day complete (wave 13, 2026-07-27) — shipped
+
+- ✅ **Day diary thread** (`/day`): morning→night feed of done, didn’t-happen + reason, hard notes, diary lines, thoughts, plans. Search words and reasons. Static date change (no slide).  
+- ✅ **Care glance** (full care only): soft “what to help with” lines for the week — never a scoreboard, never “you missed”, vents not headlined.  
+- ✅ **Memorize-day auto summary** rebuilt on the pure feed builder — **mad-vents never enter**.  
+- Entry points: Today “Today’s words”, desktop sidebar “Day diary” (Ctrl+Y), Day view book icon.
+
 ### Parked (don’t lose)
 
-- **Days thread UI** — one chronological “everything you said and did today” view (routines handled, reasons, diary lines, captures). Waiting on: comments reliably voice-writable (this pass) + real-user feedback.  
-- **Inspector-only pattern summary** (“3 hard notes on mornings this week”) — never on the patient’s screen as pressure stats. Waiting on: caregiver feedback.  
 - **Offline file STT on Android** (transcribe after record without a second speak) — waiting on a privacy-safe engine path that doesn’t re-fight the mic model.  
 - **Hebrew Vosk model** on Windows — optional mirror of English install.  
+- **Doctor-share export** from the day thread / memories — vents always excluded.
 
 ### What we refuse
 

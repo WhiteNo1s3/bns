@@ -54,6 +54,14 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
               'ניהול כל השגרות  •  Ctrl+R'),
         ),
         _DesktopDestination(
+          icon: Icons.menu_book_outlined,
+          selectedIcon: Icons.menu_book,
+          label: L.t('Day diary', 'יומן היום'),
+          route: '/day',
+          tooltip: L.t('Everything said and done today  •  Ctrl+Y',
+              'כל מה שנאמר ונעשה היום  •  Ctrl+Y'),
+        ),
+        _DesktopDestination(
           icon: Icons.calendar_month_outlined,
           selectedIcon: Icons.calendar_month,
           label: L.t('Calendar', 'לוח שנה'),
@@ -102,17 +110,19 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     final path = widget.currentPath;
     int index = _destinations.indexWhere((d) => d.route == path);
     if (index == -1) {
-      // Fallbacks
+      // Fallbacks (order matches _destinations)
       if (path.startsWith('/routines'))
         index = 1;
-      else if (path.startsWith('/calendar'))
+      else if (path.startsWith('/day'))
         index = 2;
-      else if (path.startsWith('/memories'))
+      else if (path.startsWith('/calendar'))
         index = 3;
-      else if (path.startsWith('/capture'))
+      else if (path.startsWith('/memories'))
         index = 4;
-      else if (path.startsWith('/sync'))
+      else if (path.startsWith('/capture'))
         index = 5;
+      else if (path.startsWith('/sync'))
+        index = 6;
       else
         index = 0;
     }
@@ -132,6 +142,7 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
   static const Map<String, String> _routeToKeybindId = {
     '/': 'open_today',
     '/routines': 'open_routines',
+    '/day': 'open_day',
     '/calendar': 'open_calendar',
     '/memories': 'open_memories',
     '/capture': 'quick_capture',

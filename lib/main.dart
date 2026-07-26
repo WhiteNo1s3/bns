@@ -19,6 +19,7 @@ import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/features/memory/memories_screen.dart';
+import 'package:bns/features/diary/day_thread_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -126,6 +127,16 @@ final _router = GoRouter(
       path: '/memories',
       builder: (context, state) => _wrapForDesktop(
           context, const MemoriesScreen(), state.uri.toString()),
+    ),
+    GoRoute(
+      path: '/day',
+      builder: (context, state) {
+        final date = state.uri.queryParameters['date'];
+        return _wrapForDesktop(
+            context,
+            DayThreadScreen(initialDate: date),
+            state.uri.toString());
+      },
     ),
   ],
 );
@@ -389,6 +400,9 @@ void _runKeybind(String id) {
       break;
     case 'open_routines':
       _router.go('/routines');
+      break;
+    case 'open_day':
+      _router.go('/day');
       break;
     case 'open_calendar':
       _router.go('/calendar');
@@ -1530,6 +1544,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       await context.push('/capture');
                       await _refreshDoneToday();
                     },
+                  ),
+                  // Day diary thread — the spine of "everything said and done".
+                  // Available in guided mode too (read path); building stays elsewhere.
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/day'),
+                    icon: const Icon(Icons.menu_book_outlined),
+                    label: Text(L.t(
+                        'Today\'s words — everything said and done',
+                        'מילות היום — כל מה שנאמר ונעשה')),
                   ),
                   // On PC the sidebar covers navigation — these stay for mobile.
                   // Guided mode: the calendar stays (visual, read-mostly);

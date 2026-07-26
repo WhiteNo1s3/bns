@@ -31,6 +31,12 @@ What the audit found and fixed:
 - Notifications guarded off on Windows (plugin has no Windows support); desktop `.bns` open-with args wired up in `main()`; local device identity survives imports (a merge used to rename your device); `record`/`home_widget` bumped to compatible versions; web target dropped on purpose (dart:io by design, README never promised web).
 - Model round-trip tests added (`flutter test` — 5 passing).
 
+### Toolchain (WSL + desktop, 2026-07-27)
+- **Flutter stable 3.44.8 / Dart 3.12.2** is the current WSL SDK (`/home/ben/flutter`). Do not leave the project on Dart 3.9 — `home_widget ^0.9.3` needs Dart ≥3.10; pin hacks are rejected.
+- `pubspec` SDK floor: `>=3.10.0 <4.0.0`.
+- System `unzip` may be missing on minimal WSL; a user-local `~/bin/unzip` (Python) is enough for Flutter tooling. Prefer `sudo apt install unzip` when you have sudo.
+- `flutter upgrade` needs that unzip; otherwise install the stable linux tarball from Google storage (same result).
+
 ### Android build notes (hard-won, don't rediscover)
 - `flutter_local_notifications` needs **core library desugaring** — enabled in `android/app/build.gradle.kts` (`isCoreLibraryDesugaringEnabled` + `desugar_jdk_libs:2.1.5`).
 - **Plugin version ceiling**: Flutter's current Gradle integration uses the *legacy* Kotlin path (`android.builtInKotlin=false`, `android.newDsl=false` — do not flip these until Flutter supports AGP 9's new DSL). Plugins that migrated to AGP built-in Kotlin will fail with "cannot find symbol …Plugin" because their Kotlin never compiles. Ceilings as of July 2026: `file_picker ^10.x` (11+ needs built-in Kotlin), `record ^6.x` (7+ needs it), `home_widget 0.9.3` is fine (honors the flag). When Flutter ships new-DSL support, lift all three together.

@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/i18n/l.dart';
-import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
@@ -386,9 +385,9 @@ class _DayThreadTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: isMad
-          ? cs.errorContainer.withOpacity(0.35)
+          ? cs.errorContainer.withValues(alpha: 0.35)
           : isHard
-              ? cs.tertiaryContainer.withOpacity(0.4)
+              ? cs.tertiaryContainer.withValues(alpha: 0.4)
               : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),

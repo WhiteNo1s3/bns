@@ -13,6 +13,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/services/stt_service.dart';
+import 'package:bns/services/speech_popup.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -273,6 +274,41 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     }
 
     final baseText = _textController.text;
+
+    // THE WAZE DOOR FIRST for Hebrew — the embedded engine refuses Hebrew
+    // on this phone; the system popup hears it perfectly (same door Waze
+    // uses). One tap, one utterance, words land in the note AND the
+    // transcript that travels in the .bns.
+    final chosen = settings.sttLocale.trim().toLowerCase();
+    final wantHebrew = chosen.isEmpty
+        ? L.isHebrew
+        : (chosen.startsWith('he') || chosen.startsWith('iw'));
+    if (wantHebrew && SpeechPopup.isSupported) {
+      setState(() => _dictatingWords = true);
+      final words = await SpeechPopup.recognize(
+        locale: settings.sttLocale.trim().isEmpty
+            ? 'he-IL'
+            : settings.sttLocale.trim().replaceAll('_', '-'),
+        prompt: L.t('Speak now', 'אפשר לדבר עכשיו'),
+      );
+      if (!mounted) return;
+      setState(() => _dictatingWords = false);
+      if (words != null) {
+        final text = words.trim();
+        if (text.isNotEmpty) {
+          final sep = baseText.isEmpty || baseText.endsWith(' ') ? '' : ' ';
+          setState(() {
+            _textController.text = '$baseText$sep$text';
+            _textController.selection = TextSelection.collapsed(
+                offset: _textController.text.length);
+            _liveTranscript = text;
+            _offerWordsAfterRecord = false;
+          });
+        }
+        return;
+      }
+    }
+
     final started = await SttService.start(
       localeId: settings.sttLocale,
       onText: (text) {
@@ -328,11 +364,47 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   }
 
   Future<void> _saveCapture() async {
-    final text = _textController.text.trim();
-    final transcript = _liveTranscript.trim();
+    var text = _textController.text.trim();
+    var transcript = _liveTranscript.trim();
     if (text.isEmpty && _audioPath == null && transcript.isEmpty) {
       Navigator.pop(context);
       return;
+    }
+
+    // WORDS OR IT NEVER HAPPENED (owner's phone, 2026-07-26: "it just says
+    // saved and nothing is saved"). A voice note with no words saved a
+    // BLANK-looking memory — the explanation existed only as audio nobody
+    // could read, search, or show a caregiver. Before a wordless recording
+    // leaves, offer the door that works (Hebrew included) to put words on
+    // it. Declining is always allowed — the voice is already safe.
+    if (text.isEmpty && transcript.isEmpty && _audioPath != null) {
+      final addWords = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(L.t('Put words to it?', 'לשים על זה מילים?')),
+          content: Text(L.t(
+              'Your voice is kept. Words let it be read, found later, and '
+              'shown to someone who can help — say it once more and it '
+              'becomes text.',
+              'הקול שלך שמור. מילים מאפשרות לקרוא את זה, למצוא את זה אחר כך '
+              'ולהראות למי שיכול לעזור — עוד פעם אחת בקול, וזה הופך לטקסט.')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Voice only', 'רק הקול'))),
+            FilledButton.icon(
+                onPressed: () => Navigator.pop(c, true),
+                icon: const Icon(Icons.mic),
+                label: Text(L.t('Say it in words', 'להגיד את זה במילים'))),
+          ],
+        ),
+      );
+      if (addWords == true) {
+        await _toggleSpeakWords();
+        if (!mounted) return;
+        text = _textController.text.trim();
+        transcript = _liveTranscript.trim();
+      }
     }
 
     final tags = ['quick-thought'];

@@ -973,6 +973,26 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   /// for done; THIS is for the problem: the person states it didn't happen
   /// and can write what got in the way — remembered, so it can get help.
   /// No Done button here; done lives on the checkbox where it belongs.
+  /// Copy the newest linked note's words into today's skip record, so the
+  /// why lives in the container of itself even when it was spoken on the
+  /// capture screen a minute after the skip was logged.
+  Future<void> _adoptReasonFromCapture(String routineId, String date) async {
+    final captures = await IsarService.getAllCaptures();
+    for (final c in captures) {
+      // captures arrive newest-first
+      if (c.linkedRoutineId != routineId) continue;
+      final words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
+      if (words.isEmpty) continue;
+      await IsarService.logCompletion(
+        routineId: routineId,
+        date: date,
+        status: CompletionStatus.skipped,
+        reason: words,
+      );
+      return;
+    }
+  }
+
   void _openDidntHappenSheet(Routine r) {
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final noteCtrl = TextEditingController();
@@ -1052,6 +1072,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   'linkedRoutineId': r.id,
                   'tags': ['need-help'],
                 });
+                // The words said INSIDE capture belong to the skip too
+                // (owner, 2026-07-26: the reason came back empty because it
+                // was written before the person had spoken). Re-read the
+                // newest linked note and put its words in the record.
+                await _adoptReasonFromCapture(r.id, todayStr);
                 ref.invalidate(routinesProvider);
                 await _refreshDoneToday();
               },

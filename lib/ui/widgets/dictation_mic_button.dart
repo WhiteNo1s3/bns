@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/services/speech_popup.dart';
 import 'package:bns/services/stt_service.dart';
 
 /// A small mic that dictates straight into a [TextEditingController] —
@@ -76,6 +77,35 @@ class _DictationMicButtonState extends State<DictationMicButton> {
     }
 
     _baseText = widget.controller.text;
+
+    // THE WAZE DOOR FIRST for Hebrew (owner's phone, 2026-07-26): the
+    // embedded engine refuses he_IL/iw_IL on this device, while the system
+    // popup — Waze's own door — hears Hebrew perfectly. Try it; only fall
+    // through to the embedded engine if the door itself isn't there.
+    final wantHebrew = _wantsHebrew(settings.sttLocale);
+    if (wantHebrew && SpeechPopup.isSupported) {
+      if (mounted) setState(() => _dictating = true);
+      final words = await SpeechPopup.recognize(
+        locale: settings.sttLocale.trim().isEmpty
+            ? 'he-IL'
+            : settings.sttLocale.trim().replaceAll('_', '-'),
+        prompt: L.t('Speak now', 'אפשר לדבר עכשיו'),
+      );
+      if (mounted) setState(() => _dictating = false);
+      if (words != null) {
+        // Door answered (words, or empty when cancelled) — respect it.
+        final text = words.trim();
+        if (text.isNotEmpty) {
+          final sep = _baseText.isEmpty || _baseText.endsWith(' ') ? '' : ' ';
+          widget.controller.text = '$_baseText$sep$text';
+          widget.controller.selection = TextSelection.collapsed(
+              offset: widget.controller.text.length);
+        }
+        return;
+      }
+      // Door missing on this device — fall through to the engine below.
+    }
+
     final started = await SttService.start(
       localeId: settings.sttLocale,
       onText: (text) {
@@ -110,6 +140,14 @@ class _DictationMicButtonState extends State<DictationMicButton> {
           'Voice typing is not available on this device. Typing works as always.',
           'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.'));
     }
+  }
+
+  /// Hebrew is wanted when explicitly chosen, or when the app itself is
+  /// Hebrew and no other language was picked.
+  static bool _wantsHebrew(String sttLocale) {
+    final chosen = sttLocale.trim().toLowerCase();
+    if (chosen.isEmpty) return L.isHebrew;
+    return chosen.startsWith('he') || chosen.startsWith('iw');
   }
 
   /// Unavailable is not always the same story. When the engine said WHY —

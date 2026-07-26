@@ -12,6 +12,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -60,6 +61,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   /// .bns and can come from platforms/engines that CAN share the mic.
   String _liveTranscript = '';
 
+  /// After a phone recording stops, offer one calm path to speak words
+  /// (mic is free now). Never concurrent with the recorder.
+  bool _offerWordsAfterRecord = false;
+  bool _dictatingWords = false;
+
   MemoryLevel _memoryLevel = MemoryLevel.quick;
   final _contextController =
       TextEditingController(); // for "what happened / why" in remember/memorize
@@ -103,6 +109,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   @override
   void dispose() {
     _durationTimer?.cancel();
+    if (_dictatingWords) SttService.stop();
     _textController.dispose();
     _contextController.dispose();
     _audioRecorder.dispose();
@@ -138,8 +145,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       setState(() {
         _isRecording = false;
         _audioPath = path;
+        // Phone path: invite words only after the voice is safely kept.
+        // Windows gets Vosk from the file instead.
+        _offerWordsAfterRecord = !desktopStt && path != null;
       });
-      if (desktopStt && path != null) _transcribeWithVosk(path);
+      if (desktopStt && path != null) {
+        _transcribeWithVosk(path);
+      }
     } else {
       // Start recording
       final dir = await IsarService.getAudioDir();
@@ -170,11 +182,16 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         path: path,
       );
 
+      if (_dictatingWords) {
+        await SttService.stop();
+        _dictatingWords = false;
+      }
       setState(() {
         _isRecording = true;
         _audioPath = null;
         _recordDuration = Duration.zero;
         _liveTranscript = '';
+        _offerWordsAfterRecord = false;
       });
 
       _durationTimer?.cancel();
@@ -203,9 +220,98 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       if (!VoskService.isInstalled(voskDir)) return;
       final text = await VoskService.transcribeWav(voskDir, wavPath);
       if (text.isEmpty || !mounted) return;
-      setState(() => _liveTranscript = text);
+      setState(() {
+        _liveTranscript = text;
+        _offerWordsAfterRecord = false;
+      });
     } catch (_) {
       // The recording is already safe — words are a bonus, never a blocker.
+    }
+  }
+
+  /// After the voice note is kept, speak words into text + transcript.
+  /// Mic is free — never call this while recording.
+  Future<void> _toggleSpeakWords() async {
+    if (_dictatingWords) {
+      final text = await SttService.stop();
+      if (!mounted) return;
+      setState(() {
+        _dictatingWords = false;
+        if (text.trim().isNotEmpty) {
+          _liveTranscript = text.trim();
+          if (_textController.text.trim().isEmpty) {
+            _textController.text = text.trim();
+          }
+          _offerWordsAfterRecord = false;
+        }
+      });
+      return;
+    }
+
+    final settings = await IsarService.getSettings();
+    if (!settings.sttEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'Voice typing is turned off in Settings. Typing works as always.',
+              'הקלדה קולית כבויה בהגדרות. הקלדה רגילה עובדת כמו תמיד.')),
+        ));
+      }
+      return;
+    }
+
+    final mic = await Permission.microphone.request();
+    if (mic != PermissionStatus.granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'Voice typing needs the microphone. Typing works as always.',
+              'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.')),
+        ));
+      }
+      return;
+    }
+
+    final baseText = _textController.text;
+    final started = await SttService.start(
+      localeId: settings.sttLocale,
+      onText: (text) {
+        if (!mounted) return;
+        final sep =
+            baseText.isEmpty || baseText.endsWith(' ') || text.isEmpty
+                ? ''
+                : ' ';
+        final full = '$baseText$sep$text';
+        _textController.text = full;
+        _textController.selection =
+            TextSelection.collapsed(offset: full.length);
+        setState(() => _liveTranscript = text.trim().isNotEmpty
+            ? text.trim()
+            : _liveTranscript);
+      },
+      onState: (s) {
+        if (!mounted) return;
+        if (s == SttState.unavailable || s == SttState.idle) {
+          setState(() => _dictatingWords = false);
+        }
+        if (s == SttState.unavailable) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(L.t(
+                'Voice typing is not available right now. Typing works as always.',
+                'הקלדה קולית לא זמינה כרגע. הקלדה רגילה עובדת כמו תמיד.')),
+          ));
+        }
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _dictatingWords = started);
+    if (!started) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'Voice typing is not available on this device. Typing works as always.',
+            'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.')),
+      ));
     }
   }
 
@@ -454,12 +560,15 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () {
+                          if (_dictatingWords) SttService.stop();
                           setState(() {
                             // Transcript belongs to the recording — goes
                             // with it.
                             _audioPath = null;
                             _liveTranscript = '';
                             _isPlaying = false;
+                            _offerWordsAfterRecord = false;
+                            _dictatingWords = false;
                           });
                           _audioPlayer.stop();
                         },
@@ -468,6 +577,50 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                   ),
                 ),
               ),
+              // Wave 12: after the voice is kept, one calm path to words.
+              // Never concurrent with recording (Android mic fight).
+              // Stay visible while dictating even after partial words land.
+              if (_offerWordsAfterRecord) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          L.t(
+                              'Your voice is kept. Want words too? They help '
+                              'search and the people who care — optional.',
+                              'הקול שלך נשמר. רוצים גם מילים? זה עוזר לחיפוש '
+                              'ולאנשים שדואגים — לא חובה.'),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton.tonalIcon(
+                          onPressed: _toggleSpeakWords,
+                          icon: Icon(_dictatingWords
+                              ? Icons.stop_rounded
+                              : Icons.mic_none_rounded),
+                          label: Text(_dictatingWords
+                              ? L.t('Stop speaking', 'לעצור דיבור')
+                              : L.t('Speak words for this note',
+                                  'לדבר מילים להקלטה')),
+                        ),
+                        if (!_dictatingWords)
+                          TextButton(
+                            onPressed: () => setState(
+                                () => _offerWordsAfterRecord = false),
+                            child: Text(L.t(
+                                'Not now — voice only is fine',
+                                'לא עכשיו — רק קול זה בסדר')),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
             ],
 

@@ -11,6 +11,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
@@ -1022,8 +1023,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               minLines: 1,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: L.t('What got in the way?', 'מה הפריע?'),
+                hintText: L.t(
+                    'What got in the way? (tap the mic to speak)',
+                    'מה הפריע? (הקשה על המיקרופון כדי לדבר)'),
                 border: const OutlineInputBorder(),
+                // STT on every comment (wave 12): long-press is level 4's
+                // main problem door — typing alone is not enough.
+                suffixIcon: DictationMicButton(controller: noteCtrl),
               ),
             ),
             const SizedBox(height: 12),
@@ -1472,11 +1478,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       maxLines: 3, // more robust typing area on PC
                       minLines: 2,
                       decoration: InputDecoration(
-                        hintText: L.t('How is today going?', 'איך היום מרגיש?'),
+                        hintText: L.t(
+                            'How is today going? (tap the mic to speak)',
+                            'איך היום מרגיש? (הקשה על המיקרופון כדי לדבר)'),
                         helperText: isDesktopWide
                             ? L.t('Ctrl+D jumps here', 'Ctrl+D קופץ לכאן')
                             : null,
                         border: const OutlineInputBorder(),
+                        // Massive diary spine: voice into the diary box,
+                        // not type-only (wave 12).
+                        suffixIcon:
+                            DictationMicButton(controller: _diaryController),
                       ),
                     ),
                     const SizedBox(height: 4),

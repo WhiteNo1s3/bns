@@ -156,6 +156,14 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - ✅ **The inspector builds the day** from their own paired device; LAN auto-sync merge delivers it — instructions, not choices. Recorded as spectrum level 4 in AGENTS.md.
 - Tests: 24 green (guided default off, roundtrip, legacy-safe, rides on full care).
 
+2026-07-26 wave 12 — **massive diary spine + STT on every comment** (owner: phones as the diary for TBI / dementia / Alzheimer’s / severe cognition loss; STT must work on comments, not only capture):
+- ✅ **Product law written** in `docs/ideas-for-handicapped-users.md` → “Massive diary… + STT on every comment”: the day *is* the diary (skips, need-help notes, diary box, capture, mad vents); phone-first comment hierarchy; care levels unchanged; refuse cloud STT and shame stats.
+- ✅ **Dictation on diary box** (Today) — `DictationMicButton` suffix on the diary field.
+- ✅ **Dictation on long-press “what got in the way?”** — same mic on the problem-note field (level 4’s main comment door).
+- ✅ **Post-record words on phone** — after Android (non-Windows) recording stops, a calm card offers “Speak words for this note” once the mic is free; optional; never blocks save; still no concurrent STT+record (S23 field truth).
+- Capture text/context mics, `SttService` locale ladder, Windows Vosk-after-WAV: kept as-is.
+- Parked: Days thread UI, inspector-only pattern summary, offline Android file STT, Hebrew Vosk model.
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.
@@ -181,7 +189,8 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - **bns-cli** (from the container evolution plan): native binaries with `inspect`, `validate`, `merge`, `export-json` — waiting on the packer abstraction settling (it has). Next natural step for the global-spread story.
 - **Faster container prototype** (zstd-in-zip or custom length-prefixed binary) — waiting on real-world numbers that beat zip-v2's 151ms/5.9MB; the benchmark test is the referee. Plug into `BnsPackers.all` when ready.
 - ~~Offline web viewer~~ — ABSORBED by wave 4, and grew into a full manager (`satellite/bns-web.html`). Servers stay banned; the satellite is a static file.
-- **Voice-to-text for vents and captures** — waiting on choosing an offline speech package (privacy: LAN-only rule forbids cloud STT). Once in: vents become searchable *only if user opts in*; default stays ephemeral.
+- ~~**Voice-to-text for vents and captures**~~ — largely absorbed by wave 12 (device STT + dictation mics on comments; live-while-record still forbidden on Android). Remaining: offline *file* STT on Android after record without a second speak; vents stay non-searchable in summaries unless user promoted to Memorize.
+- **Days thread UI** (massive diary view) — waiting on real-user feedback that voice comments land reliably (wave 12).
 - **Keybind for "start venting" global** — waiting on mad mode UX feedback; could be `Ctrl+Shift+M`.
 - **macOS menu bar quick capture** — waiting on macOS build pipeline being exercised.
 - **iOS/Android home widget "today's mission" parity** — Android exists; iOS waiting on `home_widget` iOS wiring at first iOS build.

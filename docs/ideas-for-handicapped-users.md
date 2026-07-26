@@ -169,3 +169,78 @@ this folder is the state-of-the-art program. Ideas get ported here, implemented 
 - ✅ Double-click .bns on Windows: `scripts\register-bns.ps1` registers the association (per-user, no admin needed).
 - ✅ "Keep a ready-to-share .bns fresh" toggle in Sync & PC (on by default) — the seamless imaging is now user-controllable.
 - ✅ After a crash or force-kill, the next launch says one calm line: everything was already saved as you went. Nothing lost. (True by architecture — per-change atomic saves.)
+
+## Massive diary for neurological handicaps + STT on every comment (2026-07-26)
+
+**Who this is for.** Phones are everywhere. BNS is the everyday diary for people whose cognition is damaged or fading: TBI (including people who never “got cognition back”), dementia, Alzheimer’s, executive dysfunction, memory loss. Specs already cover care levels 3–4, guided mode, family spectrum, voice-first capture. This pass names the **diary spine** and closes the hole where **comments had no working voice typing**.
+
+### Product spine — the day IS the diary
+
+Not a second “journal app.” Everything the person ticks, skips, rants, or says is a page:
+
+| Kept thing | How it lands | Care signal |
+|------------|--------------|-------------|
+| Deliberate skip + reason | Completion log `reason` + optional `need-help` capture | Frustration is the signal (elevators, mornings, etc.) |
+| Long-press “what got in the way” | Capture tagged `need-help`, linked to the routine | Same — remembered so help can arrive |
+| Diary box on Today | Capture tags `diary` / `goal-progress` | Wins and hard things both belong |
+| Quick capture / widget 🎤 | Voice note + optional text/transcript | Free thought channel |
+| Mad vent | Tag `mad-vent`, burns out ~2 days | Sacred; never garden/summary unless Memorize |
+
+**Massive** means chosen forever (memorize / garden), not infinite raw days. Rolling retention keeps the live phone light; deliberate “keep forever” is the deep archive. Streaming `.bns` already sustains large audio.
+
+### Phone-first comment hierarchy (one obvious door)
+
+Too many doors kill the feature for fog / late dementia:
+
+1. **Primary:** tick done / long-press problem  
+2. **Secondary:** big “Tell about today” (widget 🎤 + capture)  
+3. **Tertiary:** diary box (hidden in guided mode — already)  
+4. **Sacred:** mad mode vent  
+
+On phone, comment paths should always allow **voice → words** without opening a different mental mode. Typing remains the safety net, never the only path.
+
+### Care levels (unchanged law)
+
+- **Normal:** list + diary + capture  
+- **Full care (3):** caregiver sees all comments and audio (rants included)  
+- **Guided (4):** list only; long-press + capture = only writing left to the person; inspector builds the day  
+
+Never put diary *construction* on level 4. Words yes; planning no.
+
+### STT law — “STT all the time” on comments (field truth)
+
+- Device engine only (same privacy rules as TTS). No cloud STT, no AI-API subscriptions.  
+- `DictationMicButton` is the building block for **every** person-facing text field that is a comment.  
+- **Android:** never run STT *while* the recorder holds the mic (killed the note on the owner’s S23). Recording wins; words come **after** the voice is safely kept, or via dictation-only (no concurrent record).  
+- **Windows:** post-file Vosk on WAV is the sequential path (no mic fight).  
+- Hebrew locale ladder stays honest; missing language pack is said gently once, never silent dead mic.
+
+### Gaps closed in this pass
+
+| Surface | Before | After |
+|---------|--------|--------|
+| Today diary box | Type only | Dictation mic on the field |
+| Long-press “what got in the way?” | Type only (or leave for full capture) | Dictation mic on the note field |
+| Capture after Android record | “no words yet” unless user finds small mic | Gentle “Speak words for this note” once mic is free; still optional, never blocks save |
+| Capture text / context | Already had mics | Unchanged |
+
+### Parked (don’t lose)
+
+- **Days thread UI** — one chronological “everything you said and did today” view (routines handled, reasons, diary lines, captures). Waiting on: comments reliably voice-writable (this pass) + real-user feedback.  
+- **Inspector-only pattern summary** (“3 hard notes on mornings this week”) — never on the patient’s screen as pressure stats. Waiting on: caregiver feedback.  
+- **Offline file STT on Android** (transcribe after record without a second speak) — waiting on a privacy-safe engine path that doesn’t re-fight the mic model.  
+- **Hebrew Vosk model** on Windows — optional mirror of English install.  
+
+### What we refuse
+
+- Cloud STT / AI day summaries  
+- A parallel journal product that doesn’t sync as `.bns` captures  
+- Concurrent STT + record on Android without device proof  
+- Streaks, “you didn’t write today,” red marks on empty diary days  
+
+### Live test questions (add to session checklist)
+
+- “Could you speak into the diary and into ‘what got in the way’ without typing?”  
+- “After a voice note, was adding words easy — or did it feel like a second app?”  
+- “Did the mic ever feel broken or silent for no reason?”  
+- Existing AGENTS questions still apply (confusing? mad at you? LAN safe?).

@@ -99,21 +99,19 @@ Advanced implementation in place (core MVP + amazing secure sync features + all 
 - Keybinds + keyboard + mad pass (July 2026): keybinds are now LIVE (built from settings, tick to enable, press-to-record combos, travel in .bns), full keyboard navigation of today's steps (Ctrl+G, ↑↓, Enter, S), and **"I am mad" mode** — a judgment-free rage valve: vent in any language you want, vents burn out within ~2 days, the mode calms itself after ~24h. Deliberate skips are celebrated as decisions. Roadmap + parked ideas now tracked in `docs/roadmap-and-brainstorm.md`.
 - **STT all the time + large-file .bns** (2026-07-26 production pass):
   speech-to-text with the DEVICE engine (free, on-device, no cloud accounts —
-  same rules as TTS). Recording a voice note now shows a LIVE transcript as
-  you talk; the transcript is saved with the capture, travels inside the .bns
-  (`transcript` field, additive/backward-compatible), stands in as the text
-  for voice-only thoughts (so lists + search just work), and shows in the
-  family Explorer. Every text field can grow a small dictation mic
-  (`DictationMicButton`) — the capture screen's text + context fields have
-  them. Toggle + language live in Settings (`sttEnabled`, `sttLocale`,
-  default on/device language). Devices whose engines can't share the mic
-  with the recorder degrade gracefully: the recording always wins, dictation
-  mics still work standalone. AND: the .bns container now STREAMS on both
-  export and import (`BnsFileImager`) with chunked SHA-256 sealing — hours of
-  recordings pack/unpack in flat memory, so the database file truly sustains
-  large audio. Same zip-v2 bytes as always (satellite + old files unaffected;
-  `tool/cross_check.dart make <f> streamed` proves it). LAN sync crypto moved
-  off the UI thread (isolates) for big payloads.
+  same rules as TTS). On Android the recorder keeps the mic alone (live STT
+  while recording killed notes on device); words come after the voice is
+  kept, or via dictation-only. Transcripts travel in the .bns (`transcript`
+  field), stand in as text for voice-only thoughts, and show in the family
+  Explorer. Dictation mics sit on capture text/context, the Today diary box,
+  and long-press “what got in the way?” — every person-facing comment path.
+  After a phone voice note, a calm optional card offers “Speak words for
+  this note.” Toggle + language in Settings (`sttEnabled`, `sttLocale`).
+  Product law: `docs/ideas-for-handicapped-users.md` → “Massive diary… +
+  STT on every comment.” AND: the .bns container STREAMS on export/import
+  (`BnsFileImager`) with chunked SHA-256 sealing — hours of recordings in
+  flat memory. Same zip-v2 bytes (satellite + old files unaffected). LAN
+  sync crypto on isolates for big payloads.
 - **It builds now** (July 2026 repair pass): real platform runners for Windows/Android/iOS/macOS/Linux with .bns associations, permissions and entitlements in place; Isar/freezed replaced by a dependency-free JSON snapshot store (same API, no codegen); LAN sync protocol + secure pairing actually work (stable device identity, real encryption both ways, type-the-code pairing); `flutter analyze` clean, model tests passing. Full list: `docs/roadmap-and-brainstorm.md` → "Big repair pass". iOS/macOS build on a Mac; Linux on a Linux box; no web target by design (dart:io, privacy-first native).
 - New dedicated folder `C:\dev\bns`
 - Core models (including TrustedDevice) + full Isar persistence + recurrence helpers

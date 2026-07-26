@@ -1,5 +1,9 @@
 # Ideas for Handicapped Users (TBI / DAI / Executive Dysfunction / Memory Issues)
 
+> **Canonical living doc:** [`docs/ideas-for-handicapped-users.md`](docs/ideas-for-handicapped-users.md)  
+> (includes the 2026-07-26 “Massive diary + STT on every comment” iteration).  
+> Prefer editing that file; this root copy is a shorter mirror for discoverability.
+
 This document collects all the awesome ideas for making BNS better for users with neurological challenges. These should be implemented with low cognitive load, positive encouragement, no pressure, and voice-first where possible.
 
 **Core Philosophy (non-negotiable)**

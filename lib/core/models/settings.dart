@@ -36,9 +36,10 @@ class AppSettings {
   // Quiet mode: reduce animations, confetti, sounds for low-stimulation days.
   final bool quietMode;
 
-  // "STT all the time" (owner, 2026-07-26): every voice moment also becomes
-  // text via the DEVICE speech engine — live transcript while recording,
-  // dictation mics on text fields. Free, on-device, no cloud accounts.
+  // "STT all the time" (owner, 2026-07-26; comments pass same day): dictation
+  // mics on every person-facing comment field (diary, skip-reason, capture);
+  // after a phone voice note, optional speak-words once the mic is free.
+  // Never concurrent STT+record on Android. Free, on-device, no cloud accounts.
   // Default ON; devices without an engine degrade silently to voice+typing.
   final bool sttEnabled;
 

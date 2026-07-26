@@ -133,14 +133,54 @@ class LanSyncService {
       }
     });
 
-    _broadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (isRunning) _broadcastHello();
+    await _refreshBroadcastTargets();
+    _broadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!isRunning) return;
+      // Networks come and go (Wi-Fi joins, VPN lifts) — keep the list live,
+      // cheaply, once every few beats.
+      _broadcastBeat = (_broadcastBeat + 1) % 6;
+      if (_broadcastBeat == 0) await _refreshBroadcastTargets();
+      _broadcastHello();
     });
     await _startTcpServer();
     _broadcastHello();
 
     _emitProgress(const SyncProgress(
         progress: 0.0, message: 'Looking for your other devices on Wi-Fi...'));
+  }
+
+  /// Every network this machine actually sits on gets its own hello.
+  ///
+  /// A limited broadcast (255.255.255.255) leaves through exactly ONE
+  /// interface — whichever the routing table prefers. On a PC carrying
+  /// VirtualBox/VMware/WSL adapters (owner's machine, 2026-07-27: five of
+  /// them) that is often a virtual adapter, so the phone on the real Wi-Fi
+  /// never hears a word. Addressing each interface's own subnet broadcast
+  /// makes the OS route the packet out THAT interface.
+  List<InternetAddress> _broadcastTargets = [
+    InternetAddress('255.255.255.255')
+  ];
+  int _broadcastBeat = 0;
+
+  Future<void> _refreshBroadcastTargets() async {
+    final targets = <String>{'255.255.255.255'};
+    try {
+      final interfaces = await NetworkInterface.list(
+          includeLoopback: false, type: InternetAddressType.IPv4);
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          final parts = addr.address.split('.');
+          if (parts.length != 4) continue;
+          if (addr.address.startsWith('169.254.')) continue; // link-local
+          // Dart doesn't expose netmasks; /24 is the shape of virtually
+          // every home LAN, and a stray broadcast costs nothing.
+          targets.add('${parts[0]}.${parts[1]}.${parts[2]}.255');
+        }
+      }
+    } catch (_) {
+      // Interface enumeration blocked — the limited broadcast still tries.
+    }
+    _broadcastTargets = targets.map(InternetAddress.new).toList();
   }
 
   void _broadcastHello() {
@@ -153,8 +193,14 @@ class LanSyncService {
       'lastExport': DateTime.now().toIso8601String(),
       'port': transferPort,
     });
-    _udpSocket!.send(utf8.encode(payload), InternetAddress('255.255.255.255'),
-        discoveryPort);
+    final bytes = utf8.encode(payload);
+    for (final target in _broadcastTargets) {
+      try {
+        _udpSocket!.send(bytes, target, discoveryPort);
+      } catch (_) {
+        // One unreachable interface must never silence the others.
+      }
+    }
   }
 
   void _handleDiscovery(Datagram datagram) {

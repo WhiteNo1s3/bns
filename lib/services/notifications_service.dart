@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 
@@ -72,13 +73,15 @@ class NotificationsService {
     }
 
     final androidDetails = AndroidNotificationDetails(
-      'bns_routines',
-      'Gentle Reminders',
-      channelDescription: 'Kind reminders for your routines',
+      'bns_routines', // channel id stays English — it is an identifier
+      L.t('Gentle Reminders', 'תזכורות עדינות'),
+      channelDescription: L.t('Kind reminders for your routines',
+          'תזכורות נחמדות לשגרות שלך'),
       importance: Importance.low,
       priority: Priority.low,
-      styleInformation: const BigTextStyleInformation(
-        'Take your time. This is just a gentle nudge.',
+      styleInformation: BigTextStyleInformation(
+        L.t('Take your time. This is just a gentle nudge.',
+            'אין לחץ, בקצב שלך. זו רק תזכורת עדינה.'),
       ),
     );
 
@@ -86,8 +89,9 @@ class NotificationsService {
 
     await _plugin.zonedSchedule(
       routine.id.hashCode, // stable id
-      'Gentle reminder',
-      '${routine.title} — whenever you\'re ready',
+      L.t('Gentle reminder', 'תזכורת עדינה'),
+      L.t('${routine.title} — whenever you\'re ready',
+          '${routine.title} — מתי שנוח לך'),
       scheduled,
       details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

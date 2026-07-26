@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/stt_service.dart';
 
@@ -52,12 +53,25 @@ class _DictationMicButtonState extends State<DictationMicButton> {
       return;
     }
 
+    // Every failed attempt says WHY, once per attempt — a silent mic that
+    // does nothing reads as "broken", never as "disabled in settings".
+    _told = false;
+
     final settings = await IsarService.getSettings();
-    if (!settings.sttEnabled) return;
+    if (!settings.sttEnabled) {
+      _tellOnce(L.t(
+          'Voice typing is turned off in Settings (the Sync screen). '
+          'Typing works as always.',
+          'הקלדה קולית כבויה בהגדרות (מסך הסנכרון). '
+          'הקלדה רגילה עובדת כמו תמיד.'));
+      return;
+    }
 
     final mic = await Permission.microphone.request();
     if (mic != PermissionStatus.granted) {
-      _tellOnce('Voice typing needs the microphone. Typing works as always.');
+      _tellOnce(L.t(
+          'Voice typing needs the microphone. Typing works as always.',
+          'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.'));
       return;
     }
 
@@ -83,19 +97,23 @@ class _DictationMicButtonState extends State<DictationMicButton> {
           }
         });
         if (s == SttState.unavailable) {
-          _tellOnce(
-              'Voice typing is not available right now. Typing works as always.');
+          _tellOnce(L.t(
+              'Voice typing is not available right now. Typing works as always.',
+              'הקלדה קולית לא זמינה כרגע. הקלדה רגילה עובדת כמו תמיד.'));
         }
       },
     );
 
     if (mounted) setState(() => _dictating = started);
     if (!started) {
-      _tellOnce(
-          'Voice typing is not available on this device. Typing works as always.');
+      _tellOnce(L.t(
+          'Voice typing is not available on this device. Typing works as always.',
+          'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.'));
     }
   }
 
+  /// Once per ATTEMPT (reset in [_toggle]) — not once per app lifetime,
+  /// which made every later failure completely silent.
   static bool _told = false;
   void _tellOnce(String msg) {
     if (_told || !mounted) return;
@@ -112,7 +130,10 @@ class _DictationMicButtonState extends State<DictationMicButton> {
         : Theme.of(context).colorScheme.onSurfaceVariant;
     return IconButton(
       iconSize: widget.dense ? 22 : 28,
-      tooltip: _dictating ? 'Stop voice typing' : 'Voice typing (speak to write)',
+      tooltip: _dictating
+          ? L.t('Stop voice typing', 'לעצור הקלדה קולית')
+          : L.t('Voice typing (speak to write)',
+              'הקלדה קולית (מדברים — וזה נכתב)'),
       icon: Icon(_dictating ? Icons.mic : Icons.mic_none_rounded, color: color),
       onPressed: _toggle,
     );

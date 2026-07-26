@@ -28,6 +28,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The dev copy installs NEXT TO the real app, never over it —
+            // the person's data on the phone is not a build artifact.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-dev"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

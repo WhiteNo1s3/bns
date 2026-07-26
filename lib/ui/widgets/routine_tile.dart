@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
 
@@ -27,6 +28,11 @@ class RoutineTile extends StatelessWidget {
   // carries the time of day it was written ("today 14:30", "Tue 09:15").
   final String? recentNote;
   final String? recentNoteWhen;
+  // Everything ever told about this one (notes + recordings): a little
+  // door at the end of the row (owner, 2026-07-26: "in the container") —
+  // so "what did I already say, and to whom?" has a place to be answered.
+  final int keptCount;
+  final VoidCallback? onShowKept;
 
   const RoutineTile({
     super.key,
@@ -41,6 +47,8 @@ class RoutineTile extends StatelessWidget {
     this.skippedToday = false,
     this.recentNote,
     this.recentNoteWhen,
+    this.keptCount = 0,
+    this.onShowKept,
   });
 
   @override
@@ -120,7 +128,8 @@ class RoutineTile extends StatelessWidget {
                               color: colorScheme.tertiary),
                           const SizedBox(width: 6),
                           Text(
-                            'Didn\'t happen today — that\'s okay',
+                            L.t('Didn\'t happen today — that\'s okay',
+                                'לא קרה היום — זה בסדר גמור'),
                             style: TextStyle(
                               fontSize: big ? 16 : 13,
                               fontWeight: FontWeight.w600,
@@ -145,8 +154,9 @@ class RoutineTile extends StatelessWidget {
                           Expanded(
                             child: Text(
                               recentNoteWhen == null
-                                  ? '“$recentNote”'
-                                  : '“$recentNote”  ·  $recentNoteWhen',
+                                  ? L.t('“$recentNote”', '״$recentNote״')
+                                  : L.t('“$recentNote”  ·  $recentNoteWhen',
+                                      '״$recentNote״  ·  $recentNoteWhen'),
                               style: TextStyle(
                                 fontSize: big ? 15 : 12.5,
                                 fontStyle: FontStyle.italic,
@@ -163,8 +173,11 @@ class RoutineTile extends StatelessWidget {
                         stepsDone < routine.steps.length) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'Next: ${routine.steps[stepsDone].title}'
-                        '  (${stepsDone + 1} of ${routine.steps.length})',
+                        L.t(
+                            'Next: ${routine.steps[stepsDone].title}'
+                            '  (${stepsDone + 1} of ${routine.steps.length})',
+                            'הבא: ${routine.steps[stepsDone].title}'
+                            '  (${stepsDone + 1} מתוך ${routine.steps.length})'),
                         style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -192,7 +205,23 @@ class RoutineTile extends StatelessWidget {
                     style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10)),
-                    child: const Text('Part ✓'),
+                    child: Text(L.t('Part ✓', 'חלק ✓')),
+                  ),
+                ),
+              // The door to everything told about this one — at the end of
+              // the row, sweetly, never a scary "problems" label.
+              if (keptCount > 0 && onShowKept != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: IconButton(
+                    tooltip: L.t('What you told about this one',
+                        'מה סיפרת על זה'),
+                    onPressed: onShowKept,
+                    iconSize: big ? 30 : 24,
+                    icon: Badge(
+                      label: Text('$keptCount'),
+                      child: const Icon(Icons.chat_bubble_outline),
+                    ),
                   ),
                 ),
               if (routine.tags.isNotEmpty)

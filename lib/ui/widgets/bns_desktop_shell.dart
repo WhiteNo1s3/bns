@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
@@ -35,50 +36,55 @@ class BnsDesktopShell extends StatefulWidget {
 class _BnsDesktopShellState extends State<BnsDesktopShell> {
   int _selectedIndex = 0;
 
-  final List<_DesktopDestination> _destinations = const [
-    _DesktopDestination(
-      icon: Icons.today_outlined,
-      selectedIcon: Icons.today,
-      label: 'Today',
-      route: '/',
-      tooltip: 'Today\'s gentle steps + diary  •  Ctrl+T',
-    ),
-    _DesktopDestination(
-      icon: Icons.list_alt_outlined,
-      selectedIcon: Icons.list_alt,
-      label: 'Routines',
-      route: '/routines',
-      tooltip: 'Manage all routines  •  Ctrl+R',
-    ),
-    _DesktopDestination(
-      icon: Icons.calendar_month_outlined,
-      selectedIcon: Icons.calendar_month,
-      label: 'Calendar',
-      route: '/calendar',
-      tooltip: 'Calendar + day view',
-    ),
-    _DesktopDestination(
-      icon: Icons.psychology_outlined,
-      selectedIcon: Icons.psychology,
-      label: 'Memories',
-      route: '/memories',
-      tooltip: 'Memory garden, search, warnings  •  Ctrl+M',
-    ),
-    _DesktopDestination(
-      icon: Icons.mic_outlined,
-      selectedIcon: Icons.mic,
-      label: 'Capture',
-      route: '/capture',
-      tooltip: 'Quick voice or text capture  •  Ctrl+N',
-    ),
-    _DesktopDestination(
-      icon: Icons.sync_alt_outlined,
-      selectedIcon: Icons.sync_alt,
-      label: 'Sync & PC',
-      route: '/sync',
-      tooltip: 'LAN sync + PC keybinds + settings  •  Ctrl+,',
-    ),
-  ];
+  List<_DesktopDestination> get _destinations => [
+        _DesktopDestination(
+          icon: Icons.today_outlined,
+          selectedIcon: Icons.today,
+          label: L.t('Today', 'היום'),
+          route: '/',
+          tooltip: L.t('Today\'s gentle steps + diary  •  Ctrl+T',
+              'הצעדים העדינים של היום + יומן  •  Ctrl+T'),
+        ),
+        _DesktopDestination(
+          icon: Icons.list_alt_outlined,
+          selectedIcon: Icons.list_alt,
+          label: L.t('Routines', 'שגרות'),
+          route: '/routines',
+          tooltip: L.t('Manage all routines  •  Ctrl+R',
+              'ניהול כל השגרות  •  Ctrl+R'),
+        ),
+        _DesktopDestination(
+          icon: Icons.calendar_month_outlined,
+          selectedIcon: Icons.calendar_month,
+          label: L.t('Calendar', 'לוח שנה'),
+          route: '/calendar',
+          tooltip: L.t('Calendar + day view', 'לוח שנה + תצוגת יום'),
+        ),
+        _DesktopDestination(
+          icon: Icons.psychology_outlined,
+          selectedIcon: Icons.psychology,
+          label: L.t('Memories', 'זיכרונות'),
+          route: '/memories',
+          tooltip: L.t('Memory garden, search, warnings  •  Ctrl+M',
+              'גן הזיכרונות, חיפוש, אזהרות  •  Ctrl+M'),
+        ),
+        _DesktopDestination(
+          icon: Icons.mic_outlined,
+          selectedIcon: Icons.mic,
+          label: L.t('Capture', 'לכידה'),
+          route: '/capture',
+          tooltip: L.t('Quick voice or text capture  •  Ctrl+N',
+              'לכידה מהירה בקול או בכתב  •  Ctrl+N'),
+        ),
+        _DesktopDestination(
+          icon: Icons.sync_alt_outlined,
+          selectedIcon: Icons.sync_alt,
+          label: L.t('Sync & PC', 'סנכרון ומחשב'),
+          route: '/sync',
+          tooltip: L.t('LAN sync + PC keybinds + settings  •  Ctrl+,',
+              'סנכרון ברשת + קיצורי מקלדת + הגדרות  •  Ctrl+,'),
+        ),
+      ];
 
   @override
   void didUpdateWidget(covariant BnsDesktopShell oldWidget) {
@@ -137,12 +143,14 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
       final f = await BnsExporter.exportFullSnapshot();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Backup saved: ${f.path.split(Platform.pathSeparator).last}')));
+          content: Text(L.t(
+              'Backup saved: ${f.path.split(Platform.pathSeparator).last}',
+              'הגיבוי נשמר: ${f.path.split(Platform.pathSeparator).last}'))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Export had a problem: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              L.t('Export had a problem: $e', 'הייתה בעיה בייצוא: $e'))));
     }
   }
 
@@ -153,17 +161,19 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     try {
       await BnsImporter.importMerge(File(path));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Backup merged in. Thank you for keeping things together.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'Backup merged in. Thank you for keeping things together.',
+              'הגיבוי מוזג פנימה. תודה ששומרים על הכול ביחד.'))));
     } on FormatException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Import had a problem: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              L.t('Import had a problem: $e', 'הייתה בעיה בייבוא: $e'))));
     }
   }
 
@@ -172,30 +182,42 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('BNS 0.12a'),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-                'Gentle, privacy-first support for routines, memory and feeling good about the progress you make.'),
-            SizedBox(height: 12),
-            Text('Your data lives on your devices — nowhere else, no cloud, '
+            Text(L.t(
+                'Gentle, privacy-first support for routines, memory and feeling good about the progress you make.',
+                'תמיכה עדינה ופרטית בשגרות, בזיכרון ובהרגשה טובה עם ההתקדמות שלך.')),
+            const SizedBox(height: 12),
+            Text(L.t(
+                'Your data lives on your devices — nowhere else, no cloud, '
                 'no accounts. Devices share directly over your own Wi-Fi, and '
-                '.bns files are your portable backup for moving by hand.'),
-            SizedBox(height: 12),
+                '.bns files are your portable backup for moving by hand.',
+                'המידע שלך חי במכשירים שלך — ולא בשום מקום אחר. בלי ענן, בלי '
+                'חשבונות. המכשירים משתפים ישירות דרך ה־Wi-Fi שלך, וקובצי ‎.bns '
+                'הם הגיבוי הנייד שלך להעברה ידנית.')),
+            const SizedBox(height: 12),
             Text(
-              '.bns files stand on open technology, credited and used as-is: '
-              'ZIP (PKWARE), DEFLATE/GZIP (RFC 1951/1952), JSON, AES. '
-              'The arrangement on top is BNS.',
-              style: TextStyle(fontSize: 12),
+              L.t(
+                  '.bns files stand on open technology, credited and used as-is: '
+                  'ZIP (PKWARE), DEFLATE/GZIP (RFC 1951/1952), JSON, AES. '
+                  'The arrangement on top is BNS.',
+                  'קובצי ‎.bns נשענים על טכנולוגיה פתוחה, בקרדיט מלא וכמו שהיא: '
+                  'ZIP (PKWARE)‎, DEFLATE/GZIP (RFC 1951/1952)‎, JSON, AES. '
+                  'הסידור שמעליהם הוא BNS.'),
+              style: const TextStyle(fontSize: 12),
             ),
-            SizedBox(height: 12),
-            Text('Whatever today looked like — you showed up. That counts.'),
+            const SizedBox(height: 12),
+            Text(L.t(
+                'Whatever today looked like — you showed up. That counts.',
+                'איך שהיום לא נראה — היית כאן. וזה נחשב.')),
           ],
         ),
         actions: [
           FilledButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(L.t('Close', 'סגירה'))),
         ],
       ),
     );
@@ -213,15 +235,15 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
             MenuItemButton(
               leadingIcon: const Icon(Icons.save_outlined, size: 18),
               onPressed: _exportBackup,
-              child: const Text('Export backup (.bns)'),
+              child: Text(L.t('Export backup (.bns)', 'ייצוא גיבוי (‎.bns)')),
             ),
             MenuItemButton(
               leadingIcon: const Icon(Icons.folder_open_outlined, size: 18),
               onPressed: _importBackup,
-              child: const Text('Import backup (.bns)…'),
+              child: Text(L.t('Import backup (.bns)…', 'ייבוא גיבוי (‎.bns)…')),
             ),
           ],
-          child: const Text('File'),
+          child: Text(L.t('File', 'קובץ')),
         ),
         SubmenuButton(
           menuChildren: [
@@ -239,17 +261,17 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
                 child: Text(_destinations[i].label),
               ),
           ],
-          child: const Text('View'),
+          child: Text(L.t('View', 'תצוגה')),
         ),
         SubmenuButton(
           menuChildren: [
             MenuItemButton(
               leadingIcon: const Icon(Icons.favorite_outline, size: 18),
               onPressed: _showAbout,
-              child: const Text('About BNS'),
+              child: Text(L.t('About BNS', 'על BNS')),
             ),
           ],
-          child: const Text('Help'),
+          child: Text(L.t('Help', 'עזרה')),
         ),
       ],
     );
@@ -336,7 +358,9 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Everything stays on your devices.\nPrivate • No cloud • Yours',
+                  L.t(
+                      'Everything stays on your devices.\nPrivate • No cloud • Yours',
+                      'הכול נשאר במכשירים שלך.\nפרטי • בלי ענן • שלך'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,

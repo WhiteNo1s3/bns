@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 
 /// Always-accessible quick capture entry.
 /// Voice first (mic big target) + text fallback.
@@ -12,7 +13,8 @@ class QuickCaptureBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.tonalIcon(
       icon: const Icon(Icons.mic, size: 22),
-      label: const Text('Quick thought — voice or write'),
+      label: Text(L.t('Quick thought — voice or write',
+          'מחשבה מהירה — בקול או בכתיבה')),
       onPressed: onTap,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(56),

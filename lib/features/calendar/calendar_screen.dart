@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/calendar/day_view.dart';
@@ -66,12 +67,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Calendar',
+        title: L.t('Calendar', 'לוח שנה'),
         hideOnDesktopWide: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.sync_alt),
-            tooltip: 'Sync devices',
+            tooltip: L.t('Sync devices', 'סנכרון מכשירים'),
             onPressed: () => context.push('/sync'),
           ),
           IconButton(
@@ -83,7 +84,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               await IsarService.addEvent(
                 CalendarEvent(
                   id: '',
-                  title: 'New appointment / note',
+                  title: L.t('New appointment / note', 'פגישה חדשה / הערה'),
                   date: dateStr,
                   time:
                       '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
@@ -100,7 +101,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ).then((_) => _loadEvents());
               }
             },
-            tooltip: 'Quick add event for focused day',
+            tooltip: L.t('Quick add event for focused day',
+                'הוספה מהירה של אירוע ליום שנבחר'),
           ),
         ],
       ),
@@ -143,7 +145,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const Divider(height: 1),
           Expanded(
             child: _selectedDay == null
-                ? const Center(child: Text('Select a day'))
+                ? Center(child: Text(L.t('Select a day', 'בחרו יום')))
                 : _buildDayPreview(_selectedDay!),
           ),
         ],
@@ -172,21 +174,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             if (events.isEmpty && captures.isEmpty)
-              const Text(
-                  'Nothing registered yet for this day. Tap + or go to the day view.'),
+              Text(L.t(
+                  'Nothing registered yet for this day. Tap + or go to the day view.',
+                  'עוד לא נרשם כלום ליום הזה. אפשר ללחוץ על + או להיכנס לתצוגת היום.')),
             ...events.map((e) => ListTile(
                   leading: const Icon(Icons.event),
                   title: Text(e.title),
-                  subtitle: Text(e.time ?? 'All day'),
+                  subtitle: Text(e.time ?? L.t('All day', 'כל היום')),
                 )),
             if (captures.isNotEmpty) ...[
               const SizedBox(height: 8),
-              const Text('Quick thoughts',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(L.t('Quick thoughts', 'מחשבות מהירות'),
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
               ...captures.take(3).map((c) => ListTile(
                     leading:
                         Icon(c.audioPath != null ? Icons.mic : Icons.notes),
-                    title: Text(c.text ?? 'Voice note'),
+                    title: Text(c.text ?? L.t('Voice note', 'הקלטה קולית')),
                     subtitle: Text(DateFormat.Hm().format(c.at)),
                   )),
             ],
@@ -198,7 +201,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   MaterialPageRoute(builder: (_) => DayView(date: day)),
                 ).then((_) => setState(() {}));
               },
-              child: const Text('Open full day view (routines + everything)'),
+              child: Text(L.t('Open full day view (routines + everything)',
+                  'לתצוגת היום המלאה (שגרות + הכול)')),
             ),
           ],
         );

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
+import 'package:bns/services/audio_playback_service.dart';
 import 'package:intl/intl.dart';
 
 /// Memory section: Remember this (contextual for routines/days/crises)
@@ -108,26 +110,33 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
   Future<void> _playAudio(String? path) async {
     if (path == null) return;
-    // Reuse simple player or snack for now
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Playing memory audio: ${path.split('/').last}')),
-    );
+    // Real playback — tap plays, tap again stops, a gone file says so.
+    try {
+      await AudioPlaybackService.toggle(path);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'The sound for this one is not on this device anymore.',
+              'הצליל של הזיכרון הזה כבר לא נמצא במכשיר הזה.'))));
+    }
   }
 
   Future<void> _deleteMemory(QuickCapture mem) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to trash?'),
-        content: Text(
-            'This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.'),
+        title: Text(L.t('Move to trash?', 'להעביר לאשפה?')),
+        content: Text(L.t(
+            'This will move "${mem.text ?? mem.contextNote ?? 'memory'}" to trash. It will be permanently deleted after 3 days. You can restore from Trash.',
+            'זה יעביר את "${mem.text ?? mem.contextNote ?? L.t('memory', 'זיכרון')}" לאשפה. אחרי 3 ימים המחיקה סופית. אפשר לשחזר מהאשפה.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(L.t('Cancel', 'ביטול'))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Move to Trash'),
+            child: Text(L.t('Move to Trash', 'להעביר לאשפה')),
           ),
         ],
       ),
@@ -137,8 +146,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       await _loadMemories();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Moved to trash. You can restore within 3 days.')),
+          SnackBar(
+              content: Text(L.t(
+                  'Moved to trash. You can restore within 3 days.',
+                  'הועבר לאשפה. אפשר לשחזר תוך 3 ימים.'))),
         );
       }
     }
@@ -149,7 +160,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     await _loadMemories();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restored from trash.')),
+        SnackBar(content: Text(L.t('Restored from trash.', 'שוחזר מהאשפה.'))),
       );
     }
   }
@@ -176,16 +187,21 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-              '🌱 Memory Garden - Good memories (brighter for fogged minds)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const Text(
-              'Click to celebrate what you made it through. Tags make it organized for doctors too.',
-              style: TextStyle(fontSize: 11)),
+          Text(
+              L.t(
+                  '🌱 Memory Garden - Good memories (brighter for fogged minds)',
+                  '🌱 גינת הזיכרונות - זיכרונות טובים (בהירים יותר לראש מעורפל)'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+              L.t(
+                  'Click to celebrate what you made it through. Tags make it organized for doctors too.',
+                  'הקשה כדי לחגוג את מה שעברת. התגיות שומרות על סדר גם מול רופאים.'),
+              style: const TextStyle(fontSize: 11)),
           const SizedBox(height: 8),
           if (goodMemories.isEmpty)
-            const Text(
-                'No good memories tagged yet. Use "good" or "felt safe" tags!')
+            Text(L.t(
+                'No good memories tagged yet. Use "good" or "felt safe" tags!',
+                'אין עדיין זיכרונות טובים עם תגית. אפשר להשתמש בתגיות "good" או "felt safe"!'))
           else
             Wrap(
               spacing: 8,
@@ -197,8 +213,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 return InkWell(
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(
-                            'You made it! ${m.text ?? m.contextNote ?? ""}')));
+                        content: Text(L.t(
+                            'You made it! ${m.text ?? m.contextNote ?? ""}',
+                            'עברת את זה! ${m.text ?? m.contextNote ?? ""}'))));
                   },
                   child: Container(
                     width: 140,
@@ -213,7 +230,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(m.contextNote ?? m.text ?? 'Good memory',
+                        Text(
+                            m.contextNote ??
+                                m.text ??
+                                L.t('Good memory', 'זיכרון טוב'),
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -233,18 +253,22 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               }).toList(),
             ),
           const SizedBox(height: 24),
-          const Text(
-              '🌿 Roots - The harder parts (Alzheimer, dementia, ADHD, ADD, mental illness, crises)',
-              style: TextStyle(
+          Text(
+              L.t(
+                  '🌿 Roots - The harder parts (Alzheimer, dementia, ADHD, ADD, mental illness, crises)',
+                  '🌿 שורשים - החלקים הקשים יותר (אלצהיימר, דמנציה, ADHD, ADD, קשיים נפשיים, משברים)'),
+              style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.brown)),
-          const Text(
-              'These are the "ugly" neurological roots. We acknowledge them but advise: keep past in past, stay grounded. Use only if it helps move forward. Warning on tap.',
-              style: TextStyle(fontSize: 10)),
+          Text(
+              L.t(
+                  'These are the "ugly" neurological roots. We acknowledge them but advise: keep past in past, stay grounded. Use only if it helps move forward. Warning on tap.',
+                  'אלה השורשים הנוירולוגיים ה"מכוערים". אנחנו מכירים בהם, אבל ממליצים: להשאיר את העבר בעבר ולהישאר על הקרקע. להשתמש רק אם זה עוזר להתקדם. אזהרה בהקשה.'),
+              style: const TextStyle(fontSize: 10)),
           const SizedBox(height: 8),
           if (rootMemories.isEmpty)
-            const Text('No root memories yet.')
+            Text(L.t('No root memories yet.', 'אין עדיין זיכרונות שורש.'))
           else
             Wrap(
               spacing: 8,
@@ -255,13 +279,14 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                     showDialog(
                       context: context,
                       builder: (_) => AlertDialog(
-                        title: const Text('Roots warning'),
-                        content: const Text(
-                            'Stay on the ground. Don\'t react or relive. It\'s common with neurological issues (TBI, ADHD, dementia etc.) to feel it again. Consider if helpful now. Past in the past, move forward.'),
+                        title: Text(L.t('Roots warning', 'אזהרת שורשים')),
+                        content: Text(L.t(
+                            'Stay on the ground. Don\'t react or relive. It\'s common with neurological issues (TBI, ADHD, dementia etc.) to feel it again. Consider if helpful now. Past in the past, move forward.',
+                            'להישאר על הקרקע. לא להגיב ולא לחיות את זה מחדש. עם קשיים נוירולוגיים (פגיעת ראש, ADHD, דמנציה ועוד) נפוץ להרגיש את זה שוב. כדאי לבדוק אם זה עוזר עכשיו. העבר בעבר, מתקדמים הלאה.')),
                         actions: [
                           TextButton(
                               onPressed: () => Navigator.pop(context),
-                              child: const Text('Got it'))
+                              child: Text(L.t('Got it', 'הבנתי')))
                         ],
                       ),
                     );
@@ -276,7 +301,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(m.contextNote ?? m.text ?? 'Hard memory',
+                        Text(
+                            m.contextNote ??
+                                m.text ??
+                                L.t('Hard memory', 'זיכרון קשה'),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 11)),
@@ -289,9 +317,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               }).toList(),
             ),
           const SizedBox(height: 16),
-          const Text(
-              'Abstract mind tags (penguin, etc.): use custom tags in capture. We secure the penguin - no judgment on how you feel.',
-              style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
+          Text(
+              L.t(
+                  'Abstract mind tags (penguin, etc.): use custom tags in capture. We secure the penguin - no judgment on how you feel.',
+                  'תגיות של דמיון (פינגווין וכו׳): אפשר להשתמש בתגיות אישיות בתיעוד. אנחנו שומרים על הפינגווין - בלי שיפוט על איך שמרגישים.'),
+              style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
         ],
       ),
     );
@@ -306,7 +336,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Memory Section',
+        title: L.t('Memory Section', 'אזור הזיכרונות'),
         leading: Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
         hideOnDesktopWide: true,
         actions: [
@@ -314,8 +344,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
             icon:
                 Icon(_showTrash ? Icons.delete_forever : Icons.delete_outline),
             tooltip: _showTrash
-                ? 'Back to active memories'
-                : 'Trash (deleted, 3 days then gone)',
+                ? L.t('Back to active memories', 'חזרה לזיכרונות הפעילים')
+                : L.t('Trash (deleted, 3 days then gone)',
+                    'אשפה (נמחקים, אחרי 3 ימים נעלמים)'),
             onPressed: () {
               setState(() => _showTrash = !_showTrash);
               _loadMemories();
@@ -324,21 +355,25 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
           IconButton(
             icon: Icon(_showGarden ? Icons.list : Icons.local_florist),
             tooltip: _showGarden
-                ? 'List view'
-                : 'Memory Garden (good memories visual)',
+                ? L.t('List view', 'תצוגת רשימה')
+                : L.t('Memory Garden (good memories visual)',
+                    'גינת הזיכרונות (תצוגה של זיכרונות טובים)'),
             onPressed: () => setState(() => _showGarden = !_showGarden),
           ),
           PopupMenuButton<MemoryLevel?>(
             icon: const Icon(Icons.filter_list),
             onSelected: _setFilter,
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: null, child: Text('All memories')),
-              const PopupMenuItem(
+              PopupMenuItem(
+                  value: null,
+                  child: Text(L.t('All memories', 'כל הזיכרונות'))),
+              PopupMenuItem(
                   value: MemoryLevel.remember,
-                  child: Text('Remember this (contextual)')),
-              const PopupMenuItem(
+                  child: Text(L.t('Remember this (contextual)',
+                      'לזכור את זה (עם הקשר)'))),
+              PopupMenuItem(
                   value: MemoryLevel.memorize,
-                  child: Text('Memorize permanently')),
+                  child: Text(L.t('Memorize permanently', 'לשמור לתמיד'))),
             ],
           ),
         ],
@@ -353,9 +388,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   Container(
                     color: Colors.orange.shade100,
                     padding: const EdgeInsets.all(8),
-                    child: const Text(
-                      '⚠️ Entering past memories? We advise keeping the past in the past and moving forward. Stay on the ground. Don\'t react. It\'s common with neurological damage to relive stuff. Take care.',
-                      style: TextStyle(color: Colors.black87, fontSize: 12),
+                    child: Text(
+                      L.t(
+                          '⚠️ Entering past memories? We advise keeping the past in the past and moving forward. Stay on the ground. Don\'t react. It\'s common with neurological damage to relive stuff. Take care.',
+                          '⚠️ נכנסים לזיכרונות מהעבר? אנחנו ממליצים להשאיר את העבר בעבר ולהתקדם. להישאר על הקרקע. לא להגיב. עם פגיעה נוירולוגית נפוץ לחיות דברים מחדש. לשמור על עצמך.'),
+                      style: const TextStyle(color: Colors.black87, fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -363,10 +400,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search your memories…',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: L.t('Search your memories…', 'חיפוש בזיכרונות שלך…'),
+                      prefixIcon: const Icon(Icons.search),
+                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (val) {
                       // In-memory only — typing must never flash a spinner
@@ -383,10 +420,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _MemoryStat(
-                          'Remember this', rememberCount, MemoryLevel.remember),
-                      _MemoryStat(
-                          'Memorize this', memorizeCount, MemoryLevel.memorize),
+                      _MemoryStat(L.t('Remember this', 'לזכור את זה'),
+                          rememberCount, MemoryLevel.remember),
+                      _MemoryStat(L.t('Memorize this', 'לשמור לתמיד'),
+                          memorizeCount, MemoryLevel.memorize),
                     ],
                   ),
                 ),
@@ -395,8 +432,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       _userType.contains('kid')
-                          ? '🌟 Big bright garden for you! Click to celebrate.'
-                          : 'Adapted view for your mind — you got this.',
+                          ? L.t('🌟 Big bright garden for you! Click to celebrate.',
+                              '🌟 גינה גדולה ומאירה בשבילך! הקשה כדי לחגוג.')
+                          : L.t('Adapted view for your mind — you got this.',
+                              'תצוגה מותאמת בשבילך — יש לך את זה.'),
                       style: TextStyle(
                           fontSize: 12 * _textScale,
                           color: Theme.of(context).colorScheme.primary),
@@ -408,8 +447,12 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       ? Center(
                           child: Text(
                             _showTrash
-                                ? 'Trash is empty. Deleted items stay here for 3 days.'
-                                : 'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
+                                ? L.t(
+                                    'Trash is empty. Deleted items stay here for 3 days.',
+                                    'האשפה ריקה. פריטים שנמחקו נשארים כאן 3 ימים.')
+                                : L.t(
+                                    'No memories yet.\nUse "Remember this" in routines or capture to log what happened.',
+                                    'אין עדיין זיכרונות.\nאפשר להשתמש ב"לזכור את זה" בשגרות או בתיעוד כדי לרשום מה קרה.'),
                             textAlign: TextAlign.center,
                           ),
                         )
@@ -440,23 +483,28 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                     ),
                                     title: Text(m.text ??
                                         m.contextNote ??
-                                        'Memory captured'),
+                                        L.t('Memory captured', 'זיכרון שנשמר')),
                                     subtitle: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(dateStr +
                                             (isPast
-                                                ? ' (past - take care)'
+                                                ? L.t(' (past - take care)',
+                                                    ' (עבר - בעדינות)')
                                                 : '')),
                                         if (m.contextNote != null)
-                                          Text('Context: ${m.contextNote}',
+                                          Text(
+                                              L.t('Context: ${m.contextNote}',
+                                                  'הקשר: ${m.contextNote}'),
                                               style: const TextStyle(
                                                   fontStyle: FontStyle.italic)),
                                         if (m.linkedRoutineId != null)
-                                          const Text('Linked to a routine'),
+                                          Text(L.t('Linked to a routine',
+                                              'מקושר לשגרה')),
                                         if (m.tags.isNotEmpty)
-                                          Text('Tags: ${m.tags.join(", ")}'),
+                                          Text(L.t('Tags: ${m.tags.join(", ")}',
+                                              'תגיות: ${m.tags.join(", ")}')),
                                       ],
                                     ),
                                     trailing: Row(
@@ -472,14 +520,15 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                           IconButton(
                                             icon: const Icon(Icons.restore),
                                             onPressed: () => _restoreMemory(m),
-                                            tooltip: 'Restore',
+                                            tooltip: L.t('Restore', 'שחזור'),
                                           )
                                         else
                                           IconButton(
                                             icon: const Icon(
                                                 Icons.delete_outline),
                                             onPressed: () => _deleteMemory(m),
-                                            tooltip: 'Move to trash',
+                                            tooltip: L.t('Move to trash',
+                                                'העברה לאשפה'),
                                           ),
                                       ],
                                     ),
@@ -489,16 +538,18 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                         showDialog(
                                           context: context,
                                           builder: (_) => AlertDialog(
-                                            title: const Text(
-                                                'Past memory warning'),
-                                            content: const Text(
-                                                'Stay on the ground and don\'t react. Keeping the past in the past helps move forward. It\'s common with neurological damage to relive. Consider if now is the right time.'),
+                                            title: Text(L.t(
+                                                'Past memory warning',
+                                                'אזהרת זיכרון מהעבר')),
+                                            content: Text(L.t(
+                                                'Stay on the ground and don\'t react. Keeping the past in the past helps move forward. It\'s common with neurological damage to relive. Consider if now is the right time.',
+                                                'להישאר על הקרקע ולא להגיב. להשאיר את העבר בעבר עוזר להתקדם. עם פגיעה נוירולוגית נפוץ לחיות דברים מחדש. כדאי לבדוק אם זה הזמן הנכון.')),
                                             actions: [
                                               TextButton(
                                                   onPressed: () =>
                                                       Navigator.pop(context),
-                                                  child:
-                                                      const Text('Understood'))
+                                                  child: Text(L.t(
+                                                      'Understood', 'הבנתי')))
                                             ],
                                           ),
                                         );
@@ -506,8 +557,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           SnackBar(
-                                              content: Text(
-                                                  'Memory from $dateStr. You made it through that day!')),
+                                              content: Text(L.t(
+                                                  'Memory from $dateStr. You made it through that day!',
+                                                  'זיכרון מ־$dateStr. עברת את היום ההוא!'))),
                                         );
                                       }
                                     },
@@ -532,7 +584,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
           if (saved == true) _loadMemories();
         },
         icon: const Icon(Icons.add),
-        label: const Text('Capture memory'),
+        label: Text(L.t('Capture memory', 'תיעוד זיכרון')),
       ),
     );
   }

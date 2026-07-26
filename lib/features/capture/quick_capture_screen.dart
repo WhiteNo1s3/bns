@@ -1,16 +1,19 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
-import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/tts_service.dart';
+import 'package:bns/services/vosk_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 
@@ -51,11 +54,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   Duration _recordDuration = Duration.zero;
   Timer? _durationTimer;
 
-  /// Live speech-to-text while recording ("STT all the time"). The transcript
-  /// is saved WITH the voice note and travels inside the .bns, so a voice
-  /// to-do is readable text everywhere — app, family Explorer, other devices.
+  /// Transcript of the voice note, when one exists. Live STT-while-recording
+  /// was removed (owner's phone, 2026-07-26): the speech engine stole the mic
+  /// and the recording died. The field stays — transcripts still travel in
+  /// .bns and can come from platforms/engines that CAN share the mic.
   String _liveTranscript = '';
-  bool _sttActive = false;
 
   MemoryLevel _memoryLevel = MemoryLevel.quick;
   final _contextController =
@@ -91,7 +94,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (!mounted || _isRecording) return;
     final settings = await IsarService.getSettings();
     if (!settings.quietMode) {
-      await TtsService.speakSubject('Tell me about today.');
+      await TtsService.speakSubject(
+          L.t('Tell me about today.', 'ספרו לי על היום.'));
     }
     if (mounted && !_isRecording) await _toggleRecording();
   }
@@ -99,7 +103,6 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   @override
   void dispose() {
     _durationTimer?.cancel();
-    if (_sttActive) SttService.stop();
     _textController.dispose();
     _contextController.dispose();
     _audioRecorder.dispose();
@@ -112,8 +115,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (status != PermissionStatus.granted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Microphone permission needed for voice notes.')),
+          SnackBar(
+              content: Text(L.t(
+                  'Microphone permission needed for voice notes.',
+                  'צריך הרשאת מיקרופון בשביל הקלטות קוליות.'))),
         );
       }
     }
@@ -122,24 +127,24 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   Future<void> _toggleRecording() async {
     await _requestMic();
 
+    // On Windows the recording is WAV so the open-source ear (Vosk) can
+    // read words straight out of the file afterwards — sequential, honest,
+    // no mic fights ever.
+    final desktopStt = Platform.isWindows;
+
     if (_isRecording) {
-      // Stop recording — and close the live transcript with it.
       final path = await _audioRecorder.stop();
       _durationTimer?.cancel();
-      String transcript = _liveTranscript;
-      if (_sttActive) {
-        transcript = await SttService.stop();
-        _sttActive = false;
-      }
       setState(() {
         _isRecording = false;
         _audioPath = path;
-        _liveTranscript = transcript;
       });
+      if (desktopStt && path != null) _transcribeWithVosk(path);
     } else {
       // Start recording
       final dir = await IsarService.getAudioDir();
-      final fileName = 'cap_${_uuid.v4().substring(0, 8)}.m4a';
+      final fileName =
+          'cap_${_uuid.v4().substring(0, 8)}.${desktopStt ? 'wav' : 'm4a'}';
       final path = p.join(dir.path, fileName);
 
       final canRecord = await _audioRecorder.hasPermission();
@@ -148,13 +153,20 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       // Voice-optimized: mono AAC at 48 kbps — clear speech at ~1/3 the size
       // of the old 128 kbps default. Small at birth beats compressing later
       // (m4a is already compressed; re-zipping old files gains ~nothing).
+      // Windows: PCM16 WAV at 16 kHz — exactly what Vosk reads.
       await _audioRecorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 48000,
-          sampleRate: 44100,
-          numChannels: 1,
-        ),
+        desktopStt
+            ? const RecordConfig(
+                encoder: AudioEncoder.wav,
+                sampleRate: 16000,
+                numChannels: 1,
+              )
+            : const RecordConfig(
+                encoder: AudioEncoder.aacLc,
+                bitRate: 48000,
+                sampleRate: 44100,
+                numChannels: 1,
+              ),
         path: path,
       );
 
@@ -172,24 +184,28 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         }
       });
 
-      // Live transcript alongside the recording. The recorder always comes
-      // first: on devices where the speech engine can't share the mic, STT
-      // just fails quietly and the voice note still records perfectly.
-      final settings = await IsarService.getSettings();
-      if (settings.sttEnabled && _isRecording) {
-        _sttActive = await SttService.start(
-          localeId: settings.sttLocale,
-          onText: (text) {
-            if (mounted) setState(() => _liveTranscript = text);
-          },
-          onState: (s) {
-            if (s == SttState.unavailable && mounted) {
-              setState(() => _sttActive = false);
-            }
-          },
-        );
-        if (mounted) setState(() {});
-      }
+      // FIELD TRUTH (owner's phone, 2026-07-26): the recorder and the speech
+      // engine CANNOT share one microphone on Android — running both killed
+      // the recording itself (a tiny silent file that ends instantly).
+      // Recording gets the mic to itself now. Words come by typing or by
+      // the dictation mic AFTER the voice is safely kept — and on Windows,
+      // Vosk reads them out of the finished file automatically.
+    }
+  }
+
+  /// The chaos, decrypted: after a Windows recording lands, the offline
+  /// open-source engine reads words out of the WAV. Quietly skipped when
+  /// the engine isn't installed (Settings offers it) or nothing was heard.
+  Future<void> _transcribeWithVosk(String wavPath) async {
+    try {
+      final support = await getApplicationSupportDirectory();
+      final voskDir = p.join(support.path, 'vosk');
+      if (!VoskService.isInstalled(voskDir)) return;
+      final text = await VoskService.transcribeWav(voskDir, wavPath);
+      if (text.isEmpty || !mounted) return;
+      setState(() => _liveTranscript = text);
+    } catch (_) {
+      // The recording is already safe — words are a bonus, never a blocker.
     }
   }
 
@@ -245,12 +261,18 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
     if (mounted) {
       final msg = _selectedTags.contains('mad-vent')
-          ? 'Vented. It burns away on its own — nothing is held against you.'
+          ? L.t(
+              'Vented. It burns away on its own — nothing is held against you.',
+              'פרקת. זה נמחק מעצמו — שום דבר לא נשמר נגדך.')
           : _memoryLevel == MemoryLevel.memorize
-              ? 'Memorized permanently. This will stay with you.'
+              ? L.t('Memorized permanently. This will stay with you.',
+                  'נשמר לתמיד. זה יישאר איתך.')
               : _memoryLevel == MemoryLevel.remember
-                  ? 'Remembered. The context of what happened is saved for you.'
-                  : 'Saved. Thank you for capturing that.';
+                  ? L.t(
+                      'Remembered. The context of what happened is saved for you.',
+                      'נשמר לזיכרון. ההקשר של מה שקרה נשמר בשבילך.')
+                  : L.t('Saved. Thank you for capturing that.',
+                      'נשמר. תודה שתיעדת את זה.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );
@@ -270,28 +292,40 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Quick thought',
+        title: L.t('Quick thought', 'מחשבה מהירה'),
         actions: [
           TextButton(
             onPressed: _saveCapture,
-            child: const Text('Save',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(L.t('Save', 'שמירה'),
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
-      body: Padding(
+      // The whole screen SCROLLS (owner's phone, 2026-07-26: the tag chips
+      // sat 300px past the bottom behind an overflow stripe). A capture
+      // screen holds recording + transcript + tags + notes — on a phone
+      // with a keyboard up, that is taller than any screen. Never a
+      // fixed-height Column again.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               _selectedTags.contains('mad-vent')
-                  ? 'Let it out. Curse everyone and everything — only you can see this, and it burns out on its own within about 2 days.'
+                  ? L.t(
+                      'Let it out. Curse everyone and everything — only you can see this, and it burns out on its own within about 2 days.',
+                      'להוציא הכול. אפשר לקלל את כולם ואת הכול — רק העיניים שלך רואות את זה, וזה נמחק מעצמו תוך יומיים בערך.')
                   : _memoryLevel == MemoryLevel.memorize
-                      ? 'Capture this permanently. The day and what happened will be remembered.'
+                      ? L.t(
+                          'Capture this permanently. The day and what happened will be remembered.',
+                          'לשמור את זה לתמיד. היום ומה שקרה בו יישמרו בזיכרון.')
                       : _memoryLevel == MemoryLevel.remember
-                          ? 'Remember this moment. Note what happened in the routine or day for later recall.'
-                          : 'Say or write anything. No judgment, just capture.',
+                          ? L.t(
+                              'Remember this moment. Note what happened in the routine or day for later recall.',
+                              'לזכור את הרגע הזה. אפשר לרשום מה קרה בשגרה או ביום — לשליפה אחר כך.')
+                          : L.t('Say or write anything. No judgment, just capture.',
+                              'אפשר להגיד או לכתוב כל דבר. בלי שיפוט, רק לתעד.'),
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
@@ -332,18 +366,24 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             Center(
               child: Text(
                 _isRecording
-                    ? 'Recording… ${_formatDuration(_recordDuration)} — tap to stop'
+                    ? L.t(
+                        'Recording… ${_formatDuration(_recordDuration)} — tap to stop',
+                        'מקליט… ${_formatDuration(_recordDuration)} — הקשה לעצירה')
                     : (hasAudio
-                        ? 'Tap mic to record again'
-                        : 'Tap to start recording'),
+                        ? L.t('Tap mic to record again',
+                            'הקשה על המיקרופון להקלטה נוספת')
+                        : L.t('Tap to start recording',
+                            'הקשה כדי להתחיל להקליט')),
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
 
-            // Live transcript while talking — your words appearing as text.
-            if (_isRecording && _sttActive) ...[
+            // While recording, the mic belongs to the recording — honestly.
+            // (Live transcription fought the recorder for the mic and the
+            // recording lost. Never again.)
+            if (_isRecording) ...[
               const SizedBox(height: 12),
               Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -358,14 +398,14 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _liveTranscript.isEmpty
-                              ? 'Listening… your words will appear here.'
-                              : _liveTranscript,
-                          style: TextStyle(
-                            fontStyle: _liveTranscript.isEmpty
-                                ? FontStyle.italic
-                                : FontStyle.normal,
-                          ),
+                          L.t(
+                              'Your voice is being kept. After you stop, words '
+                              'can be typed — or spoken into text with the '
+                              'little mic by the text box.',
+                              'הקול שלך נשמר. אחרי העצירה אפשר להקליד מילים — '
+                              'או לדבר אותן לתוך הטקסט עם המיקרופון הקטן '
+                              'שליד תיבת הטקסט.'),
+                          style: const TextStyle(fontStyle: FontStyle.italic),
                         ),
                       ),
                     ],
@@ -388,7 +428,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                         : Icons.play_circle_filled),
                     onPressed: _playPauseAudio,
                   ),
-                  title: const Text('Voice note'),
+                  title: Text(L.t('Voice note', 'הקלטה קולית')),
                   subtitle: Text(
                     _liveTranscript.trim().isNotEmpty
                         ? '“${_liveTranscript.trim()}”'
@@ -415,23 +455,23 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
             // Memory level selector - "remember this" vs "memorize this" vs quick
             const SizedBox(height: 16),
-            const Text('How important is this memory?',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            Text(L.t('How important is this memory?', 'כמה חשוב הזיכרון הזה?'),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             SegmentedButton<MemoryLevel>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                     value: MemoryLevel.quick,
-                    label: Text('Quick note'),
-                    icon: Icon(Icons.note)),
+                    label: Text(L.t('Quick note', 'פתק מהיר')),
+                    icon: const Icon(Icons.note)),
                 ButtonSegment(
                     value: MemoryLevel.remember,
-                    label: Text('Remember this'),
-                    icon: Icon(Icons.bookmark)),
+                    label: Text(L.t('Remember this', 'לזכור את זה')),
+                    icon: const Icon(Icons.bookmark)),
                 ButtonSegment(
                     value: MemoryLevel.memorize,
-                    label: Text('Memorize permanently'),
-                    icon: Icon(Icons.stars)),
+                    label: Text(L.t('Memorize permanently', 'לשמור לתמיד')),
+                    icon: const Icon(Icons.stars)),
               ],
               selected: {_memoryLevel},
               onSelectionChanged: (newSelection) {
@@ -443,10 +483,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             // 'family' is special: tagged items enter the family share file —
             // sharing a moment is always the person's own choice, one tap.
             const SizedBox(height: 12),
-            const Text(
-                'Tags (search by routine/crisis, visual garden, share with doctors; '
-                '"family" puts this moment into the family file):',
-                style: TextStyle(fontSize: 12)),
+            Text(
+                L.t(
+                    'Tags (search by routine/crisis, visual garden, share with doctors; '
+                    '"family" puts this moment into the family file):',
+                    'תגיות (חיפוש לפי שגרה/משבר, גינה חזותית, שיתוף עם רופאים; '
+                    '"family" מכניסה את הרגע הזה לקובץ המשפחתי):'),
+                style: const TextStyle(fontSize: 12)),
             Wrap(
               spacing: 4,
               children: {
@@ -484,13 +527,16 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 controller: _contextController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  labelText:
+                  labelText: L.t(
                       'What happened? Why? (context for this day/routine)',
-                  hintText:
+                      'מה קרה? למה? (הקשר ליום/לשגרה)'),
+                  hintText: L.t(
                       'e.g. Felt overwhelmed after the call, routine triggered anxiety',
+                      'למשל: הצפה אחרי השיחה, השגרה עוררה חרדה'),
                   border: const OutlineInputBorder(),
-                  helperText:
+                  helperText: L.t(
                       'This helps memorize the "why" and the day itself',
+                      'זה עוזר לזכור את ה"למה" ואת היום עצמו'),
                   suffixIcon:
                       DictationMicButton(controller: _contextController),
                 ),
@@ -505,8 +551,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               minLines: 2,
               decoration: InputDecoration(
                 hintText: _memoryLevel == MemoryLevel.quick
-                    ? 'Or type a quick note here… (tap the small mic to speak it)'
-                    : 'Additional thoughts...',
+                    ? L.t(
+                        'Or type a quick note here… (tap the small mic to speak it)',
+                        'או להקליד כאן פתק מהיר… (הקשה על המיקרופון הקטן כדי לדבר)')
+                    : L.t('Additional thoughts...', 'מחשבות נוספות...'),
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
@@ -514,18 +562,18 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 24),
 
             // Save + cancel
             FilledButton.icon(
               onPressed: _saveCapture,
               icon: const Icon(Icons.check),
-              label: const Text('Save this thought'),
+              label: Text(L.t('Save this thought', 'לשמור את המחשבה הזאת')),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel (nothing saved)'),
+              child: Text(L.t('Cancel (nothing saved)', 'ביטול (שום דבר לא נשמר)')),
             ),
           ],
         ),

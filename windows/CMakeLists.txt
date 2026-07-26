@@ -10,6 +10,11 @@ set(BINARY_NAME "bns")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# VS 2026 (MSVC 14.5x) hard-errors on the experimental C++ coroutines that
+# permission_handler_windows (via cppwinrt's /await path) still uses.
+# Microsoft's own bridge until the plugin migrates to C++20 <coroutine>:
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)

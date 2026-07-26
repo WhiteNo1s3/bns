@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:bns/core/i18n/l.dart';
+import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -55,14 +57,23 @@ class SttService {
   static bool get isDictating => _wantListening;
 
   /// Initialize the device engine once. Safe to call repeatedly.
+  /// A FAILED init is retried on the next call — engines appear (permission
+  /// granted, service installed) without the app restarting.
   static Future<bool> init() async {
-    if (_initialized) return _available;
+    if (_initialized && _available) return _available;
     try {
       _available = await _speech.initialize(
         onError: _handleError,
         onStatus: _handleStatus,
+        debugLogging: kDebugMode,
+        // Some phones point their "default" recognizer at a service that
+        // cannot actually recognize (owner's S23: the TTS package). Intent
+        // lookup finds one that works instead of trusting the default.
+        options: [SpeechToText.androidIntentLookup],
       );
-    } catch (_) {
+      debugPrint('BNS STT: initialize -> $_available');
+    } catch (e) {
+      debugPrint('BNS STT: initialize threw: $e');
       _available = false;
     }
     _initialized = true;
@@ -101,7 +112,10 @@ class SttService {
 
     _onText = onText;
     _onState = onState;
-    _localeId = (localeId == null || localeId.trim().isEmpty) ? null : localeId;
+    // No explicit choice? Follow the app language — Hebrew app, Hebrew ears.
+    _localeId = (localeId == null || localeId.trim().isEmpty)
+        ? (L.isHebrew ? 'he_IL' : null)
+        : localeId;
     _finalText = '';
     _partialText = '';
     _consecutiveErrors = 0;
@@ -161,7 +175,8 @@ class SttService {
         ),
       );
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('BNS STT: listen threw: $e');
       return false;
     }
   }
@@ -191,6 +206,7 @@ class SttService {
   }
 
   static void _handleError(SpeechRecognitionError error) {
+    debugPrint('BNS STT: error ${error.errorMsg} permanent=${error.permanent}');
     if (!_wantListening) return;
     _consecutiveErrors++;
     // A run of permanent errors means it's truly not working (no permission,

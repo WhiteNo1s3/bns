@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -73,8 +74,10 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(existing != null
-                ? 'Routine updated. Nice work keeping things organized.'
-                : 'New routine added. You\'ve got this.'),
+                ? L.t('Routine updated. Nice work keeping things organized.',
+                    'השגרה עודכנה. כל הכבוד על הסדר.')
+                : L.t('New routine added. You\'ve got this.',
+                    'שגרה חדשה נוספה. יש לך את זה.')),
           ),
         );
       }
@@ -85,17 +88,18 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove this routine?'),
-        content: Text(
-            'This will delete "${routine.title}". No pressure – you can always add it back.'),
+        title: Text(L.t('Remove this routine?', 'להסיר את השגרה הזאת?')),
+        content: Text(L.t(
+            'This will delete "${routine.title}". No pressure – you can always add it back.',
+            'זה ימחק את "${routine.title}". בלי לחץ – תמיד אפשר להוסיף אותה בחזרה.')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(L.t('Cancel', 'ביטול'))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
-            child: const Text('Delete'),
+            child: Text(L.t('Delete', 'מחיקה')),
           ),
         ],
       ),
@@ -106,7 +110,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       await _loadRoutines();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Routine removed. All good.')),
+          SnackBar(
+              content: Text(
+                  L.t('Routine removed. All good.', 'השגרה הוסרה. הכול בסדר.'))),
         );
       }
     }
@@ -116,7 +122,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Manage Routines',
+        title: L.t('Manage Routines', 'ניהול שגרות'),
         leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
         hideOnDesktopWide: true,
         actions: [
@@ -126,7 +132,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () => _addOrEditRoutine(),
-              tooltip: 'Add new routine',
+              tooltip: L.t('Add new routine', 'הוספת שגרה חדשה'),
             ),
         ],
       ),
@@ -141,8 +147,11 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Text(
-                'Caregiver setup — changes save to this device only. '
-                'What you build here is the list they will see.',
+                L.t(
+                    'Caregiver setup — changes save to this device only. '
+                    'What you build here is the list they will see.',
+                    'הגדרת מטפל — השינויים נשמרים במכשיר הזה בלבד. '
+                    'מה שבונים כאן הוא הרשימה שהם יראו.'),
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onTertiaryContainer),
               ),
@@ -156,7 +165,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
           : FloatingActionButton.extended(
               onPressed: () => _addOrEditRoutine(),
               icon: const Icon(Icons.add),
-              label: const Text('Add Routine'),
+              label: Text(L.t('Add Routine', 'הוספת שגרה')),
             ),
     );
   }
@@ -171,16 +180,19 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                     children: [
                       const Icon(Icons.list_alt, size: 64, color: Colors.grey),
                       const SizedBox(height: 16),
-                      const Text(
-                        'No routines yet.\nStart by adding one that supports you.',
+                      Text(
+                        L.t(
+                            'No routines yet.\nStart by adding one that supports you.',
+                            'אין עדיין שגרות.\nאפשר להתחיל בשגרה אחת שתומכת בך.'),
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16),
+                        style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(height: 24),
                       FilledButton.icon(
                         onPressed: () => _addOrEditRoutine(),
                         icon: const Icon(Icons.add),
-                        label: const Text('Add your first routine'),
+                        label: Text(L.t('Add your first routine',
+                            'הוספת השגרה הראשונה שלך')),
                       ),
                     ],
                   ),
@@ -211,7 +223,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                             if (r.description != null) Text(r.description!),
                             Text(
                               RecurrenceUtils.describe(r) +
-                                  (r.time != null ? ' at ${r.time}' : ''),
+                                  (r.time != null
+                                      ? L.t(' at ${r.time}', ' בשעה ${r.time}')
+                                      : ''),
                               style: TextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -225,7 +239,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                                 icon: const Icon(Icons.delete_outline,
                                     color: Colors.redAccent),
                                 onPressed: () => _deleteRoutine(r),
-                                tooltip: 'Delete routine',
+                                tooltip: L.t('Delete routine', 'מחיקת שגרה'),
                               ),
                       ),
                     );
@@ -328,9 +342,25 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       });
       if (snapped.minute != picked.minute && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'Rounded to ${_time!} — clean quarter hours only.')));
+            content: Text(L.t(
+                'Rounded to ${_time!} — clean quarter hours only.',
+                'עוגל ל־${_time!} — רק רבעי שעה נקיים.'))));
       }
+    }
+  }
+
+  /// User-facing label for a recurrence value — the enum names themselves
+  /// stay untouched (they are data).
+  String _recurrenceLabel(RecurrenceType type) {
+    switch (type) {
+      case RecurrenceType.daily:
+        return L.t('Daily', 'כל יום');
+      case RecurrenceType.weekdays:
+        return L.t('Weekdays', 'ימי חול');
+      case RecurrenceType.weekly:
+        return L.t('Weekly', 'פעם בשבוע');
+      case RecurrenceType.custom:
+        return L.t('Custom', 'ימים לבחירה');
     }
   }
 
@@ -348,8 +378,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
   void _save() {
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Title is required – even a short one helps.')),
+        SnackBar(
+            content: Text(L.t('Title is required – even a short one helps.',
+                'צריך כותרת – גם קצרה עוזרת.'))),
       );
       return;
     }
@@ -362,10 +393,12 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
             recurrence == RecurrenceType.custom) &&
         _daysOfWeek.isEmpty) {
       recurrence = RecurrenceType.daily;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
               'No days were picked — set to every day so it never gets lost. '
-              'Edit anytime.')));
+              'Edit anytime.',
+              'לא נבחרו ימים — הוגדר לכל יום כדי ששום דבר לא יילך לאיבוד. '
+              'אפשר לערוך בכל רגע.'))));
     }
 
     // Steps: empty titles are dropped; notes without titles don't count.
@@ -400,29 +433,41 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final dayLabels = [
+      L.t('Sun', 'א׳'),
+      L.t('Mon', 'ב׳'),
+      L.t('Tue', 'ג׳'),
+      L.t('Wed', 'ד׳'),
+      L.t('Thu', 'ה׳'),
+      L.t('Fri', 'ו׳'),
+      L.t('Sat', 'שבת'),
+    ];
 
     return AlertDialog(
-      title: Text(widget.existing == null ? 'Add New Routine' : 'Edit Routine'),
+      title: Text(widget.existing == null
+          ? L.t('Add New Routine', 'הוספת שגרה חדשה')
+          : L.t('Edit Routine', 'עריכת שגרה')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Title (keep it short and kind)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: L.t('Title (keep it short and kind)',
+                    'כותרת (קצרה ונעימה)'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _descController,
               maxLines: 2,
-              decoration: const InputDecoration(
-                labelText:
+              decoration: InputDecoration(
+                labelText: L.t(
                     'Description (optional – helps when memory is fuzzy)',
-                border: OutlineInputBorder(),
+                    'תיאור (לא חובה – עוזר כשהזיכרון מעורפל)'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -430,7 +475,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
             // its own helping note, in the order they happen.
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Parts, in order (optional):',
+              child: Text(
+                  L.t('Parts, in order (optional):',
+                      'חלקים, לפי הסדר (לא חובה):'),
                   style: Theme.of(context).textTheme.labelLarge),
             ),
             const SizedBox(height: 6),
@@ -448,19 +495,21 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                       children: [
                         TextField(
                           controller: _stepTitles[i],
-                          decoration: const InputDecoration(
-                            hintText: 'What happens in this part?',
+                          decoration: InputDecoration(
+                            hintText: L.t('What happens in this part?',
+                                'מה קורה בחלק הזה?'),
                             isDense: true,
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 4),
                         TextField(
                           controller: _stepNotes[i],
-                          decoration: const InputDecoration(
-                            hintText: 'A note that helps (optional)',
+                          decoration: InputDecoration(
+                            hintText: L.t('A note that helps (optional)',
+                                'פתק שעוזר (לא חובה)'),
                             isDense: true,
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
                           ),
                           style: const TextStyle(fontSize: 13),
                         ),
@@ -469,7 +518,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
-                    tooltip: 'Remove this part',
+                    tooltip: L.t('Remove this part', 'הסרת החלק הזה'),
                     onPressed: () => _removeStepRow(i),
                   ),
                 ],
@@ -481,19 +530,19 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               child: TextButton.icon(
                 onPressed: _addStepRow,
                 icon: const Icon(Icons.add),
-                label: const Text('Add a part'),
+                label: Text(L.t('Add a part', 'הוספת חלק')),
               ),
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<RecurrenceType>(
               value: _recurrence,
-              decoration: const InputDecoration(
-                  labelText: 'Repeats', border: OutlineInputBorder()),
+              decoration: InputDecoration(
+                  labelText: L.t('Repeats', 'תדירות'),
+                  border: const OutlineInputBorder()),
               items: RecurrenceType.values.map((type) {
                 return DropdownMenuItem(
                   value: type,
-                  child:
-                      Text(type.name[0].toUpperCase() + type.name.substring(1)),
+                  child: Text(_recurrenceLabel(type)),
                 );
               }).toList(),
               onChanged: (val) => setState(() => _recurrence = val!),
@@ -504,7 +553,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('On these days:'),
+                  Text(L.t('On these days:', 'בימים האלה:')),
                   Wrap(
                     spacing: 4,
                     children: List.generate(7, (i) {
@@ -520,8 +569,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               ),
             const SizedBox(height: 12),
             ListTile(
-              title: const Text('Preferred time (optional)'),
-              subtitle: Text(_time ?? 'Any time'),
+              title: Text(L.t('Preferred time (optional)',
+                  'שעה מועדפת (לא חובה)')),
+              subtitle: Text(_time ?? L.t('Any time', 'בכל שעה')),
               trailing: const Icon(Icons.access_time),
               onTap: _pickTime,
               shape: RoundedRectangleBorder(
@@ -529,14 +579,15 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                   side: BorderSide(color: Colors.grey.shade300)),
             ),
             SwitchListTile(
-              title: const Text('First-step-only mode'),
-              subtitle: const Text(
-                  'Helpful on overwhelming days – just do the tiniest part'),
+              title: Text(L.t('First-step-only mode', 'מצב צעד-ראשון-בלבד')),
+              subtitle: Text(L.t(
+                  'Helpful on overwhelming days – just do the tiniest part',
+                  'עוזר בימים מציפים – עושים רק את החלק הכי קטן')),
               value: _firstStepOnly,
               onChanged: (v) => setState(() => _firstStepOnly = v),
             ),
             SwitchListTile(
-              title: const Text('Active'),
+              title: Text(L.t('Active', 'פעילה')),
               value: _isActive,
               onChanged: (v) => setState(() => _isActive = v),
             ),
@@ -546,8 +597,8 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        FilledButton(onPressed: _save, child: const Text('Save')),
+            child: Text(L.t('Cancel', 'ביטול'))),
+        FilledButton(onPressed: _save, child: Text(L.t('Save', 'שמירה'))),
       ],
     );
   }

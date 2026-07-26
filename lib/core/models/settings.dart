@@ -46,6 +46,10 @@ class AppSettings {
   // Empty = the device's own language (the right default for almost everyone).
   final String sttLocale;
 
+  // The app's language: 'he' (Hebrew, RTL — the default; the first users
+  // are Israeli, the TBI community QA'ing production) or 'en' (English).
+  final String appLanguage;
+
   // Seamless imaging: keep BNS_Latest_<device>.bns silently fresh on
   // background/exit so a shareable database file always exists without the
   // user ever exporting. Default true (idea: 2026-07-05 reference wave).
@@ -115,6 +119,7 @@ class AppSettings {
     this.quietMode = false,
     this.sttEnabled = true,
     this.sttLocale = '',
+    this.appLanguage = 'he',
     this.autoImageEnabled = true,
     this.keybinds = const {},
     this.enabledKeybinds = const {},
@@ -146,6 +151,7 @@ class AppSettings {
     bool? quietMode,
     bool? sttEnabled,
     String? sttLocale,
+    String? appLanguage,
     bool? autoImageEnabled,
     Map<String, String>? keybinds,
     Map<String, bool>? enabledKeybinds,
@@ -174,6 +180,7 @@ class AppSettings {
       quietMode: quietMode ?? this.quietMode,
       sttEnabled: sttEnabled ?? this.sttEnabled,
       sttLocale: sttLocale ?? this.sttLocale,
+      appLanguage: appLanguage ?? this.appLanguage,
       autoImageEnabled: autoImageEnabled ?? this.autoImageEnabled,
       keybinds: keybinds ?? this.keybinds,
       enabledKeybinds: enabledKeybinds ?? this.enabledKeybinds,
@@ -205,6 +212,7 @@ class AppSettings {
         'quietMode': quietMode,
         'sttEnabled': sttEnabled,
         'sttLocale': sttLocale,
+        'appLanguage': appLanguage,
         'autoImageEnabled': autoImageEnabled,
         'keybinds': keybinds,
         'enabledKeybinds': enabledKeybinds,
@@ -237,6 +245,7 @@ class AppSettings {
         quietMode: json['quietMode'] as bool? ?? false,
         sttEnabled: json['sttEnabled'] as bool? ?? true,
         sttLocale: json['sttLocale'] as String? ?? '',
+        appLanguage: json['appLanguage'] as String? ?? 'he',
         autoImageEnabled: json['autoImageEnabled'] as bool? ?? true,
         keybinds: (json['keybinds'] as Map? ?? const {})
             .map((k, v) => MapEntry(k.toString(), v.toString())),

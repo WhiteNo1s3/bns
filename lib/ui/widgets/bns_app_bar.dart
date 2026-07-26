@@ -40,11 +40,18 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
       return const SizedBox(height: 2);
     }
 
+    // A pushed screen must always offer the way back (owner, 2026-07-26:
+    // getting stuck in the memory garden with "no return to routine"). When
+    // there is somewhere to return TO, the back arrow wins over any
+    // decorative leading — null here lets the platform add its own back.
+    final effectiveLeading =
+        Navigator.of(context).canPop() ? null : leading;
+
     if (Platform.isIOS) {
       // Clean native iOS feel with Cupertino.
       return CupertinoNavigationBar(
         middle: Text(title),
-        leading: leading,
+        leading: effectiveLeading,
         trailing: actions != null && actions!.isNotEmpty
             ? Row(mainAxisSize: MainAxisSize.min, children: actions!)
             : null,
@@ -55,7 +62,7 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
       return AppBar(
         title: Text(title),
         actions: actions,
-        leading: leading,
+        leading: effectiveLeading,
         centerTitle: centerTitle,
         backgroundColor:
             backgroundColor ?? Theme.of(context).colorScheme.surface,
@@ -67,7 +74,7 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
       return AppBar(
         title: Text(title),
         actions: actions,
-        leading: leading,
+        leading: effectiveLeading,
         centerTitle: centerTitle,
         backgroundColor: backgroundColor,
       );

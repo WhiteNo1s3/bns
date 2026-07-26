@@ -15,6 +15,9 @@ dependencies:
 
   # .bns archive + files
   archive: ^3.6.1
+  ffi: ^2.1.0 # Vosk (open-source offline STT) binds straight into libvosk
+  flutter_localizations: # Hebrew-first RTL + English — the two-language law
+    sdk: flutter
   path_provider: ^2.1.4
   # 10.x is the newest line compatible with Flutter's current (legacy-Kotlin)
   # Gradle path; 11+ requires AGP built-in Kotlin which Flutter doesn't support yet.
@@ -30,7 +33,7 @@ dependencies:
 
   # Calendar & dates
   table_calendar: ^3.1.2
-  intl: ^0.19.0
+  intl: ^0.20.2 # pinned by flutter_localizations
 
   # Reminders & notifications (not supported on Windows — guarded in code)
   flutter_local_notifications: ^17.2.1

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/data/export/bns_exporter.dart';
@@ -13,7 +14,10 @@ import 'package:bns/data/sync/lan_sync_service.dart'
 import 'package:bns/core/models/trusted_device.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/vosk_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:path/path.dart' as path_util;
+import 'package:path_provider/path_provider.dart';
 
 /// Low-maintenance, secure sync screen with:
 /// - Clear progress bars (system or relaxing palette colors)
@@ -72,6 +76,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _autoImage = settings.autoImageEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
     _enabledKeybinds = Map<String, bool>.from(settings.enabledKeybinds);
+    _appLanguage = settings.appLanguage;
+    _refreshVoskStatus();
 
     // Receiver side of pairing: another device initiated and shows a code —
     // the user types it here. Declining (or closing) shares nothing.
@@ -127,8 +133,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(days == 0
-              ? 'Unlimited retention (large files possible)'
-              : 'Retention set to $days days')),
+              ? L.t('Unlimited retention (large files possible)',
+                  'שמירה ללא הגבלה (ייתכנו קבצים גדולים)')
+              : L.t('Retention set to $days days',
+                  'ההיסטוריה תישמר $days ימים'))),
     );
   }
 
@@ -136,7 +144,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.resetRetentionToDefault();
     await _loadRetention();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Back to keeping 15 days of history')),
+      SnackBar(
+          content: Text(L.t('Back to keeping 15 days of history',
+              'חזרנו לשמירת 15 ימי היסטוריה'))),
     );
   }
 
@@ -153,8 +163,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     setState(() => _deviceName = name.trim());
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content:
-              Text('Device named "$name". Your other devices will see this.')),
+          content: Text(L.t(
+              'Device named "$name". Your other devices will see this.',
+              'המכשיר נקרא עכשיו "$name". המכשירים האחרים שלך יראו את זה.'))),
     );
   }
 
@@ -172,8 +183,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(name.trim().isEmpty
-              ? 'Sharing as "${updated.deviceName}" (device name).'
-              : 'People you trust will see you as "${name.trim()}".')),
+              ? L.t('Sharing as "${updated.deviceName}" (device name).',
+                  'משתפים בשם "${updated.deviceName}" (שם המכשיר).')
+              : L.t('People you trust will see you as "${name.trim()}".',
+                  'אנשים שאתה סומך עליהם יראו אותך בתור "${name.trim()}".'))),
     );
   }
 
@@ -184,8 +197,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(v
-              ? 'A fresh .bns will quietly stay ready to share.'
-              : 'Auto-imaging off. Manual Export still works anytime.')));
+              ? L.t('A fresh .bns will quietly stay ready to share.',
+                  'קובץ .bns טרי יישאר מוכן לשיתוף, בשקט.')
+              : L.t('Auto-imaging off. Manual Export still works anytime.',
+                  'גיבוי אוטומטי כבוי. ייצוא ידני עדיין עובד בכל רגע.'))));
     }
   }
 
@@ -195,9 +210,59 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _loadRetention();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(
-              v ? 'Quiet mode on — less stimulation.' : 'Quiet mode off.')),
+          content: Text(v
+              ? L.t('Quiet mode on — less stimulation.',
+                  'מצב שקט פועל — פחות גירויים.')
+              : L.t('Quiet mode off.', 'מצב שקט כבוי.'))),
     );
+  }
+
+  // The open-source ear on this PC (Vosk): '' = not checked yet.
+  String _voskStatus = '';
+  bool _voskBusy = false;
+
+  // The app's language — Hebrew first, the whole tree re-skins live.
+  String _appLanguage = 'he';
+
+  Future<void> _setAppLanguage(String lang) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(appLanguage: lang));
+    ref.invalidate(settingsProvider); // BnsApp watches — RTL flips on the spot
+    if (mounted) setState(() => _appLanguage = lang);
+  }
+
+  Future<String> _voskDir() async =>
+      path_util.join((await getApplicationSupportDirectory()).path, 'vosk');
+
+  Future<void> _refreshVoskStatus() async {
+    if (!Platform.isWindows) return;
+    final installed = VoskService.isInstalled(await _voskDir());
+    if (mounted) {
+      setState(() => _voskStatus = installed
+          ? L.t(
+              'Installed — recordings on this PC become words by themselves.',
+              'מותקן — הקלטות במחשב הזה הופכות למילים מעצמן.')
+          : L.t('Not installed yet.', 'עוד לא מותקן.'));
+    }
+  }
+
+  Future<void> _installVosk() async {
+    if (_voskBusy) return;
+    setState(() => _voskBusy = true);
+    try {
+      await VoskService.install(await _voskDir(), onStatus: (s) {
+        if (mounted) setState(() => _voskStatus = s);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _voskStatus = L.t(
+            'Could not fetch it right now — try again later.',
+            'לא הצלחנו להוריד כרגע — אפשר לנסות שוב מאוחר יותר.'));
+      }
+    } finally {
+      if (mounted) setState(() => _voskBusy = false);
+      await _refreshVoskStatus();
+    }
   }
 
   Future<void> _setSttEnabled(bool v) async {
@@ -207,8 +272,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(v
-              ? 'Speech-to-text on — your voice becomes text everywhere.'
-              : 'Speech-to-text off. Voice notes still record as audio.')),
+              ? L.t('Speech-to-text on — your voice becomes text everywhere.',
+                  'דיבור-לטקסט פועל — הקול שלך הופך לטקסט בכל מקום.')
+              : L.t('Speech-to-text off. Voice notes still record as audio.',
+                  'דיבור-לטקסט כבוי. הקלטות קול עדיין נשמרות כאודיו.'))),
     );
   }
 
@@ -222,8 +289,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                '${Keybinds.labelFor(id)} is now ${Keybinds.pretty(combo)}. Active right away.')),
+            content: Text(L.t(
+                '${Keybinds.labelFor(id)} is now ${Keybinds.pretty(combo)}. Active right away.',
+                '${Keybinds.labelFor(id)} הוגדר עכשיו ל-${Keybinds.pretty(combo)}. פעיל מיד.'))),
       );
     }
   }
@@ -235,8 +303,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(enabled
-              ? 'Keybind enabled.'
-              : 'Keybind disabled (still saved).')),
+              ? L.t('Keybind enabled.', 'קיצור המקשים הופעל.')
+              : L.t('Keybind disabled (still saved).',
+                  'קיצור המקשים כבוי (עדיין שמור).'))),
     );
   }
 
@@ -246,8 +315,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ref.invalidate(settingsProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Keybinds back to the simple default layout.')),
+        SnackBar(
+            content: Text(L.t('Keybinds back to the simple default layout.',
+                'קיצורי המקשים חזרו לברירת המחדל הפשוטה.'))),
       );
     }
   }
@@ -298,7 +368,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   style: const TextStyle(fontSize: 13)),
             ),
             Tooltip(
-              message: 'Click, then press the new keys',
+              message: L.t('Click, then press the new keys',
+                  'לחץ, ואז הקש את המקשים החדשים'),
               child: OutlinedButton(
                 onPressed: () => _recordCombo(id),
                 style: OutlinedButton.styleFrom(
@@ -314,7 +385,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             ),
             const SizedBox(width: 6),
             Text(
-              isEnabled ? 'active' : 'off',
+              isEnabled ? L.t('active', 'פעיל') : L.t('off', 'כבוי'),
               style: TextStyle(
                   fontSize: 10,
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -331,7 +402,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         child: TextButton.icon(
           onPressed: _resetKeybinds,
           icon: const Icon(Icons.restart_alt, size: 18),
-          label: const Text('Return to simple default layout'),
+          label: Text(L.t('Return to simple default layout',
+              'חזרה לפריסה הפשוטה')),
         ),
       ),
     ));
@@ -346,8 +418,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _loadRetention();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(
-              'Widget will show next $days days forward (less stress for you)')),
+          content: Text(L.t(
+              'Widget will show next $days days forward (less stress for you)',
+              'הווידג׳ט יציג $days ימים קדימה (פחות עומס בשבילך)'))),
     );
     AndroidBnsWidget.updateWidget();
   }
@@ -403,7 +476,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final f = await _service.manualExport();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text('Saved: ${f.path.split(Platform.pathSeparator).last}')),
+          content: Text(L.t(
+              'Saved: ${f.path.split(Platform.pathSeparator).last}',
+              'נשמר: ${f.path.split(Platform.pathSeparator).last}'))),
     );
   }
 
@@ -412,9 +487,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (res?.files.single.path == null) return;
     await _service.manualImport(File(res!.files.single.path!));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content:
-              Text('Data merged in. Thank you for keeping things together.')),
+      SnackBar(
+          content: Text(L.t(
+              'Data merged in. Thank you for keeping things together.',
+              'המידע מוזג פנימה. תודה שאתה שומר שהכול יישאר יחד.'))),
     );
   }
 
@@ -426,10 +502,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(_fullCareMode
-              ? 'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
-                  'full care: everything is inside, for the people who care.'
-              : 'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
-                  'only what you marked, nothing else.')),
+              ? L.t(
+                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
+                      'full care: everything is inside, for the people who care.',
+                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
+                      'טיפול מלא: הכול בפנים, בשביל האנשים שאכפת להם.')
+              : L.t(
+                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
+                      'only what you marked, nothing else.',
+                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
+                      'רק מה שסימנת, שום דבר מעבר.'))),
     );
   }
 
@@ -442,8 +524,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await IsarService.updateSettings(s.copyWith(fullCareMode: false));
       setState(() => _fullCareMode = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Full care is off. Only chosen things are shared.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'Full care is off. Only chosen things are shared.',
+              'טיפול מלא כבוי. רק דברים שבחרת משותפים.'))));
       return;
     }
     final nameCtrl = TextEditingController();
@@ -452,22 +536,31 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Full care — a serious step'),
+        title: Text(L.t('Full care — a serious step',
+            'טיפול מלא — צעד רציני')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'This is for when someone needs the people around them to know '
-              'everything — every thought, every voice note, every day. The '
-              'family file will contain it all, and trusted devices already '
-              'receive it all.\n\n'
-              'It exists for the hardest situations, decided together with '
-              'the people who care. Turning it off later is one tap.',
-              style: TextStyle(fontSize: 14),
+            Text(
+              L.t(
+                  'This is for when someone needs the people around them to know '
+                  'everything — every thought, every voice note, every day. The '
+                  'family file will contain it all, and trusted devices already '
+                  'receive it all.\n\n'
+                  'It exists for the hardest situations, decided together with '
+                  'the people who care. Turning it off later is one tap.',
+                  'זה מיועד למצב שבו מישהו צריך שהאנשים סביבו יידעו הכול — '
+                  'כל מחשבה, כל הקלטת קול, כל יום. קובץ המשפחה יכיל את הכול, '
+                  'ומכשירים מהימנים כבר מקבלים את הכול.\n\n'
+                  'זה קיים למצבים הקשים ביותר, בהחלטה משותפת עם האנשים '
+                  'שאכפת להם. לכבות את זה אחר כך — נגיעה אחת.'),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 12),
-            Text('To turn it on, type the share name ("$expected"):',
+            Text(
+                L.t('To turn it on, type the share name ("$expected"):',
+                    'כדי להפעיל, הקלד את שם השיתוף ("$expected"):'),
                 style: const TextStyle(fontSize: 13)),
             TextField(controller: nameCtrl, autofocus: true),
           ],
@@ -475,28 +568,30 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text('Not now')),
+              child: Text(L.t('Not now', 'לא עכשיו'))),
           FilledButton(
               onPressed: () => Navigator.pop(
                   c, nameCtrl.text.trim().toLowerCase() ==
                       expected.toLowerCase()),
-              child: const Text('Turn on full care')),
+              child: Text(L.t('Turn on full care', 'הפעל טיפול מלא'))),
         ],
       ),
     );
     if (confirmed != true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Nothing changed — full care stays off.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(L.t('Nothing changed — full care stays off.',
+                'שום דבר לא השתנה — טיפול מלא נשאר כבוי.'))));
       }
       return;
     }
     await IsarService.updateSettings(s.copyWith(fullCareMode: true));
     setState(() => _fullCareMode = true);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            'Full care is on. Everything travels to the people who care.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'Full care is on. Everything travels to the people who care.',
+            'טיפול מלא פועל. הכול מגיע לאנשים שאכפת להם.'))));
   }
 
   /// GUIDED MODE — level 4. The person gets only the list: tick a task
@@ -508,8 +603,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await IsarService.updateSettings(s.copyWith(guidedMode: false));
       setState(() => _guidedMode = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Guided mode is off. Full control is back here.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t('Guided mode is off. Full control is back here.',
+              'מצב מונחה כבוי. השליטה המלאה חזרה לכאן.'))));
       return;
     }
     final nameCtrl = TextEditingController();
@@ -518,23 +614,33 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Guided mode — only the list'),
+        title: Text(L.t('Guided mode — only the list',
+            'מצב מונחה — רק הרשימה')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'For when routines are what remains. This device shows the '
-              'list — big and clear. The person can tick what\'s done and '
-              'tell about problems (voice or writing). Everything else — '
-              'building the day, changing tasks — happens from YOUR device '
-              'and arrives here over Wi-Fi.\n\n'
-              'Full care turns on with it, so you see everything. '
-              'Turning it off later is one tap, right here.',
-              style: TextStyle(fontSize: 14),
+            Text(
+              L.t(
+                  'For when routines are what remains. This device shows the '
+                  'list — big and clear. The person can tick what\'s done and '
+                  'tell about problems (voice or writing). Everything else — '
+                  'building the day, changing tasks — happens from YOUR device '
+                  'and arrives here over Wi-Fi.\n\n'
+                  'Full care turns on with it, so you see everything. '
+                  'Turning it off later is one tap, right here.',
+                  'למצב שבו השגרה היא מה שנשאר. המכשיר הזה מציג את הרשימה — '
+                  'גדולה וברורה. אפשר לסמן מה בוצע ולספר על בעיות (בקול או '
+                  'בכתיבה). כל השאר — בניית היום, שינוי משימות — נעשה '
+                  'מהמכשיר שלך ומגיע לכאן דרך ה-Wi-Fi.\n\n'
+                  'טיפול מלא נדלק יחד איתו, כך שאתה רואה הכול. '
+                  'לכבות אחר כך — נגיעה אחת, ממש כאן.'),
+              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 12),
-            Text('To turn it on, type the share name ("$expected"):',
+            Text(
+                L.t('To turn it on, type the share name ("$expected"):',
+                    'כדי להפעיל, הקלד את שם השיתוף ("$expected"):'),
                 style: const TextStyle(fontSize: 13)),
             TextField(controller: nameCtrl, autofocus: true),
           ],
@@ -542,19 +648,20 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text('Not now')),
+              child: Text(L.t('Not now', 'לא עכשיו'))),
           FilledButton(
               onPressed: () => Navigator.pop(
                   c, nameCtrl.text.trim().toLowerCase() ==
                       expected.toLowerCase()),
-              child: const Text('Turn on guided mode')),
+              child: Text(L.t('Turn on guided mode', 'הפעל מצב מונחה'))),
         ],
       ),
     );
     if (confirmed != true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Nothing changed — guided mode stays off.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(L.t('Nothing changed — guided mode stays off.',
+                'שום דבר לא השתנה — מצב מונחה נשאר כבוי.'))));
       }
       return;
     }
@@ -565,9 +672,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       _fullCareMode = true;
     });
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content:
-            Text('Guided mode is on. This device shows the list, with love.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'Guided mode is on. This device shows the list, with love.',
+            'מצב מונחה פועל. המכשיר הזה מציג את הרשימה, באהבה.'))));
   }
 
   Color _progressColor(BuildContext context) {
@@ -586,14 +694,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final color = _progressColor(context);
 
     return Scaffold(
-      appBar:
-          const BnsAppBar(title: 'Sync your devices', hideOnDesktopWide: true),
+      appBar: BnsAppBar(
+          title: L.t('Sync your devices', 'סנכרון המכשירים שלך'),
+          hideOnDesktopWide: true),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           // Encouraging header
           Text(
-            'Everything you do is kept safe for you.\nSet up once — then it just happens.',
+            L.t(
+                'Everything you do is kept safe for you.\nSet up once — then it just happens.',
+                'כל מה שאתה עושה נשמר בשבילך.\nמגדירים פעם אחת — ומשם זה פשוט קורה.'),
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -628,12 +739,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           const SizedBox(height: 16),
 
           // Trusted / Known devices
-          Text('Your trusted devices',
+          Text(L.t('Your trusted devices', 'המכשירים המהימנים שלך'),
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (_trusted.isEmpty)
-            const Text(
-                'No devices paired yet. Discover one below to start a secure connection.'),
+            Text(L.t(
+                'No devices paired yet. Discover one below to start a secure connection.',
+                'עוד אין מכשירים מצומדים. מצא אחד למטה כדי להתחיל חיבור מאובטח.')),
           ..._trusted.map((d) => Card(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
@@ -643,26 +755,31 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         dense: true,
                         leading: const Icon(Icons.phone_android),
                         title: Text(d.name),
-                        subtitle: Text(
-                            'Last synced: ${d.lastSyncedAt.toLocal().toString().substring(0, 16)}'),
+                        subtitle: Text(L.t(
+                            'Last synced: ${d.lastSyncedAt.toLocal().toString().substring(0, 16)}',
+                            'סונכרן לאחרונה: ${d.lastSyncedAt.toLocal().toString().substring(0, 16)}')),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Forget this device (un-pair)',
+                          tooltip: L.t('Forget this device (un-pair)',
+                              'שכח את המכשיר הזה (ביטול צימוד)'),
                           onPressed: () => _forget(d),
                         ),
                       ),
                       SwitchListTile(
                         dense: true,
-                        title: const Text('LAN transfers allowed'),
-                        subtitle: const Text(
-                            'We advise keeping this on for your own devices. Off = still paired, but nothing flows either way.'),
+                        title: Text(L.t('LAN transfers allowed',
+                            'העברות ברשת הביתית מותרות')),
+                        subtitle: Text(L.t(
+                            'We advise keeping this on for your own devices. Off = still paired, but nothing flows either way.',
+                            'מומלץ להשאיר פועל עבור המכשירים שלך. כבוי = עדיין מצומד, אבל שום דבר לא עובר לשום כיוון.')),
                         value: d.lanSyncAllowed,
                         onChanged: (v) =>
                             _updateTrustedDevice(d.copyWith(lanSyncAllowed: v)),
                       ),
                       SwitchListTile(
                         dense: true,
-                        title: const Text('Auto-sync when nearby'),
+                        title: Text(L.t('Auto-sync when nearby',
+                            'סנכרון אוטומטי כשקרובים')),
                         value: d.autoSyncEnabled,
                         onChanged: (v) => _updateTrustedDevice(
                             d.copyWith(autoSyncEnabled: v)),
@@ -676,9 +793,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
           // Auto-sync toggle
           SwitchListTile(
-            title: const Text('Auto-sync when trusted devices are nearby'),
-            subtitle: const Text(
-                'Happens gently in the background when this screen is open'),
+            title: Text(L.t('Auto-sync when trusted devices are nearby',
+                'סנכרון אוטומטי כשמכשירים מהימנים בסביבה')),
+            subtitle: Text(L.t(
+                'Happens gently in the background when this screen is open',
+                'קורה בעדינות ברקע כשהמסך הזה פתוח')),
             value: _autoSync,
             onChanged: _toggleAutoSync,
             activeColor: color,
@@ -694,14 +813,21 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('History retention (keeps files small for fast sync)',
+                  Text(
+                      L.t('History retention (keeps files small for fast sync)',
+                          'שמירת היסטוריה (שומרת על קבצים קטנים לסנכרון מהיר)'),
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 4),
-                  Text(
-                      'Current: ${_retentionDays == 0 ? "Unlimited (10000 years mode)" : "$_retentionDays days (default 20)"}'),
+                  Text(_retentionDays == 0
+                      ? L.t('Current: Unlimited (10000 years mode)',
+                          'כרגע: ללא הגבלה (מצב 10000 שנים)')
+                      : L.t('Current: $_retentionDays days (default 20)',
+                          'כרגע: $_retentionDays ימים (ברירת מחדל 20)')),
                   const SizedBox(height: 8),
                   Text(
-                    'Old days auto-delete as time passes. New days open up. Routines stay. You can plan far into the future.',
+                    L.t(
+                        'Old days auto-delete as time passes. New days open up. Routines stay. You can plan far into the future.',
+                        'ימים ישנים נמחקים מעצמם עם הזמן. ימים חדשים נפתחים. שגרות נשארות. אפשר לתכנן רחוק אל העתיד.'),
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -712,32 +838,40 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     children: [
                       OutlinedButton(
                         onPressed: () => _setRetention(20),
-                        child: const Text('Default (20 days)'),
+                        child: Text(
+                            L.t('Default (20 days)', 'ברירת מחדל (20 ימים)')),
                       ),
                       OutlinedButton(
                         onPressed: () => _setRetention(90),
-                        child: const Text('Expand to 90 days'),
+                        child: Text(
+                            L.t('Expand to 90 days', 'הרחבה ל-90 ימים')),
                       ),
                       OutlinedButton(
                         onPressed: () => _setRetention(0),
-                        child: const Text('Unlimited (redundant files ok)'),
+                        child: Text(L.t('Unlimited (redundant files ok)',
+                            'ללא הגבלה (קבצים גדולים זה בסדר)')),
                       ),
                       TextButton(
                         onPressed: _resetRetention,
-                        child: const Text('Return to default'),
+                        child: Text(
+                            L.t('Return to default', 'חזרה לברירת המחדל')),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Warning: larger retention = bigger .bns files = slower LAN sync.',
+                    L.t(
+                        'Warning: larger retention = bigger .bns files = slower LAN sync.',
+                        'שים לב: שמירה ארוכה יותר = קובצי .bns גדולים יותר = סנכרון איטי יותר.'),
                     style: TextStyle(fontSize: 11, color: Colors.orange),
                   ),
                   const SizedBox(height: 12),
                   // User types/roles for adaptation - normal (TBI like regular joe), kid-ADHD, ADHD, custom (penguin - we secure the penguin)
                   // Affects UI (brighter for fog, simpler for kids), fluent for all. Don't check names, care about mind.
                   Text(
-                      'Your type (adapts UI brighter/simpler, fluent for kids):',
+                      L.t(
+                          'Your type (adapts UI brighter/simpler, fluent for kids):',
+                          'הסוג שלך (מתאים את המסך — בהיר ופשוט יותר, זורם לילדים):'),
                       style: TextStyle(fontSize: 11)),
                   DropdownButton<String>(
                     value: _userType,
@@ -751,22 +885,25 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             s.copyWith(userType: v));
                         await _loadRetention();
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(
-                                'Type set to $v - UI adapts (brighter for fog, kid-fluent)')));
+                            content: Text(L.t(
+                                'Type set to $v - UI adapts (brighter for fog, kid-fluent)',
+                                'הסוג הוגדר ל-$v — המסך מתאים את עצמו (בהיר יותר, זורם לילדים)'))));
                       }
                     },
                   ),
                   const SizedBox(height: 12),
                   // Widget forward days - user controls to avoid stress. Default 2 (regular joe preference, no more than 2 days ahead)
                   Text(
-                      'Widget forward days (set low to reduce stress - you control what you see):',
+                      L.t(
+                          'Widget forward days (set low to reduce stress - you control what you see):',
+                          'ימים קדימה בווידג׳ט (נמוך = פחות עומס — אתה שולט במה שאתה רואה):'),
                       style: TextStyle(fontSize: 11)),
                   Wrap(
                     spacing: 4,
                     children: [
                       for (int d in [0, 1, 2, 3, 7])
                         ChoiceChip(
-                          label: Text('$d days'),
+                          label: Text(L.t('$d days', '$d ימים')),
                           selected: _widgetForwardDays == d,
                           onSelected: (_) => _setWidgetForwardDays(d),
                         ),
@@ -775,14 +912,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   const SizedBox(height: 12),
                   // Family-facing share name — what a trusted person (e.g.
                   // dad checking in) sees when this device asks to pair/sync.
-                  Text('Your share name (what family sees when you share):',
+                  Text(
+                      L.t('Your share name (what family sees when you share):',
+                          'שם השיתוף שלך (מה שהמשפחה רואה כשאתה משתף):'),
                       style: TextStyle(fontSize: 11)),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                             _shareName.isEmpty
-                                ? '$_deviceName (using device name)'
+                                ? L.t('$_deviceName (using device name)',
+                                    '$_deviceName (לפי שם המכשיר)')
                                 : _shareName,
                             style:
                                 const TextStyle(fontWeight: FontWeight.w500)),
@@ -793,35 +933,39 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           final newName = await showDialog<String>(
                             context: context,
                             builder: (c) => AlertDialog(
-                              title: const Text('Your share name'),
+                              title: Text(L.t('Your share name',
+                                  'שם השיתוף שלך')),
                               content: TextField(
                                 controller: ctrl,
                                 autofocus: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Name people see',
-                                  hintText: 'e.g. Yossi',
+                                decoration: InputDecoration(
+                                  labelText: L.t('Name people see',
+                                      'השם שאנשים רואים'),
+                                  hintText: L.t('e.g. Yossi', 'למשל: יוסי'),
                                 ),
                               ),
                               actions: [
                                 TextButton(
                                     onPressed: () => Navigator.pop(c),
-                                    child: const Text('Cancel')),
+                                    child: Text(L.t('Cancel', 'ביטול'))),
                                 FilledButton(
                                     onPressed: () =>
                                         Navigator.pop(c, ctrl.text),
-                                    child: const Text('Save')),
+                                    child: Text(L.t('Save', 'שמירה'))),
                               ],
                             ),
                           );
                           if (newName != null) await _setShareName(newName);
                         },
-                        child: const Text('Edit'),
+                        child: Text(L.t('Edit', 'עריכה')),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   // Device name for friendly discovery
-                  Text('This device name (seen by others on Wi-Fi):',
+                  Text(
+                      L.t('This device name (seen by others on Wi-Fi):',
+                          'שם המכשיר הזה (מה שאחרים רואים ב-Wi-Fi):'),
                       style: TextStyle(fontSize: 11)),
                   Row(
                     children: [
@@ -836,51 +980,107 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           final newName = await showDialog<String>(
                             context: context,
                             builder: (c) => AlertDialog(
-                              title: const Text('Name this device'),
+                              title: Text(
+                                  L.t('Name this device', 'תן שם למכשיר')),
                               content: TextField(
                                   controller: ctrl,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Device name')),
+                                  decoration: InputDecoration(
+                                      labelText:
+                                          L.t('Device name', 'שם המכשיר'))),
                               actions: [
                                 TextButton(
                                     onPressed: () => Navigator.pop(c),
-                                    child: const Text('Cancel')),
+                                    child: Text(L.t('Cancel', 'ביטול'))),
                                 FilledButton(
                                     onPressed: () =>
                                         Navigator.pop(c, ctrl.text),
-                                    child: const Text('Save')),
+                                    child: Text(L.t('Save', 'שמירה'))),
                               ],
                             ),
                           );
                           if (newName != null) await _setDeviceName(newName);
                         },
-                        child: const Text('Edit'),
+                        child: Text(L.t('Edit', 'עריכה')),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     dense: true,
-                    title: const Text(
-                        'Quiet mode (less animations, confetti, sounds)'),
+                    title: Text(L.t(
+                        'Quiet mode (less animations, confetti, sounds)',
+                        'מצב שקט (פחות אנימציות, קונפטי וצלילים)')),
                     value: _quietMode,
                     onChanged: _setQuietMode,
                   ),
-                  SwitchListTile(
+                  // Hebrew first (owner, 2026-07-26): the first users are
+                  // Israeli. One tap here and the whole app — words and
+                  // direction — follows, instantly.
+                  ListTile(
                     dense: true,
-                    title: const Text('Speech-to-text everywhere'),
-                    subtitle: const Text(
-                        'Voice notes become readable text as you speak, and every '
-                        'text field gets a small dictation mic. Device engine only '
-                        '— free, private, no cloud.'),
-                    value: _sttEnabled,
-                    onChanged: _setSttEnabled,
+                    leading: const Icon(Icons.translate),
+                    title: const Text('שפה / Language'),
+                    trailing: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'he', label: Text('עברית')),
+                        ButtonSegment(value: 'en', label: Text('English')),
+                      ],
+                      selected: {_appLanguage},
+                      onSelectionChanged: (s) => _setAppLanguage(s.first),
+                    ),
                   ),
                   SwitchListTile(
                     dense: true,
-                    title: const Text('Keep a ready-to-share .bns fresh'),
-                    subtitle: const Text(
-                        'Silently refreshes BNS_Latest on close/background — a current backup always exists without exporting.'),
+                    title: Text(L.t('Speech-to-text everywhere',
+                        'דיבור-לטקסט בכל מקום')),
+                    subtitle: Text(L.t(
+                        'Voice notes become readable text as you speak, and every '
+                        'text field gets a small dictation mic. Device engine only '
+                        '— free, private, no cloud.',
+                        'הקלטות קול הופכות לטקסט קריא תוך כדי דיבור, ולכל שדה '
+                        'טקסט מתווסף מיקרופון הכתבה קטן. מנוע במכשיר בלבד — '
+                        'חינם, פרטי, בלי ענן.')),
+                    value: _sttEnabled,
+                    onChanged: _setSttEnabled,
+                  ),
+                  // Windows has no built-in speech-to-text bridge — the
+                  // open-source Vosk engine (Apache-2.0, offline, free
+                  // forever) is the honest choice. One download, then every
+                  // recording on this PC becomes readable words by itself.
+                  if (Platform.isWindows)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.hearing),
+                      title: Text(L.t(
+                          'Offline ears for this PC (Vosk, open source)',
+                          'אוזניים לא-מקוונות למחשב הזה (Vosk, קוד פתוח)')),
+                      subtitle: Text(_voskStatus.isEmpty
+                          ? L.t(
+                              'Turns recordings into readable words — offline, '
+                              'free, no cloud. About 47 MB, one time.',
+                              'הופך הקלטות למילים קריאות — לא מקוון, חינם, בלי '
+                              'ענן. בערך 47 MB, פעם אחת.')
+                          : _voskStatus),
+                      trailing: _voskBusy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : TextButton(
+                              onPressed: _installVosk,
+                              child: Text(_voskStatus.startsWith('Installed') ||
+                                      _voskStatus.startsWith('מותקן')
+                                  ? L.t('Reinstall', 'התקנה מחדש')
+                                  : L.t('Install', 'התקנה')),
+                            ),
+                    ),
+                  SwitchListTile(
+                    dense: true,
+                    title: Text(L.t('Keep a ready-to-share .bns fresh',
+                        'לשמור קובץ .bns טרי ומוכן לשיתוף')),
+                    subtitle: Text(L.t(
+                        'Silently refreshes BNS_Latest on close/background — a current backup always exists without exporting.',
+                        'מרענן בשקט את BNS_Latest בסגירה או ברקע — תמיד יש גיבוי עדכני בלי לייצא.')),
                     value: _autoImage,
                     onChanged: _setAutoImage,
                   ),
@@ -891,12 +1091,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   // Set & forget. Tick the ones you want active.
                   // We give you a simple basic layout. Typing is #1 on PC.
                   // Changes saved into your .bns — travels everywhere.
-                  Text('PC Keybinds — set & forget (primary on PC)',
+                  Text(
+                      L.t('PC Keybinds — set & forget (primary on PC)',
+                          'קיצורי מקשים למחשב — מגדירים ושוכחים'),
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text(
-                    'Tick to activate. Click a combo and press new keys to change it. '
-                    'Applies immediately and travels in your .bns. Not forced — use what feels good.',
+                    L.t(
+                        'Tick to activate. Click a combo and press new keys to change it. '
+                        'Applies immediately and travels in your .bns. Not forced — use what feels good.',
+                        'סמן כדי להפעיל. לחץ על צירוף והקש מקשים חדשים כדי לשנות. '
+                        'חל מיד ונוסע עם קובץ ה-.bns שלך. שום דבר לא כפוי — השתמש במה שנעים לך.'),
                     style: TextStyle(
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -911,7 +1116,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           const SizedBox(height: 16),
 
           // Discovered devices
-          Text('Devices found on your Wi-Fi',
+          Text(L.t('Devices found on your Wi-Fi', 'מכשירים שנמצאו ב-Wi-Fi שלך'),
               style: Theme.of(context).textTheme.titleMedium),
           if (_discovering && _discovered.isEmpty)
             const LinearProgressIndicator(),
@@ -924,7 +1129,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 subtitle: Text(p.address),
                 trailing: FilledButton(
                   onPressed: () => isTrusted ? _sync(p) : _startPairing(p),
-                  child: Text(isTrusted ? 'Sync now' : 'Pair & Sync (secure)'),
+                  child: Text(isTrusted
+                      ? L.t('Sync now', 'סנכרן עכשיו')
+                      : L.t('Pair & Sync (secure)', 'צימוד וסנכרון (מאובטח)')),
                 ),
               ),
             );
@@ -933,7 +1140,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           const SizedBox(height: 32),
 
           // Manual - still easy
-          Text('Manual backup (for USB or when Wi-Fi is not available)',
+          Text(
+              L.t('Manual backup (for USB or when Wi-Fi is not available)',
+                  'גיבוי ידני (ל-USB או כשאין Wi-Fi)'),
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           Row(children: [
@@ -941,28 +1150,35 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 child: OutlinedButton.icon(
                     onPressed: _manualExport,
                     icon: const Icon(Icons.save),
-                    label: const Text('Export .bns'))),
+                    label: Text(L.t('Export .bns', 'ייצוא .bns')))),
             const SizedBox(width: 12),
             Expanded(
                 child: OutlinedButton.icon(
                     onPressed: _manualImport,
                     icon: const Icon(Icons.folder_open),
-                    label: const Text('Import .bns'))),
+                    label: Text(L.t('Import .bns', 'ייבוא .bns')))),
           ]),
 
           const SizedBox(height: 16),
-          Text('Family share',
+          Text(L.t('Family share', 'שיתוף משפחה'),
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
             _fullCareMode
-                ? 'Full care is ON: the family file carries everything — every '
+                ? L.t(
+                    'Full care is ON: the family file carries everything — every '
                     'plan, every moment, every voice note — for the people '
-                    'easing the path.'
-                : 'A small file with ONLY what was chosen: plans marked '
+                    'easing the path.',
+                    'טיפול מלא פועל: קובץ המשפחה נושא הכול — כל תוכנית, כל '
+                    'רגע, כל הקלטת קול — לאנשים שמקילים את הדרך.')
+                : L.t(
+                    'A small file with ONLY what was chosen: plans marked '
                     '"family can know" and moments tagged "family" (voice '
                     'notes included). Nothing else is inside it, no matter '
                     'how it\'s opened.',
+                    'קובץ קטן עם מה שנבחר בלבד: תוכניות שסומנו "המשפחה יכולה '
+                    'לדעת" ורגעים שתויגו "משפחה" (כולל הקלטות קול). שום דבר '
+                    'אחר לא נמצא בו, לא משנה איך פותחים אותו.'),
             style: TextStyle(
                 fontSize: 12.5,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -971,35 +1187,49 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           OutlinedButton.icon(
               onPressed: _exportFamilyShare,
               icon: const Icon(Icons.family_restroom),
-              label: const Text('Make the family file')),
+              label: Text(L.t('Make the family file', 'צור את קובץ המשפחה'))),
           const SizedBox(height: 8),
           SwitchListTile(
             dense: true,
-            title: const Text('Full care (level 3 — last resort)'),
-            subtitle: const Text(
-                'For the hardest situations: everything matters, everything '
-                'is shared with the people who care. Guarded to turn on, one '
-                'tap to turn off.',
-                style: TextStyle(fontSize: 12)),
+            title: Text(L.t('Full care (level 3 — last resort)',
+                'טיפול מלא (רמה 3 — מוצא אחרון)')),
+            subtitle: Text(
+                L.t(
+                    'For the hardest situations: everything matters, everything '
+                    'is shared with the people who care. Guarded to turn on, one '
+                    'tap to turn off.',
+                    'למצבים הקשים ביותר: הכול חשוב, הכול משותף עם האנשים '
+                    'שאכפת להם. מוגן בהפעלה, נגיעה אחת לכיבוי.'),
+                style: const TextStyle(fontSize: 12)),
             value: _fullCareMode,
             onChanged: _setFullCareMode,
           ),
           SwitchListTile(
             dense: true,
-            title: const Text('Guided mode (level 4 — only the list)'),
-            subtitle: const Text(
-                'When routines are what remains: this device shows the list, '
-                'big and clear. Ticking and telling about problems stay; '
-                'building the day moves to the inspector\'s device.',
-                style: TextStyle(fontSize: 12)),
+            title: Text(L.t('Guided mode (level 4 — only the list)',
+                'מצב מונחה (רמה 4 — רק הרשימה)')),
+            subtitle: Text(
+                L.t(
+                    'When routines are what remains: this device shows the list, '
+                    'big and clear. Ticking and telling about problems stay; '
+                    'building the day moves to the inspector\'s device. '
+                    'The caregiver\'s door: at the bottom of Today, HOLD the '
+                    '"Caregiver" button to set up the day right on this device.',
+                    'כשהשגרה היא מה שנשאר: המכשיר הזה מציג את הרשימה, גדולה '
+                    'וברורה. סימון וסיפור על בעיות נשארים; בניית היום עוברת '
+                    'למכשיר של המלווה. הדלת של המטפל: בתחתית "היום", לחיצה '
+                    'ארוכה על כפתור "מטפל" מאפשרת לסדר את היום ישר על המכשיר הזה.'),
+                style: const TextStyle(fontSize: 12)),
             value: _guidedMode,
             onChanged: _setGuidedMode,
           ),
 
           const SizedBox(height: 40),
-          const Text(
-            'Everything stays private. Only devices you explicitly accept can exchange data.',
-            style: TextStyle(fontSize: 12),
+          Text(
+            L.t(
+                'Everything stays private. Only devices you explicitly accept can exchange data.',
+                'הכול נשאר פרטי. רק מכשירים שאישרת במפורש יכולים להחליף מידע.'),
+            style: const TextStyle(fontSize: 12),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1032,7 +1262,8 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('New keys for "${widget.actionLabel}"'),
+      title: Text(L.t('New keys for "${widget.actionLabel}"',
+          'מקשים חדשים עבור "${widget.actionLabel}"')),
       content: Focus(
         focusNode: _focusNode,
         autofocus: true,
@@ -1057,7 +1288,8 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Press the combination you want. Take your time.'),
+              Text(L.t('Press the combination you want. Take your time.',
+                  'הקש את הצירוף שתרצה. קח את הזמן, אין לחץ.')),
               const SizedBox(height: 20),
               Container(
                 padding:
@@ -1071,7 +1303,7 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
                 ),
                 child: Text(
                   _combo == null
-                      ? 'Waiting for keys…'
+                      ? L.t('Waiting for keys…', 'מחכה למקשים…')
                       : Keybinds.pretty(_combo!),
                   style: const TextStyle(
                       fontSize: 20,
@@ -1086,12 +1318,13 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel — keep the old keys'),
+          child: Text(L.t('Cancel — keep the old keys',
+              'ביטול — נשאיר את המקשים הישנים')),
         ),
         FilledButton(
           onPressed:
               _combo == null ? null : () => Navigator.pop(context, _combo),
-          child: const Text('Use these keys'),
+          child: Text(L.t('Use these keys', 'השתמש במקשים האלה')),
         ),
       ],
     );
@@ -1114,11 +1347,12 @@ class _PairingDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Secure Pairing'),
+      title: Text(L.t('Secure Pairing', 'צימוד מאובטח')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Type this code on $peerName (open its Sync screen):'),
+          Text(L.t('Type this code on $peerName (open its Sync screen):',
+              'הקלד את הקוד הזה במכשיר $peerName (פתח שם את מסך הסנכרון):')),
           const SizedBox(height: 24),
           Text(
             code,
@@ -1128,18 +1362,20 @@ class _PairingDialog extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          const Text(
-              'The code never leaves this screen — only someone who can read it here can pair.'),
+          Text(L.t(
+              'The code never leaves this screen — only someone who can read it here can pair.',
+              'הקוד לא עוזב את המסך הזה — רק מי שיכול לקרוא אותו כאן יכול לצמד.')),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
+          child: Text(L.t('Cancel', 'ביטול')),
         ),
         FilledButton(
           onPressed: onConfirm,
-          child: const Text('I typed it there — connect securely'),
+          child: Text(L.t('I typed it there — connect securely',
+              'הקלדתי אותו שם — התחבר באופן מאובטח')),
         ),
       ],
     );
@@ -1168,12 +1404,14 @@ class _EnterCodeDialogState extends State<_EnterCodeDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('"${widget.peerName}" wants to pair'),
+      title: Text(L.t('"${widget.peerName}" wants to pair',
+          '"${widget.peerName}" רוצה להתחבר')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-              'Enter the 6-digit code shown on that device. If you didn\'t expect this, just decline — nothing is shared.'),
+          Text(L.t(
+              'Enter the 6-digit code shown on that device. If you didn\'t expect this, just decline — nothing is shared.',
+              'הקלד את הקוד בן 6 הספרות שמוצג במכשיר השני. אם לא ציפית לזה, פשוט סרב — שום דבר לא משותף.')),
           const SizedBox(height: 16),
           TextField(
             controller: _codeController,
@@ -1190,11 +1428,11 @@ class _EnterCodeDialogState extends State<_EnterCodeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Decline'),
+          child: Text(L.t('Decline', 'סרב')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, _codeController.text.trim()),
-          child: const Text('Pair securely'),
+          child: Text(L.t('Pair securely', 'צמד באופן מאובטח')),
         ),
       ],
     );

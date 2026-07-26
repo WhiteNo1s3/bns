@@ -22,7 +22,13 @@ import 'package:home_widget/home_widget.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/export/bns_exporter.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+
+import 'package:bns/core/i18n/l.dart';
+import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/notifications_service.dart';
+import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/file_handler.dart';
 import 'package:confetti/confetti.dart';
 
@@ -39,6 +45,9 @@ void main(List<String> args) {
   };
   runApp(const ProviderScope(child: BnsApp()));
   _startupChores(args);
+  // Hebrew dates for DateFormat (weekday names on tiles etc.) — loaded
+  // after the first frame, same sacred-first-frame law as everything else.
+  initializeDateFormatting('he').catchError((_) {});
 }
 
 Future<void> _startupChores(List<String> args) async {
@@ -218,9 +227,25 @@ class _BnsAppState extends ConsumerState<BnsApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Hebrew first (owner, 2026-07-26): the app language rides Settings and
+    // the whole tree — including direction, RTL for the holy tongue —
+    // follows it live. Watching here means a language change re-skins the
+    // app on the spot, no restart.
+    final appSettings = ref.watch(settingsProvider).asData?.value;
+    L.lang = appSettings?.appLanguage ?? L.lang;
+    // DateFormat (weekday names on tiles, "EEE, MMM d") follows along.
+    Intl.defaultLocale = L.isHebrew ? 'he' : 'en';
+
     final app = MaterialApp.router(
       title: 'BNS',
       debugShowCheckedModeBanner: false,
+      locale: L.locale,
+      supportedLocales: const [Locale('he'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: BnsTheme.build(
         palette: RelaxingPalette.teal,
         mode: ThemeModeSetting.system,
@@ -231,6 +256,13 @@ class _BnsAppState extends ConsumerState<BnsApp> {
       ),
       // Static app: even light/dark switches snap instead of morphing.
       themeAnimationDuration: Duration.zero,
+      // Samsung's navigation keys were sitting ON TOP of the bottom of
+      // every screen (owner's phone, 2026-07-26). The app now ends where
+      // the system's keys begin — everywhere, one rule. In level 4, a big
+      // "Back to my day" travels along on every screen that isn't home.
+      builder: (context, child) => SafeArea(
+          top: false,
+          child: _GuidedHomeShell(child: child ?? const SizedBox.shrink())),
       routerConfig: _router,
     );
 
@@ -275,6 +307,75 @@ class _BnsAppState extends ConsumerState<BnsApp> {
 }
 
 /// One intent for all configurable keybinds; the action id says what to do.
+/// Level 4's thread home: whenever the person is anywhere that isn't Today,
+/// a BIG warm "Back to my day" rides the bottom of the screen (owner,
+/// 2026-07-26: an arrow is not enough when arrows stopped meaning things).
+/// One place, every screen — no page has to remember to offer the way back.
+class _GuidedHomeShell extends StatefulWidget {
+  final Widget child;
+  const _GuidedHomeShell({required this.child});
+
+  @override
+  State<_GuidedHomeShell> createState() => _GuidedHomeShellState();
+}
+
+class _GuidedHomeShellState extends State<_GuidedHomeShell> {
+  bool _show = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _router.routerDelegate.addListener(_recheck);
+    _recheck();
+  }
+
+  @override
+  void dispose() {
+    _router.routerDelegate.removeListener(_recheck);
+    super.dispose();
+  }
+
+  Future<void> _recheck() async {
+    final s = await IsarService.getSettings();
+    final away =
+        _router.routerDelegate.currentConfiguration.uri.path != '/';
+    final show = s.guidedMode && away;
+    if (mounted && show != _show) setState(() => _show = show);
+  }
+
+  void _goHome() {
+    // Peel any pushed pages (day view and friends), then land on Today.
+    _router.routerDelegate.navigatorKey.currentState
+        ?.popUntil((r) => r.isFirst);
+    _router.go('/');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_show) return widget.child;
+    return Column(
+      children: [
+        Expanded(child: widget.child),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          color: Theme.of(context).colorScheme.surface,
+          child: FilledButton.icon(
+            onPressed: _goHome,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              textStyle:
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            icon: const Icon(Icons.home_rounded, size: 28),
+            label: Text(L.t('Back to my day', 'חזרה ליום שלי')),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _KeybindIntent extends Intent {
   final String id;
   const _KeybindIntent(this.id);
@@ -366,6 +467,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // was written), so seeing the task means meeting the note again.
   Map<String, String> _recentNoteText = const {};
   Map<String, String> _recentNoteWhen = const {};
+  // Everything told about each routine (notes + recordings), newest first —
+  // the little door at the end of the row opens onto this.
+  Map<String, List<QuickCapture>> _keptByRoutine = const {};
+  // Today's storms: the mad-vents of this day, kept and revisitable.
+  List<QuickCapture> _madToday = const [];
   Map<String, int> _stepProgress = const {}; // routineId → parts done today
   bool _nextFirstOrder = false; // false = morning→night (default)
   bool _guidedMode = false; // level 4: only the list, inspector builds
@@ -409,6 +515,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       noteText[rid] = words;
       noteWhen[rid] = _whenLabel(c.at);
     }
+    // The skip record carries its own why now — the most reliable copy.
+    for (final l in logs) {
+      if (l.status != CompletionStatus.skipped) continue;
+      final words = (l.reason ?? '').trim();
+      if (words.isEmpty || words == 'See linked capture') continue;
+      final prev = latestAt[l.routineId];
+      if (prev != null && !l.at.isAfter(prev)) continue;
+      latestAt[l.routineId] = l.at;
+      noteText[l.routineId] = words;
+      noteWhen[l.routineId] = _whenLabel(l.at);
+    }
+    // Everything told about each routine, and today's storms. captures come
+    // newest-first from the store, so the lists stay in telling order.
+    final kept = <String, List<QuickCapture>>{};
+    final mad = <QuickCapture>[];
+    final now = DateTime.now();
+    for (final c in captures) {
+      final rid = c.linkedRoutineId;
+      if (rid != null) (kept[rid] ??= []).add(c);
+      if (c.tags.contains('mad-vent') &&
+          c.at.year == now.year &&
+          c.at.month == now.month &&
+          c.at.day == now.day) {
+        mad.add(c);
+      }
+    }
     if (!mounted) return;
     setState(() {
       _doneTodayIds = logs
@@ -421,12 +553,132 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           .toSet();
       _recentNoteText = noteText;
       _recentNoteWhen = noteWhen;
+      _keptByRoutine = kept;
+      _madToday = mad;
       _stepProgress = steps;
       _nextFirstOrder = settings.todayOrder == 'next';
-      _lastSyncLine = trusted.isEmpty
+      final lastSyncAt = trusted.isEmpty
           ? null
-          : 'Last synced across devices: ${trusted.map((d) => d.lastSyncedAt).reduce((a, b) => a.isAfter(b) ? a : b).toLocal().toString().substring(0, 16)}';
+          : trusted
+              .map((d) => d.lastSyncedAt)
+              .reduce((a, b) => a.isAfter(b) ? a : b)
+              .toLocal()
+              .toString()
+              .substring(0, 16);
+      _lastSyncLine = lastSyncAt == null
+          ? null
+          : L.t('Last synced across devices: $lastSyncAt',
+              'סונכרן לאחרונה בין המכשירים: $lastSyncAt');
     });
+  }
+
+  /// The kept words about one thing — notes and recordings together,
+  /// newest first, each with its moment. This answers "what did I already
+  /// say, and to whom?" so a thing can be taken up again later.
+  void _showKeptWords(String title, List<QuickCapture> items) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w600)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  L.t(
+                      'Everything kept about this — nothing is lost, nothing '
+                      'is judged. Tap ▶ to hear a recording again.',
+                      'כל מה שנשמר על זה — שום דבר לא הולך לאיבוד, ואף אחד '
+                      'לא שופט. אפשר ללחוץ ▶ כדי לשמוע הקלטה שוב.'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final c in items)
+                      Builder(builder: (_) {
+                        final words =
+                            (c.text ?? c.transcript ?? c.contextNote ?? '')
+                                .trim();
+                        return ListTile(
+                          leading: Icon(c.audioPath != null
+                              ? Icons.mic
+                              : Icons.notes),
+                          title: Text(words.isEmpty
+                              ? L.t('A voice-only moment (no words yet)',
+                                  'רגע של קול בלבד (עוד בלי מילים)')
+                              : words),
+                          subtitle: Text(
+                            DateFormat('EEE, MMM d · HH:mm').format(c.at) +
+                                (c.contextNote != null && c.text != null
+                                    ? '\n${c.contextNote}'
+                                    : ''),
+                          ),
+                          isThreeLine:
+                              c.contextNote != null && c.text != null,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // The device voice READS the kept words —
+                              // "showing the text to the person" includes
+                              // the person who can't read it right now.
+                              if (words.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.volume_up, size: 28),
+                                  tooltip: L.t('Hear it read aloud',
+                                      'לשמוע את זה בהקראה'),
+                                  onPressed: () => TtsService.speak(words),
+                                ),
+                              if (c.audioPath != null)
+                                IconButton(
+                                  icon: const Icon(Icons.play_circle_filled,
+                                      size: 32),
+                                  tooltip: L.t(
+                                      'Hear the recording (tap twice to stop)',
+                                      'לשמוע את ההקלטה (לחיצה נוספת עוצרת)'),
+                                  onPressed: () async {
+                                    try {
+                                      await AudioPlaybackService
+                                          .toggle(c.audioPath!);
+                                    } catch (_) {
+                                      if (!ctx.mounted) return;
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                              content: Text(L.t(
+                                                  'The sound for this one is not on this device anymore.',
+                                                  'הקול של ההקלטה הזאת כבר לא נמצא במכשיר הזה.'))));
+                                    }
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// When a note was written, in day-words plus the time of day — readable
@@ -436,8 +688,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(at.year, at.month, at.day);
     final hm = DateFormat('HH:mm').format(at);
-    if (day == today) return 'today $hm';
-    if (day == today.subtract(const Duration(days: 1))) return 'yesterday $hm';
+    if (day == today) return L.t('today $hm', 'היום $hm');
+    if (day == today.subtract(const Duration(days: 1))) {
+      return L.t('yesterday $hm', 'אתמול $hm');
+    }
     return '${DateFormat('EEE').format(at)} $hm';
   }
 
@@ -477,8 +731,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     setState(() => _nextFirstOrder = next);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(next
-            ? 'Showing what\'s next first. The order follows the clock.'
-            : 'Showing the whole day, morning to night.')));
+            ? L.t('Showing what\'s next first. The order follows the clock.',
+                'קודם מה שהכי קרוב עכשיו. הסדר הולך לפי השעון.')
+            : L.t('Showing the whole day, morning to night.',
+                'רואים את כל היום, מהבוקר עד הלילה.'))));
   }
 
   /// One more part of this routine handled — quiet micro-win. When the last
@@ -506,10 +762,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       // happened, so an ungentle close costs nothing. Say so once.
       if (!IsarService.lastExitWasClean && !_uncleanExitNoticeShown) {
         _uncleanExitNoticeShown = true;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          duration: Duration(seconds: 6),
-          content: Text(
-              'Last time didn\'t close gently — no worries. Everything was already saved as you went. Nothing lost.'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Text(L.t(
+              'Last time didn\'t close gently — no worries. Everything was already saved as you went. Nothing lost.',
+              'בפעם הקודמת האפליקציה לא נסגרה בעדינות — לא נורא. הכול נשמר תוך כדי, שום דבר לא הלך לאיבוד.')),
         ));
       }
     }
@@ -544,8 +801,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(newVal
-            ? 'Mad mode on. Say anything — it burns out by itself.'
-            : 'Welcome back. Nothing you said is held against you.'),
+            ? L.t('Mad mode on. Say anything — it burns out by itself.',
+                'מצב כעס פועל. תגידו הכול — זה נשרף מעצמו.')
+            : L.t('Welcome back. Nothing you said is held against you.',
+                'ברוכים השבים. שום דבר שאמרתם לא נזקף נגדכם.')),
       ),
     );
   }
@@ -565,8 +824,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Everything for today is already done. Amazing!')),
+        SnackBar(
+            content: Text(L.t('Everything for today is already done. Amazing!',
+                'כל מה שהיה להיום כבר נעשה. מדהים!'))),
       );
     }
   }
@@ -633,24 +893,30 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               null, (best, c) => best == null || c.at.isAfter(best.at) ? c : best);
       if (!mounted) return;
 
+      final noteWords = problemNote?.text ?? problemNote?.contextNote ?? '';
       final sure = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(r.title),
           content: problemNote == null
-              ? const Text('Is it done? 🌿')
-              : Text('You wrote about this one:\n\n'
-                  '“${problemNote.text ?? problemNote.contextNote ?? ''}”\n\n'
-                  'The note stays kept either way. Done anyway?'),
+              ? Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿'))
+              : Text(L.t(
+                  'You wrote about this one:\n\n'
+                      '“$noteWords”\n\n'
+                      'The note stays kept either way. Done anyway?',
+                  'כתבת על המשימה הזאת:\n\n'
+                      '“$noteWords”\n\n'
+                      'הפתק נשאר שמור בכל מקרה. לסמן שנעשה בכל זאת?')),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Not yet')),
+                child: Text(L.t('Not yet', 'עוד לא'))),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
                 child: Text(problemNote == null
-                    ? 'Done ✓'
-                    : 'Yes — done, keep the note ✓')),
+                    ? L.t('Done ✓', 'נעשה ✓')
+                    : L.t('Yes — done, keep the note ✓',
+                        'כן — נעשה, והפתק נשאר ✓'))),
           ],
         ),
       );
@@ -669,14 +935,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         context: context,
         builder: (c) => AlertDialog(
           title: Text(r.title),
-          content: const Text('Take the ✓ back? That happens — no harm.'),
+          content: Text(L.t('Take the ✓ back? That happens — no harm.',
+              'להוריד את ה-✓? קורה — שום נזק.')),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
-                child: const Text('Keep it done')),
+                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
             FilledButton(
                 onPressed: () => Navigator.pop(c, true),
-                child: const Text('Take it back')),
+                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
           ],
         ),
       );
@@ -724,7 +991,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         linkedRoutineId: r.id,
         tags: const ['routine', 'need-help'],
         memoryLevel: MemoryLevel.remember,
-        contextNote: 'What got in the way of: ${r.title}',
+        contextNote: L.t('What got in the way of: ${r.title}',
+            'מה הפריע ל: ${r.title}'),
       ));
     }
 
@@ -742,28 +1010,44 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 style: const TextStyle(
                     fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            const Text(
+            Text(L.t(
                 'Didn\'t happen? That\'s okay. If something got in the way, '
-                'write it down — it will be remembered, so it can get help.'),
+                    'write it down — it will be remembered, so it can get help.',
+                'לא קרה? זה בסדר גמור. אם משהו הפריע, אפשר לכתוב אותו כאן — '
+                    'הוא ייזכר, כדי שיהיה אפשר לעזור.')),
             const SizedBox(height: 16),
             TextField(
               controller: noteCtrl,
               maxLines: 3,
               minLines: 1,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'What got in the way?',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: L.t('What got in the way?', 'מה הפריע?'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             QuickCaptureBar(
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/capture', extra: {
+              onTap: () async {
+                // The skip is logged BEFORE wandering into capture — the
+                // "didn't happen" must never depend on finishing a note.
+                await saveProblemNote();
+                await IsarService.logCompletion(
+                  routineId: r.id,
+                  date: todayStr,
+                  status: CompletionStatus.skipped,
+                  reason: noteCtrl.text.trim().isEmpty
+                      ? null
+                      : noteCtrl.text.trim(),
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (!mounted) return;
+                await context.push('/capture', extra: {
                   'linkedRoutineId': r.id,
                   'tags': ['need-help'],
                 });
+                ref.invalidate(routinesProvider);
+                await _refreshDoneToday();
               },
             ),
             const SizedBox(height: 16),
@@ -771,21 +1055,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               onPressed: () async {
                 await saveProblemNote();
                 if (ctx.mounted) Navigator.pop(ctx);
+                // The why lives IN the skip record itself (owner,
+                // 2026-07-26: "written in the container of itself") — not
+                // only in a linked note that might wander or be deleted.
                 await IsarService.logCompletion(
                   routineId: r.id,
                   date: todayStr,
                   status: CompletionStatus.skipped,
+                  reason: noteCtrl.text.trim().isEmpty
+                      ? null
+                      : noteCtrl.text.trim(),
                 );
                 ref.invalidate(routinesProvider);
                 await _refreshDoneToday();
               },
-              child: const Text('It didn\'t happen today'),
+              child: Text(L.t('It didn\'t happen today', 'זה לא קרה היום')),
             ),
             const SizedBox(height: 8),
             Center(
               child: TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
+                child: Text(L.t('Close', 'סגירה')),
               ),
             ),
           ],
@@ -806,7 +1096,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       text: text,
       tags: ['diary', 'goal-progress'],
       memoryLevel: MemoryLevel.remember,
-      contextNote: 'Daily interactive diary - goals & wins',
+      contextNote: L.t('Daily interactive diary - goals & wins',
+          'יומן יומי — מטרות והצלחות'),
     );
     await IsarService.addCapture(capture);
     _diaryController.clear();
@@ -817,9 +1108,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       // Brief and quiet — the person already chose to keep it; don't ask
       // again. (Promoting a memory to "keep forever" lives in Memories.)
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('In the diary. ✓'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(L.t('In the diary. ✓', 'נשמר ביומן. ✓')),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -837,7 +1128,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: 'Today • BNS',
+        title: L.t('Today • BNS', 'היום • BNS'),
         leading: Image.asset('assets/icon/bns_logo.png', height: 28, width: 28),
         centerTitle: false,
         hideOnDesktopWide:
@@ -845,17 +1136,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
-            tooltip: 'Calendar',
+            tooltip: L.t('Calendar', 'לוח שנה'),
             onPressed: () => context.push('/calendar'),
           ),
           IconButton(
             icon: const Icon(Icons.sync_alt),
-            tooltip: 'Sync your devices',
+            tooltip: L.t('Sync your devices', 'סנכרון בין המכשירים'),
             onPressed: () => context.push('/sync'),
           ),
           IconButton(
             icon: const Icon(Icons.psychology),
-            tooltip: 'Memories',
+            tooltip: L.t('Memories', 'זיכרונות'),
             onPressed: () => context.push('/memories'),
           ),
         ],
@@ -875,8 +1166,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       Expanded(
                         child: Text(
                           _madActive
-                              ? 'It\'s okay to be furious. This space can take it.'
-                              : 'Hey — whatever today looks like is okay.',
+                              ? L.t(
+                                  'It\'s okay to be furious. This space can take it.',
+                                  'מותר להיות עצבניים. המקום הזה יכול להכיל את זה.')
+                              : L.t('Hey — whatever today looks like is okay.',
+                                  'היי — איך שהיום נראה, זה בסדר.'),
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
@@ -889,15 +1183,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         TextButton.icon(
                           onPressed: _toggleMad,
                           icon: const Icon(Icons.whatshot_outlined, size: 18),
-                          label: const Text('I\'m mad'),
+                          label: Text(L.t('I\'m mad', 'אני כועס/ת')),
                         ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
                     _madActive
-                        ? 'Rage is part of the marathon too. Skipping today on purpose still counts.'
-                        : 'Routines support you. They never get mad.',
+                        ? L.t(
+                            'Rage is part of the marathon too. Skipping today on purpose still counts.',
+                            'גם כעס הוא חלק מהמרתון. לדלג על היום בכוונה — גם זה נחשב.')
+                        : L.t('Routines support you. They never get mad.',
+                            'השגרות כאן בשבילך. הן אף פעם לא כועסות.'),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -921,7 +1218,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      'Mad mode is on. Curse everyone and everything — only you see it, and vents burn out on their own within ~2 days. Being here while angry is still showing up.',
+                                      L.t(
+                                          'Mad mode is on. Curse everyone and everything — only you see it, and vents burn out on their own within ~2 days. Being here while angry is still showing up.',
+                                          'מצב כעס פועל. אפשר לקלל את כולם ואת הכול — רק אתם רואים את זה, והפריקות נשרפות מעצמן תוך יומיים בערך. להיות כאן גם כשכועסים — זה עדיין להגיע.'),
                                       style: TextStyle(
                                           fontSize: 13,
                                           color: Theme.of(context)
@@ -936,17 +1235,23 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 spacing: 8,
                                 children: [
                                   FilledButton.tonalIcon(
-                                    onPressed: () =>
-                                        context.push('/capture', extra: {
-                                      'tags': ['mad-vent'],
-                                    }),
+                                    // Await + refresh: the vented moment
+                                    // must be VISIBLE the second you're
+                                    // back ("isn't creating anything that
+                                    // I can see" — it was, invisibly).
+                                    onPressed: () async {
+                                      await context.push('/capture', extra: {
+                                        'tags': ['mad-vent'],
+                                      });
+                                      await _refreshDoneToday();
+                                    },
                                     icon: const Icon(Icons.record_voice_over),
-                                    label:
-                                        const Text('Vent now — voice or text'),
+                                    label: Text(L.t('Vent now — voice or text',
+                                        'לפרוק עכשיו — בקול או בכתב')),
                                   ),
                                   TextButton(
                                     onPressed: _toggleMad,
-                                    child: const Text('Calm again'),
+                                    child: Text(L.t('Calm again', 'רגוע/ה שוב')),
                                   ),
                                 ],
                               ),
@@ -971,13 +1276,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                   const SizedBox(height: 28),
 
-                  Text('Today\'s gentle steps',
+                  Text(L.t('Today\'s gentle steps', 'הצעדים הרכים של היום'),
                       style: Theme.of(context).textTheme.titleMedium),
                   if (isDesktopWide)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        'Keyboard: Ctrl+G jumps here • ↑↓ move • Enter = done • S = skip with reason',
+                        L.t(
+                            'Keyboard: Ctrl+G jumps here • ↑↓ move • Enter = done • S = skip with reason',
+                            'מקלדת: Ctrl+G קופץ לכאן • ↑↓ תזוזה • Enter = נעשה • S = דילוג עם סיבה'),
                         style: TextStyle(
                             fontSize: 11,
                             color:
@@ -1002,15 +1309,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(_guidedMode
-                                  ? 'Nothing on the list right now. All is well. 🌿'
-                                  : 'Nothing scheduled for today — that\'s perfectly fine.'),
+                                  ? L.t(
+                                      'Nothing on the list right now. All is well. 🌿',
+                                      'אין כלום ברשימה כרגע. הכול טוב. 🌿')
+                                  : L.t(
+                                      'Nothing scheduled for today — that\'s perfectly fine.',
+                                      'אין שום דבר מתוכנן להיום — וזה בסדר גמור.')),
                               if (!_guidedMode) ...[
                                 const SizedBox(height: 12),
                                 FilledButton.tonalIcon(
                                   onPressed: () => context.push('/routines'),
                                   icon: const Icon(Icons.add),
-                                  label: const Text(
-                                      'Add a routine when you\'re ready'),
+                                  label: Text(L.t(
+                                      'Add a routine when you\'re ready',
+                                      'להוסיף שגרה כשמתאים לך')),
                                 ),
                               ],
                             ],
@@ -1052,8 +1364,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                       size: 16),
                                   label: Text(
                                       _nextFirstOrder
-                                          ? 'Showing: what\'s next'
-                                          : 'Showing: morning to night',
+                                          ? L.t('Showing: what\'s next',
+                                              'מוצג: מה הבא בתור')
+                                          : L.t('Showing: morning to night',
+                                              'מוצג: מהבוקר עד הלילה'),
                                       style: const TextStyle(fontSize: 12)),
                                 ),
                               ),
@@ -1083,6 +1397,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                       todaysRoutines[i].id],
                                   recentNoteWhen: _recentNoteWhen[
                                       todaysRoutines[i].id],
+                                  keptCount: _keptByRoutine[
+                                              todaysRoutines[i].id]
+                                          ?.length ??
+                                      0,
+                                  onShowKept: () => _showKeptWords(
+                                      todaysRoutines[i].title,
+                                      _keptByRoutine[
+                                              todaysRoutines[i].id] ??
+                                          const []),
                                   onToggle: () =>
                                       _toggleComplete(todaysRoutines[i]),
                                   onSkip: () =>
@@ -1095,21 +1418,48 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     },
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Text('Error loading: $e'),
+                    error: (e, _) =>
+                        Text(L.t('Error loading: $e', 'שגיאה בטעינה: $e')),
                   ),
 
                   const SizedBox(height: 24),
+
+                  // Today's storms, kept — "what I got mad at this day",
+                  // said sweetly and revisitable at the end of the rows, so
+                  // it can be told to the right person when things are calm
+                  // ("I didn't remember who tells me what").
+                  if (_madToday.isNotEmpty) ...[
+                    Card(
+                      child: ListTile(
+                        leading: Icon(Icons.air,
+                            color: Theme.of(context).colorScheme.tertiary),
+                        title: Text(
+                            L.t('Hard moments today, kept', 'רגעים קשים היום, שמורים')),
+                        subtitle: Text(L.t(
+                            '${_madToday.length} kept — to look at, hear again, '
+                                'or tell someone when it suits you.',
+                            '${_madToday.length} נשמרו — להסתכל, לשמוע שוב, '
+                                'או לספר למישהו כשמתאים לך.')),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _showKeptWords(
+                            L.t('Hard moments today', 'רגעים קשים היום'),
+                            _madToday),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // The diary: one calm box, no presets, no double-asking.
                   // (Copy is for the person, never for the developer.)
                   // Guided mode (level 4): no building, no diary box —
                   // only the list; words go through long-press or capture.
                   if (!_guidedMode) ...[
-                    Text('Diary',
+                    Text(L.t('Diary', 'יומן'),
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     Text(
-                      'A good thing, a hard thing — both belong here.',
+                      L.t('A good thing, a hard thing — both belong here.',
+                          'דבר טוב, דבר קשה — לשניהם יש מקום כאן.'),
                       style: TextStyle(
                           fontSize: 12,
                           color:
@@ -1122,8 +1472,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       maxLines: 3, // more robust typing area on PC
                       minLines: 2,
                       decoration: InputDecoration(
-                        hintText: 'How is today going?',
-                        helperText: isDesktopWide ? 'Ctrl+D jumps here' : null,
+                        hintText: L.t('How is today going?', 'איך היום מרגיש?'),
+                        helperText: isDesktopWide
+                            ? L.t('Ctrl+D jumps here', 'Ctrl+D קופץ לכאן')
+                            : null,
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -1131,13 +1483,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ElevatedButton.icon(
                       onPressed: _saveDiaryEntry,
                       icon: const Icon(Icons.check),
-                      label: const Text('Keep in diary'),
+                      label: Text(L.t('Keep in diary', 'לשמור ביומן')),
                     ),
                   ],
 
                   const SizedBox(height: 24),
                   QuickCaptureBar(
-                    onTap: () => context.push('/capture'),
+                    onTap: () async {
+                      await context.push('/capture');
+                      await _refreshDoneToday();
+                    },
                   ),
                   // On PC the sidebar covers navigation — these stay for mobile.
                   // Guided mode: the calendar stays (visual, read-mostly);
@@ -1147,23 +1502,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     OutlinedButton.icon(
                       onPressed: () => context.push('/calendar'),
                       icon: const Icon(Icons.event_note),
-                      label: const Text(
-                          'Open calendar for appointments & day notes'),
+                      label: Text(L.t(
+                          'Open calendar for appointments & day notes',
+                          'לפתוח לוח שנה — תורים והערות ליום')),
                     ),
                     const SizedBox(height: 8),
                     if (!_guidedMode)
                     OutlinedButton.icon(
                       onPressed: () => context.push('/routines'),
                       icon: const Icon(Icons.list_alt),
-                      label:
-                          const Text('Manage all routines (add, edit, delete)'),
+                      label: Text(L.t('Manage all routines (add, edit, delete)',
+                          'ניהול כל השגרות (הוספה, עריכה, מחיקה)')),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: () => context.push('/memories'),
                       icon: const Icon(Icons.psychology),
-                      label: const Text(
-                          'Memory section: Remember & Memorize what happened'),
+                      label: Text(L.t(
+                          'Memory section: Remember & Memorize what happened',
+                          'אזור הזיכרון: לזכור ולשנן את מה שקרה')),
                     ),
                   ],
 
@@ -1176,17 +1533,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'This button is for the caregiver. '
-                                    'Hold it a moment and the setup opens.')));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(L.t(
+                                'This button is for the caregiver. '
+                                    'Hold it a moment and the setup opens.',
+                                'הכפתור הזה מיועד למלווה. '
+                                    'לחיצה ארוכה — וההגדרות נפתחות.'))));
                       },
                       onLongPress: () => context
                           .push('/routines', extra: {'caregiver': true}),
                       icon: const Icon(Icons.volunteer_activism),
-                      label:
-                          const Text('Caregiver — hold to set up the day'),
+                      label: Text(L.t('Caregiver — hold to set up the day',
+                          'מלווה — לחיצה ארוכה לסידור היום')),
                     ),
                   ],
                 ],
@@ -1213,7 +1571,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _markNextDone,
-        label: const Text('Mark next step done'),
+        label: Text(L.t('Mark next step done', 'לסמן שהצעד הבא נעשה')),
         icon: const Icon(Icons.check_rounded),
       ),
     );

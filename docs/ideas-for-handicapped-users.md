@@ -224,6 +224,12 @@ Never put diary *construction* on level 4. Words yes; planning no.
 | Capture after Android record | “no words yet” unless user finds small mic | Gentle “Speak words for this note” once mic is free; still optional, never blocks save |
 | Capture text / context | Already had mics | Unchanged |
 
+### Next hero + Coming up (2026-07-27) — shipped
+- ✅ **Clean Next card** on Today (relaxing `primaryContainer`, large type, one primary “It's done”, secondary “Something got in the way”). No stickers/busy decoration — fog first.
+- ✅ Hero always ordered by clock “what's next”; full list below keeps morning→night or next preference.
+- ✅ **Coming up** strip: next two open items only.
+- ✅ Empty day: soft clear card; guided copy stays list-first.
+
 ### Day complete (wave 13, 2026-07-27) — shipped
 
 - ✅ **Day diary thread** (`/day`): morning→night feed of done, didn’t-happen + reason, hard notes, diary lines, thoughts, plans. Search words and reasons. Static date change (no slide).  

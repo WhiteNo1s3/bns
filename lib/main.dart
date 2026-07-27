@@ -10,6 +10,7 @@ import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
+import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -1323,24 +1324,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ),
-                  const SizedBox(height: 28),
-
-                  Text(L.t('Today\'s gentle steps', 'הצעדים הרכים של היום'),
-                      style: Theme.of(context).textTheme.titleMedium),
-                  if (isDesktopWide)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        L.t(
-                            'Keyboard: Ctrl+G jumps here • ↑↓ move • Enter = done • S = skip with reason',
-                            'מקלדת: Ctrl+G קופץ לכאן • ↑↓ תזוזה • Enter = נעשה • S = דילוג עם סיבה'),
-                        style: TextStyle(
-                            fontSize: 11,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
                   routinesAsync.when(
                     data: (routines) {
@@ -1351,19 +1335,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       _todayRoutines =
                           todaysRoutines; // for the keyboard handler
 
+                      // Hero always uses clock "what's next" order — the
+                      // list below can still follow the person's preference.
+                      final openNext = openRoutinesInNextOrder(
+                        todays: todaysRoutines,
+                        doneIds: _doneTodayIds,
+                        skippedIds: _skippedTodayIds,
+                      );
+                      final hero =
+                          openNext.isNotEmpty ? openNext.first : null;
+                      final coming = openNext.skip(1).take(2).toList();
+
                       if (todaysRoutines.isEmpty) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(_guidedMode
-                                  ? L.t(
-                                      'Nothing on the list right now. All is well. 🌿',
-                                      'אין כלום ברשימה כרגע. הכול טוב. 🌿')
-                                  : L.t(
-                                      'Nothing scheduled for today — that\'s perfectly fine.',
-                                      'אין שום דבר מתוכנן להיום — וזה בסדר גמור.')),
+                              DayClearCard(
+                                  guided: _guidedMode, textScale: _textScale),
                               if (!_guidedMode) ...[
                                 const SizedBox(height: 12),
                                 FilledButton.tonalIcon(
@@ -1379,90 +1369,147 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         );
                       }
 
-                      // Focusable list: Ctrl+G (or Tab) reaches it, arrows move the
-                      // teal selection, Enter completes, S opens skip-with-reason.
-                      return Focus(
-                        focusNode: _routinesFocus,
-                        onKeyEvent: (node, event) => _handleListKey(event),
-                        onFocusChange: (hasFocus) {
-                          setState(() {
-                            if (hasFocus &&
-                                _kbSelected < 0 &&
-                                todaysRoutines.isNotEmpty) {
-                              _kbSelected = 0;
-                            }
-                            if (!hasFocus) _kbSelected = -1;
-                          });
-                        },
-                        child: Column(
-                          children: [
-                            // Order choice: the calm timeline (default) or
-                            // "what's next from right now" (owner option,
-                            // 2026-07-08: "now its 18:18, what is the
-                            // closest task to do"). Hidden in guided mode —
-                            // fewer controls, the inspector decides.
-                            if (!_guidedMode)
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: _toggleTodayOrder,
-                                  icon: Icon(
-                                      _nextFirstOrder
-                                          ? Icons.schedule
-                                          : Icons.wb_twilight,
-                                      size: 16),
-                                  label: Text(
-                                      _nextFirstOrder
-                                          ? L.t('Showing: what\'s next',
-                                              'מוצג: מה הבא בתור')
-                                          : L.t('Showing: morning to night',
-                                              'מוצג: מהבוקר עד הלילה'),
-                                      style: const TextStyle(fontSize: 12)),
-                                ),
-                              ),
-                            // Synchronous done-state from the cached set —
-                            // stable frames, nothing async during rebuilds.
-                            for (int i = 0; i < todaysRoutines.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: RoutineTile(
-                                  routine: todaysRoutines[i],
-                                  isDone: _doneTodayIds
-                                      .contains(todaysRoutines[i].id),
-                                  big: _guidedMode,
-                                  stepsDone: _stepProgress[
-                                          todaysRoutines[i].id] ??
-                                      0,
-                                  onStepDone: todaysRoutines[i]
-                                          .steps.isNotEmpty
-                                      ? () =>
-                                          _advanceStep(todaysRoutines[i])
-                                      : null,
-                                  selected: _routinesFocus.hasFocus &&
-                                      i == _kbSelected,
-                                  skippedToday: _skippedTodayIds
-                                      .contains(todaysRoutines[i].id),
-                                  recentNote: _recentNoteText[
-                                      todaysRoutines[i].id],
-                                  recentNoteWhen: _recentNoteWhen[
-                                      todaysRoutines[i].id],
-                                  keptCount: _keptByRoutine[
-                                              todaysRoutines[i].id]
-                                          ?.length ??
-                                      0,
-                                  onShowKept: () => _showKeptWords(
-                                      todaysRoutines[i].title,
-                                      _keptByRoutine[
-                                              todaysRoutines[i].id] ??
-                                          const []),
-                                  onToggle: () =>
-                                      _toggleComplete(todaysRoutines[i]),
-                                  onSkip: () =>
-                                      _openDidntHappenSheet(todaysRoutines[i]),
-                                ),
-                              ),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // —— NEXT HERO (clean, big, one job) ——
+                          if (hero != null)
+                            NextHeroCard(
+                              routine: hero,
+                              textScale: _textScale,
+                              stepsDone: _stepProgress[hero.id] ?? 0,
+                              recentNote: _recentNoteText[hero.id],
+                              onDone: () => _toggleComplete(hero),
+                              onProblem: () =>
+                                  _openDidntHappenSheet(hero),
+                              onStepDone: hero.steps.isNotEmpty
+                                  ? () => _advanceStep(hero)
+                                  : null,
+                            )
+                          else
+                            DayClearCard(
+                                guided: _guidedMode, textScale: _textScale),
+
+                          if (coming.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ComingUpStrip(
+                              textScale: _textScale,
+                              items: coming
+                                  .map((r) => (
+                                        routine: r,
+                                        timeLabel: r.time,
+                                      ))
+                                  .toList(),
+                            ),
                           ],
-                        ),
+
+                          const SizedBox(height: 28),
+                          Text(
+                              L.t('Today\'s gentle steps',
+                                  'הצעדים הרכים של היום'),
+                              style:
+                                  Theme.of(context).textTheme.titleMedium),
+                          if (isDesktopWide)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                L.t(
+                                    'Keyboard: Ctrl+G jumps here • ↑↓ move • Enter = done • S = skip with reason',
+                                    'מקלדת: Ctrl+G קופץ לכאן • ↑↓ תזוזה • Enter = נעשה • S = דילוג עם סיבה'),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant),
+                              ),
+                            ),
+                          const SizedBox(height: 10),
+
+                          // Focusable list: Ctrl+G reaches it, arrows move,
+                          // Enter completes, S opens skip-with-reason.
+                          Focus(
+                            focusNode: _routinesFocus,
+                            onKeyEvent: (node, event) =>
+                                _handleListKey(event),
+                            onFocusChange: (hasFocus) {
+                              setState(() {
+                                if (hasFocus &&
+                                    _kbSelected < 0 &&
+                                    todaysRoutines.isNotEmpty) {
+                                  _kbSelected = 0;
+                                }
+                                if (!hasFocus) _kbSelected = -1;
+                              });
+                            },
+                            child: Column(
+                              children: [
+                                if (!_guidedMode)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: _toggleTodayOrder,
+                                      icon: Icon(
+                                          _nextFirstOrder
+                                              ? Icons.schedule
+                                              : Icons.wb_twilight,
+                                          size: 16),
+                                      label: Text(
+                                          _nextFirstOrder
+                                              ? L.t('List: what\'s next',
+                                                  'רשימה: מה הבא בתור')
+                                              : L.t(
+                                                  'List: morning to night',
+                                                  'רשימה: מהבוקר עד הלילה'),
+                                          style:
+                                              const TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                for (int i = 0;
+                                    i < todaysRoutines.length;
+                                    i++)
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 8),
+                                    child: RoutineTile(
+                                      routine: todaysRoutines[i],
+                                      isDone: _doneTodayIds
+                                          .contains(todaysRoutines[i].id),
+                                      big: _guidedMode,
+                                      stepsDone: _stepProgress[
+                                              todaysRoutines[i].id] ??
+                                          0,
+                                      onStepDone: todaysRoutines[i]
+                                              .steps.isNotEmpty
+                                          ? () => _advanceStep(
+                                              todaysRoutines[i])
+                                          : null,
+                                      selected: _routinesFocus.hasFocus &&
+                                          i == _kbSelected,
+                                      skippedToday: _skippedTodayIds
+                                          .contains(todaysRoutines[i].id),
+                                      recentNote: _recentNoteText[
+                                          todaysRoutines[i].id],
+                                      recentNoteWhen: _recentNoteWhen[
+                                          todaysRoutines[i].id],
+                                      keptCount: _keptByRoutine[
+                                                  todaysRoutines[i].id]
+                                              ?.length ??
+                                          0,
+                                      onShowKept: () => _showKeptWords(
+                                          todaysRoutines[i].title,
+                                          _keptByRoutine[
+                                                  todaysRoutines[i].id] ??
+                                              const []),
+                                      onToggle: () => _toggleComplete(
+                                          todaysRoutines[i]),
+                                      onSkip: () => _openDidntHappenSheet(
+                                          todaysRoutines[i]),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       );
                     },
                     loading: () =>

@@ -57,6 +57,39 @@ void main() {
     return List<int>.generate(size, (_) => r.nextInt(256));
   }
 
+  test('reliable save: verify passes; second save keeps .prev good', () async {
+    final audioFile = File('${tmp.path}/a.m4a')
+      ..writeAsBytesSync(bigAudioBytes(64 * 1024, 7));
+    final outPath = '${tmp.path}/latest.bns';
+
+    await BnsFileImager.packToFile(
+      manifest: manifest(),
+      data: sampleData(),
+      audioFiles: [(name: 'a.m4a', path: audioFile.path)],
+      outPath: outPath,
+    );
+    await BnsFileImager.verifyZipV2File(outPath);
+    expect(BnsFileImager.hasZipV2Mark(File(outPath).readAsBytesSync()), isTrue);
+
+    final firstBytes = File(outPath).readAsBytesSync();
+
+    // Second image with different text — previous good becomes .prev.
+    final data2 = sampleData();
+    (data2['captures'] as List).first['text'] = 'buy milk';
+    await BnsFileImager.packToFile(
+      manifest: manifest(),
+      data: data2,
+      audioFiles: [(name: 'a.m4a', path: audioFile.path)],
+      outPath: outPath,
+    );
+    await BnsFileImager.verifyZipV2File(outPath);
+    expect(File('$outPath.prev').existsSync(), isTrue);
+    expect(File('$outPath.prev').readAsBytesSync(), firstBytes);
+    // Current file is the new content.
+    final back = BnsZipPacker().unpack(File(outPath).readAsBytesSync());
+    expect((back.data['captures'] as List).first['text'], 'buy milk');
+  });
+
   test('streamed pack → in-memory unpack (seals verify, bytes identical)',
       () async {
     final audioBytes = bigAudioBytes(3 * 1024 * 1024, 42);

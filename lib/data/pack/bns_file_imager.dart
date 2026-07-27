@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
@@ -37,9 +38,18 @@ class BnsFileImager {
     return digest.toString();
   }
 
-  /// Image the given state into [outPath] as a standard zip-v2 .bns.
-  /// Audio travels disk→zip streamed; only data.json.gz (small) is in memory.
-  /// Writes are atomic: temp file first, rename on success.
+  /// Image the given state into [outPath] as a standard **zip-v2** .bns.
+  ///
+  /// **Winner takes all:** every real portable save is zip-v2 — identity
+  /// marker, gzip+json data, STORED audio, SHA-256 seal. No experimental
+  /// container is ever written here.
+  ///
+  /// Reliability (owner law 2026-07-27):
+  /// 1. Write to `.tmp` only.
+  /// 2. **Verify** the temp file (mark + structure + integrity seal).
+  /// 3. Keep the previous good file as `.prev` when replacing.
+  /// 4. Rename temp → final only after verify passes.
+  /// A failed verify leaves the previous good `.bns` untouched.
   static Future<void> packToFile({
     required Map<String, dynamic> manifest,
     required Map<String, dynamic> data,
@@ -65,6 +75,13 @@ class BnsFileImager {
     };
 
     final tmpPath = '$outPath.tmp';
+    final prevPath = '$outPath.prev';
+    // Stale temp from a killed run must not confuse us.
+    try {
+      final stale = File(tmpPath);
+      if (await stale.exists()) await stale.delete();
+    } catch (_) {}
+
     final encoder = ZipFileEncoder();
     encoder.create(tmpPath);
     try {
@@ -84,7 +101,7 @@ class BnsFileImager {
             File(audio.path), 'audio/${audio.name}', ZipFileEncoder.STORE);
       }
       await encoder.close();
-    } catch (_) {
+    } catch (e) {
       try {
         encoder.closeSync();
       } catch (_) {}
@@ -94,9 +111,172 @@ class BnsFileImager {
       rethrow;
     }
 
+    // VERIFY before we touch the previous good file.
+    try {
+      await verifyZipV2File(tmpPath);
+    } catch (e) {
+      try {
+        await File(tmpPath).delete();
+      } catch (_) {}
+      throw FormatException(
+          'Could not finish a reliable .bns save (the new file failed its '
+          'own check). Your previous backup is still there. $e');
+    }
+
     final out = File(outPath);
-    if (await out.exists()) await out.delete();
-    await File(tmpPath).rename(outPath);
+    // Preserve last known good as .prev (best effort).
+    if (await out.exists()) {
+      try {
+        final prev = File(prevPath);
+        if (await prev.exists()) await prev.delete();
+        await out.rename(prevPath);
+      } catch (_) {
+        // If we can't keep .prev, still try a careful replace below.
+        try {
+          await out.delete();
+        } catch (_) {}
+      }
+    }
+
+    try {
+      await File(tmpPath).rename(outPath);
+    } catch (e) {
+      // Restore previous good if rename failed mid-flight.
+      try {
+        final prev = File(prevPath);
+        if (await prev.exists() && !await out.exists()) {
+          await prev.rename(outPath);
+        }
+      } catch (_) {}
+      try {
+        await File(tmpPath).delete();
+      } catch (_) {}
+      throw FormatException(
+          'Could not put the new .bns in place. Your previous backup was '
+          'kept if one existed. $e');
+    }
+  }
+
+  /// Fixed-offset identity mark (same rule as [BnsImporter.hasBnsMark]).
+  static bool hasZipV2Mark(List<int> bytes) {
+    const name = 'mimetype';
+    const content = BnsZipPacker.mediaType;
+    const end = 30 + name.length + content.length;
+    if (bytes.length < end) return false;
+    if (bytes[0] != 0x50 || bytes[1] != 0x4B) return false;
+    final nameBytes = bytes.sublist(30, 30 + name.length);
+    final contentBytes = bytes.sublist(30 + name.length, end);
+    return String.fromCharCodes(nameBytes) == name &&
+        String.fromCharCodes(contentBytes) == content;
+  }
+
+  /// Post-write / pre-publish check: this file is a real zip-v2 .bns with a
+  /// valid seal. Used so we never promote a corrupt temp over a good backup.
+  static Future<void> verifyZipV2File(String path) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      throw const FormatException('Missing .bns file after save.');
+    }
+    final len = await file.length();
+    if (len < 54) {
+      throw const FormatException('Saved .bns is too small to be valid.');
+    }
+
+    final head = <int>[];
+    await for (final chunk in file.openRead(0, 64)) {
+      head.addAll(chunk);
+      if (head.length >= 64) break;
+    }
+    if (!hasZipV2Mark(head)) {
+      throw const FormatException(
+          'Saved .bns is missing the BNS identity mark.');
+    }
+
+    final input = InputFileStream(path);
+    late final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBuffer(input, verify: true);
+    } catch (_) {
+      input.closeSync();
+      throw const FormatException(
+          'Saved .bns failed the container check (CRC/structure).');
+    }
+
+    try {
+      Map<String, dynamic>? manifest;
+      List<int>? dataGz;
+      final audioContents = <String, List<int>>{};
+
+      for (final entry in archive) {
+        if (!entry.isFile) continue;
+        if (entry.name == 'manifest.json') {
+          manifest = jsonDecode(utf8.decode(entry.content as List<int>))
+              as Map<String, dynamic>;
+        } else if (entry.name == 'data.json.gz') {
+          dataGz = entry.content as List<int>;
+        } else if (entry.name.startsWith('audio/')) {
+          final name = entry.name.substring('audio/'.length);
+          if (name.isEmpty || name.contains('/') || name.contains('\\')) {
+            continue;
+          }
+          final content = entry.content;
+          audioContents[name] = content is List<int>
+              ? content
+              : Uint8List.fromList(List<int>.from(content as List));
+        }
+      }
+
+      if (manifest == null || dataGz == null) {
+        throw const FormatException(
+            'Saved .bns is missing manifest or data.');
+      }
+      if (manifest['packer'] != null && manifest['packer'] != 'zip-v2') {
+        throw const FormatException(
+            'Saved .bns is not zip-v2 (winner format required for saves).');
+      }
+
+      // Prove data is real gzip+json (the portable contract with the Explorer).
+      try {
+        final plain = GZipDecoder().decodeBytes(dataGz);
+        final decoded = jsonDecode(utf8.decode(plain));
+        if (decoded is! Map) {
+          throw const FormatException('Saved .bns data root is not an object.');
+        }
+      } catch (e) {
+        if (e is FormatException) rethrow;
+        throw const FormatException(
+            'Saved .bns data would not open (gzip/json).');
+      }
+
+      final integrity = manifest['integrity'];
+      if (integrity is Map) {
+        final expectedData = integrity['data'];
+        if (expectedData is String &&
+            sha256.convert(dataGz).toString() != expectedData) {
+          throw const FormatException(
+              'Saved .bns failed its data integrity seal.');
+        }
+        final expectedAudio = integrity['audio'];
+        if (expectedAudio is Map) {
+          for (final e in expectedAudio.entries) {
+            final name = e.key.toString();
+            final expected = e.value;
+            final bytes = audioContents[name];
+            if (expected is! String) continue;
+            if (bytes == null) {
+              throw FormatException(
+                  'Saved .bns is missing sealed voice note "$name".');
+            }
+            if (sha256.convert(bytes).toString() != expected) {
+              throw FormatException(
+                  'Saved .bns voice note "$name" failed its integrity seal.');
+            }
+          }
+        }
+      }
+    } finally {
+      input.closeSync();
+    }
   }
 
   /// Read a .bns from disk, streaming every audio entry straight into

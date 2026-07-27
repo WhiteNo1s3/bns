@@ -74,31 +74,28 @@ All readers (Dart packer registry) accept it; **zip-v2 remains the default
 writer** — rename-to-.zip transparency keeps that seat. The benchmark races
 every registered packer.
 
-## Third container: BNS3 (`bns3-v1`) — original coding + clever compression
-Owner direction 2026-07-27: *clever compression and original coding for new
-heights* — without re-deflating voice notes (.m4a is already compressed).
+## Winner takes all: zip-v2 is the only save format (owner law, 2026-07-27)
+**Every real portable save writes zip-v2** — export, LAN payload, silent
+`BNS_Latest_*.bns`, family share. That is what “it saves .bns” means:
 
-### BNS Wire (`BNSD`) — original data coding
-`lib/data/pack/bns_wire.dart`: string-pool + typed TLV tree for the structured
-state (routines, captures, logs, settings…). Keys and repeated strings appear
-once. Uncompressed wire is ~65% of raw JSON on diary-shaped data. Pure Dart,
-isolate-safe.
+1. Live DB = open JSON store (always safe, atomic per change).
+2. Travel form = **zip-v2 only**, via `BnsFileImager.packToFile`:
+   - write `.tmp`
+   - **verify** (identity mark + CRC + gzip+json open + SHA-256 seal)
+   - keep previous good as `.prev`
+   - rename temp → final only after verify
+3. If verify fails, the previous good `.bns` stays; live data is untouched.
 
-### Container layout
-```
-"BNS3"                         magic @ 0
-u32le manifestLen + manifest JSON  (packer + dataCodec + sha256 integrity)
-u8    dataCodec                  0=gzip+json, 1=gzip+BNSD, 2=raw BNSD
-u32le dataLen     + data bytes   (hashed)
-u32le audioCount
-  [ u32le nameLen + name + u32le byteLen + raw audio ] × N
-```
-**Codec race at pack time:** write whichever of gzip(JSON), gzip(Wire), or raw
-Wire is smallest — never pay more than classic. Audio stays STORED raw.
-SHA-256 seal identical in spirit to zip-v2 / bns2.
+BNS2 / BNS3 / BNS Wire are **readers + research** (patent-track compress /
+decompress IP). They must never replace the save path. The Explorer and
+rename-to-.zip story stay on zip-v2 forever unless a deliberate product break.
 
-Default writer is still **zip-v2** (transparency). `BnsPackers.compact` is
-BNS3 for paths that prefer original compact form. Registry detects BNS3 first.
+## Research containers (read-only for app saves)
+
+### BNS Wire (`BNSD`) + BNS3 (`bns3-v1`)
+Original string-pool TLV + optional BNS3 envelope (codec race, seal). Useful
+for future LAN deltas / patent narrative. **Not written by the exporter.**
+Importers may detect and open them if handed a file.
 
 ## Two official implementations (cross-verified)
 zip-v2 is implemented twice, on purpose — a format with two independent

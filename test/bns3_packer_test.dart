@@ -42,11 +42,11 @@ void main() {
     expect(back.audioFiles.first.bytes, audio.first.bytes);
   });
 
-  test('registry detects bns3; zip remains default writer; compact is bns3', () {
+  test('registry detects bns3; zip-v2 is the only save writer', () {
     final bytes = build();
     expect(BnsPackers.detect(bytes)?.formatId, 'bns3-v1');
+    // Winner takes all: research formats read; saves always zip-v2.
     expect(BnsPackers.current.formatId, 'zip-v2');
-    expect(BnsPackers.compact.formatId, 'bns3-v1');
   });
 
   test('one flipped byte in the data payload is rejected', () {

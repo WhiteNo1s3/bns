@@ -170,12 +170,16 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - Capture text/context mics, `SttService` locale ladder, Windows Vosk-after-WAV: kept as-is.
 - Parked: Days thread UI, inspector-only pattern summary, offline Android file STT, Hebrew Vosk model.
 
-2026-07-27 wave 14 — **BNS3 + BNS Wire** (clever compression + original coding):
-- ✅ **`BnsWire` (BNSD)**: original binary tree coding with string pool — ~65% of raw JSON on diary mass (uncompressed). `lib/data/pack/bns_wire.dart`.
-- ✅ **`Bns3Packer` (bns3-v1)**: original container (magic `BNS3`), SHA-256 seal, audio STORED, **codec race** at pack (gzip+json / gzip+wire / raw wire → keep smallest). Never re-deflate .m4a.
-- ✅ Registry: detect BNS3/BNS2/ZIP; `current` = zip-v2 (transparency); `compact` = bns3-v1.
-- ✅ Tests: wire roundtrip + size, bns3 seal/tamper/size race, full pack benchmark races all three.
-- Honest limit: whole-file size is still dominated by voice; data-only path is where coding wins. Delta/LAN next.
+2026-07-27 wave 14 — **BNS3 + BNS Wire** (research coding; not the save path):
+- ✅ Wire + BNS3 packers exist as **readers / patent-track IP** (string-pool TLV, codec race).
+- ✅ **zip-v2 winner takes all** for every real save (owner correction same day).
+
+2026-07-27 wave 15 — **reliable zip-v2 save (winner takes all)**:
+- ✅ Law: exporter / imager / LAN / `BNS_Latest` write **only zip-v2**.
+- ✅ **Reliable method**: temp → **verify** (mark + CRC + gzip+json + seal) → keep `.prev` → promote. Failed verify never overwrites last good .bns.
+- ✅ Silent image only advances revision marker after a successful export.
+- ✅ Tests: second save keeps `.prev` byte-identical to first good file.
+- Research BNS3/Wire stay for detect/import + future delta ideas — not the suitcase people open.
 
 2026-07-27 wave 13 — **the day, complete** (day thread + care glance + mad-vent-safe summary):
 - ✅ **`lib/core/day_feed.dart`** — pure day diary feed (done / skip+reason / need-help / diary / thought / event / optional mad-vent), chronological morning→night; `buildDayAutoSummary` **never** includes mad-vents; `buildCareGlance` soft caregiver patterns (no scoreboard, vents not headlined).

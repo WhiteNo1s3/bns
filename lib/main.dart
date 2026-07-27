@@ -227,11 +227,15 @@ class _BnsAppState extends ConsumerState<BnsApp> {
       await IsarService.flush();
       final settings = await IsarService.getSettings();
       if (settings.autoImageEnabled) {
+        // Reliable zip-v2 save (verify + .prev). Only advance the revision
+        // marker when the portable file is proven good — otherwise we retry
+        // next pause/exit instead of pretending we imaged.
         await BnsExporter.exportLatestSnapshot();
       }
       _lastImagedRevision = rev;
     } catch (_) {
-      // Imaging is a bonus copy — the live store is already safe on disk.
+      // Live store is already safe on disk. Portable .bns keeps its last
+      // verified copy (.prev / previous BNS_Latest). Do NOT bump revision.
     } finally {
       _imaging = false;
     }

@@ -9,19 +9,16 @@ import 'package:bns/data/pack/bns_packers.dart';
 /// Fully self-contained .bns exporter.
 /// "Images" the complete current state of the app into a portable .bns file.
 ///
-/// The container itself lives behind the [BnsPacker] abstraction
-/// (lib/data/pack/) — this class only gathers the snapshot, decides the file
-/// name, and writes atomically. Container evolution never touches this file.
+/// **Always zip-v2** (winner takes all). Reliable method:
+/// gather snapshot → stream pack to temp → verify seal → keep `.prev` →
+/// promote. See [BnsFileImager.packToFile].
 ///
-/// Responsiveness: all heavy lifting (reading audio, compressing, packing,
-/// disk write) runs in a background isolate — the UI thread never stutters.
-/// Everyday saves never touch this path at all (open store, see
-/// bns-format.md "Database vs travel file").
+/// Responsiveness: heavy work runs in a background isolate. Everyday live
+/// edits never touch this path (open store, see bns-format.md).
 class BnsExporter {
-  /// Silent lifecycle imaging: keeps ONE always-fresh .bns per device
-  /// (`BNS_Latest_<device>.bns`, overwritten in place) so the user never has
-  /// to press "export" to have a shareable, current database file. Called by
-  /// the lifecycle guard on pause/exit; skipped upstream when nothing changed.
+  /// Silent lifecycle imaging: keeps ONE always-fresh **zip-v2** .bns per
+  /// device (`BNS_Latest_<device>.bns`) so a shareable file always exists
+  /// without pressing export. Previous good file kept as `.prev`.
   static Future<File> exportLatestSnapshot() async {
     final settings = await IsarService.getSettings();
     final name = 'BNS_Latest_${settings.deviceName.replaceAll(' ', '_')}.bns';

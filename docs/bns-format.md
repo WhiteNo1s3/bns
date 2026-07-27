@@ -70,11 +70,35 @@ u32le manifestLen + manifest  (sealed: packer + sha256 integrity block)
 u32le dataLen     + data.json.gz
 u32le audioCount  + [u32le nameLen + name + u32le byteLen + bytes]×N
 ```
-All readers (Dart packer registry, web satellite) accept it; **zip-v2 remains
-the only writer** — benchmarked head-to-head on the 5.9MB heavy dataset the
-two are a dead heat (bns2 85/53ms vs zip 83/54ms pack/unpack), so the
-rename-to-.zip transparency keeps the writer seat. The benchmark races every
-registered packer; a future format must win there WITH integrity to take over.
+All readers (Dart packer registry) accept it; **zip-v2 remains the default
+writer** — rename-to-.zip transparency keeps that seat. The benchmark races
+every registered packer.
+
+## Third container: BNS3 (`bns3-v1`) — original coding + clever compression
+Owner direction 2026-07-27: *clever compression and original coding for new
+heights* — without re-deflating voice notes (.m4a is already compressed).
+
+### BNS Wire (`BNSD`) — original data coding
+`lib/data/pack/bns_wire.dart`: string-pool + typed TLV tree for the structured
+state (routines, captures, logs, settings…). Keys and repeated strings appear
+once. Uncompressed wire is ~65% of raw JSON on diary-shaped data. Pure Dart,
+isolate-safe.
+
+### Container layout
+```
+"BNS3"                         magic @ 0
+u32le manifestLen + manifest JSON  (packer + dataCodec + sha256 integrity)
+u8    dataCodec                  0=gzip+json, 1=gzip+BNSD, 2=raw BNSD
+u32le dataLen     + data bytes   (hashed)
+u32le audioCount
+  [ u32le nameLen + name + u32le byteLen + raw audio ] × N
+```
+**Codec race at pack time:** write whichever of gzip(JSON), gzip(Wire), or raw
+Wire is smallest — never pay more than classic. Audio stays STORED raw.
+SHA-256 seal identical in spirit to zip-v2 / bns2.
+
+Default writer is still **zip-v2** (transparency). `BnsPackers.compact` is
+BNS3 for paths that prefer original compact form. Registry detects BNS3 first.
 
 ## Two official implementations (cross-verified)
 zip-v2 is implemented twice, on purpose — a format with two independent

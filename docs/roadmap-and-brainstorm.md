@@ -170,6 +170,13 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - Capture text/context mics, `SttService` locale ladder, Windows Vosk-after-WAV: kept as-is.
 - Parked: Days thread UI, inspector-only pattern summary, offline Android file STT, Hebrew Vosk model.
 
+2026-07-27 wave 14 — **BNS3 + BNS Wire** (clever compression + original coding):
+- ✅ **`BnsWire` (BNSD)**: original binary tree coding with string pool — ~65% of raw JSON on diary mass (uncompressed). `lib/data/pack/bns_wire.dart`.
+- ✅ **`Bns3Packer` (bns3-v1)**: original container (magic `BNS3`), SHA-256 seal, audio STORED, **codec race** at pack (gzip+json / gzip+wire / raw wire → keep smallest). Never re-deflate .m4a.
+- ✅ Registry: detect BNS3/BNS2/ZIP; `current` = zip-v2 (transparency); `compact` = bns3-v1.
+- ✅ Tests: wire roundtrip + size, bns3 seal/tamper/size race, full pack benchmark races all three.
+- Honest limit: whole-file size is still dominated by voice; data-only path is where coding wins. Delta/LAN next.
+
 2026-07-27 wave 13 — **the day, complete** (day thread + care glance + mad-vent-safe summary):
 - ✅ **`lib/core/day_feed.dart`** — pure day diary feed (done / skip+reason / need-help / diary / thought / event / optional mad-vent), chronological morning→night; `buildDayAutoSummary` **never** includes mad-vents; `buildCareGlance` soft caregiver patterns (no scoreboard, vents not headlined).
 - ✅ **Day diary screen** (`/day`, `DayThreadScreen`) — everything said and done on a day; in-place date change (static law); search over words/reasons; TTS + voice play; full-care care-glance card; mad-vents only when full care or active mad mode.
@@ -201,7 +208,7 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
   - The full-file family mode (`#family` on a complete backup) still exists for households where handing over everything is wanted — but the family SHARE is the product story. Skips/routines/diary never leave the patient's devices unless he hands over a full backup deliberately.
   - Tests: flag roundtrip + private-by-default + family-file shape (18/18 green); satellite verified live both directions (family file → plans-only view; normal backup → full manager).
 - **bns-cli** (from the container evolution plan): native binaries with `inspect`, `validate`, `merge`, `export-json` — waiting on the packer abstraction settling (it has). Next natural step for the global-spread story.
-- **Faster container prototype** (zstd-in-zip or custom length-prefixed binary) — waiting on real-world numbers that beat zip-v2's 151ms/5.9MB; the benchmark test is the referee. Plug into `BnsPackers.all` when ready.
+- ~~**Faster container prototype**~~ — BNS3 (`bns3-v1`) + BNS Wire shipped 2026-07-27: original string-pool TLV coding, codec race (gzip+json vs gzip+wire vs raw wire), SHA-256 seal, audio still STORED. zip-v2 remains default writer; `BnsPackers.compact` exposes BNS3. Benchmark races all three. Next height: columnar or delta LAN payloads (audio still dominates whole-file size).
 - ~~Offline web viewer~~ — ABSORBED by wave 4, and grew into a full manager (`satellite/bns-web.html`). Servers stay banned; the satellite is a static file.
 - ~~**Voice-to-text for vents and captures**~~ — largely absorbed by wave 12 (device STT + dictation mics on comments; live-while-record still forbidden on Android). Remaining: offline *file* STT on Android after record without a second speak; vents stay non-searchable in summaries unless user promoted to Memorize.
 - ~~**Days thread UI**~~ — shipped wave 13 (`/day`, day_feed).

@@ -63,11 +63,18 @@ void main() {
       unpackWatch.stop();
 
       final sizeMb = (bytes.length / 1024 / 1024).toStringAsFixed(1);
+      // Data-only twin run: shows coding wins without audio noise.
+      final dataOnly = packer.pack(
+        manifest: {'formatVersion': 2, 'bench': true, 'dataOnly': true},
+        data: data,
+        audioFiles: const [],
+      );
       // ignore: avoid_print
       print(
           'BENCH ${packer.formatId}: pack=${packWatch.elapsedMilliseconds}ms '
           'unpack(with integrity)=${unpackWatch.elapsedMilliseconds}ms '
-          'size=${sizeMb}MB (30x200KB audio + 700 records)');
+          'size=${sizeMb}MB dataOnly=${dataOnly.length}B '
+          '(30x200KB audio + 700 records)');
 
       expect(back.audioFiles.length, 30);
       expect((back.data['captures'] as List).length, 500);

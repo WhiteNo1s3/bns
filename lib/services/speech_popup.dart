@@ -44,3 +44,10 @@ class SpeechPopup {
     }
   }
 }
+
+// WINDOWS VOICE TYPING (Win+H) was tried here and REMOVED (owner's test,
+// 2026-07-27: "this is invalid for English (Israel) for no reason, so no
+// English transcript and no Hebrew"). Summoning the OS overlay refused his
+// own display language, and an overlay cannot be trusted to type into the
+// right field anyway. Windows now hears through whisper.cpp, which reads
+// the recording afterwards — see WhisperService. Do not resurrect this.

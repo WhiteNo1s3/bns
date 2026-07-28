@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:flutter/foundation.dart';
@@ -64,7 +65,20 @@ class SttService {
   /// Initialize the device engine once. Safe to call repeatedly.
   /// A FAILED init is retried on the next call — engines appear (permission
   /// granted, service installed) without the app restarting.
+  /// Live dictation exists on Android/iOS/macOS only — the speech_to_text
+  /// plugin has NO desktop-Windows/Linux implementation, and calling it
+  /// there throws a MissingPluginException that took the capture screen
+  /// down mid-save (owner's PC, 2026-07-27). On those desktops words come
+  /// from the recording instead, read by whisper afterwards.
+  static bool get isSupportedPlatform =>
+      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+
   static Future<bool> init() async {
+    if (!isSupportedPlatform) {
+      _initialized = true;
+      _available = false;
+      return false;
+    }
     if (_initialized && _available) return _available;
     try {
       _available = await _speech.initialize(

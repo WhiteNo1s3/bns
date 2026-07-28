@@ -178,6 +178,10 @@ class _DictationMicButtonState extends State<DictationMicButton> {
 
   @override
   Widget build(BuildContext context) {
+    // A mic that cannot listen is worse than no mic — on desktops without
+    // live dictation the words come from recording instead (owner's law:
+    // as little confusion as possible).
+    if (!SttService.isSupportedPlatform) return const SizedBox.shrink();
     final color = _dictating
         ? (_state == SttState.restarting
             ? Colors.orange

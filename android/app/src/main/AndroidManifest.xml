@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android's Wi-Fi chip DROPS broadcast/multicast packets to save
+         battery unless the app holds a multicast lock. Without this the
+         phone never hears another device saying hello (owner's test,
+         2026-07-27: phone->PC worked, PC->phone was deaf). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Voice quick capture -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Gentle reminders (Android 13+) -->

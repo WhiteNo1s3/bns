@@ -183,17 +183,24 @@ class LanSyncService {
     _broadcastTargets = targets.map(InternetAddress.new).toList();
   }
 
-  void _broadcastHello() {
-    if (_udpSocket == null || _deviceName == null) return;
-
-    final payload = jsonEncode({
+  List<int>? _helloBytes({required bool isReply}) {
+    if (_deviceName == null) return null;
+    return utf8.encode(jsonEncode({
       'magic': magic,
       'deviceName': _deviceName,
       'deviceId': _myDeviceId, // stable — trust depends on it
       'lastExport': DateTime.now().toIso8601String(),
       'port': transferPort,
-    });
-    final bytes = utf8.encode(payload);
+      // A reply is never replied to — that alone keeps the handshake from
+      // echoing forever between two devices.
+      if (isReply) 'reply': true,
+    }));
+  }
+
+  void _broadcastHello() {
+    if (_udpSocket == null) return;
+    final bytes = _helloBytes(isReply: false);
+    if (bytes == null) return;
     for (final target in _broadcastTargets) {
       try {
         _udpSocket!.send(bytes, target, discoveryPort);
@@ -201,6 +208,21 @@ class LanSyncService {
         // One unreachable interface must never silence the others.
       }
     }
+  }
+
+  /// Answer a hello straight back to whoever sent it.
+  ///
+  /// Broadcast is often deaf in ONE direction — an Android Wi-Fi chip
+  /// filtering broadcasts, a router half-isolating clients, a VPN eating
+  /// the subnet. Hearing anyone is therefore enough: we answer directly,
+  /// so a device that cannot hear broadcasts still learns we exist.
+  void _replyHello(InternetAddress to) {
+    if (_udpSocket == null) return;
+    final bytes = _helloBytes(isReply: true);
+    if (bytes == null) return;
+    try {
+      _udpSocket!.send(bytes, to, discoveryPort);
+    } catch (_) {}
   }
 
   void _handleDiscovery(Datagram datagram) {
@@ -212,6 +234,10 @@ class LanSyncService {
 
       final peerId = data['deviceId'] as String? ?? '';
       if (peerId.isEmpty || peerId == _myDeviceId) return;
+
+      // Heard a broadcast? Answer it directly, once — the sender may be
+      // unable to hear ours. Replies are never answered, so this cannot echo.
+      if (data['reply'] != true) _replyHello(datagram.address);
 
       final peer = BnsPeer(
         deviceName: data['deviceName'] ?? 'Unknown',
@@ -317,6 +343,10 @@ class LanSyncService {
             progress: 1.0,
             message: 'Paired safely. You can sync now.',
             isComplete: true));
+      } else if (header.startsWith('REVOKE ')) {
+        // No secret needed to hear "we are done" — the worst a forged
+        // revoke can do is make two devices pair again, deliberately.
+        await _handleRevoke(header.substring(7).trim());
       } else if (header.startsWith('PULL ')) {
         final requesterId = header.substring(5).trim();
         final trusted = await IsarService.getTrustedDevice(requesterId);
@@ -565,9 +595,54 @@ class LanSyncService {
   Future<List<TrustedDevice>> getTrustedDevices() =>
       IsarService.getTrustedDevices();
 
+  /// Un-pair — and SAY SO to the other device.
+  ///
+  /// Owner QA (2026-07-27): "if you delete a connection we should transmit
+  /// that the connection is severed." A pairing is a mutual agreement; one
+  /// side dropping it must not leave the other still holding a key and a
+  /// live auto-sync. Every in-memory permission goes with it, so nothing
+  /// stale can keep syncing until the next restart.
   Future<void> forgetDevice(String id) async {
+    final peer = await IsarService.getTrustedDevice(id);
     await IsarService.removeTrustedDevice(id);
     _trustedIds.remove(id);
+    _lanAllowedIds.remove(id);
+    _autoSyncedThisSession.remove(id);
+    _peers.remove(id);
+    _peersController.add(_peers.values.toList());
+
+    // Tell them, best effort: an unreachable device simply learns later,
+    // when its own request is refused.
+    final address = _peers[id]?.address ?? peer?.lastAddress;
+    if (address == null || address.isEmpty || _myDeviceId.isEmpty) return;
+    try {
+      final socket = await Socket.connect(address, transferPort,
+          timeout: const Duration(seconds: 3));
+      socket.add(utf8.encode('REVOKE $_myDeviceId\n'));
+      await socket.flush();
+      await socket.close();
+    } catch (_) {
+      // Saying goodbye is a courtesy; the revocation here already stands.
+    }
+  }
+
+  /// The other side un-paired us. Drop them too — a severed connection is
+  /// severed in both directions, and the person is told plainly.
+  Future<void> _handleRevoke(String peerId) async {
+    final known = await IsarService.getTrustedDevice(peerId);
+    if (known == null) return;
+    await IsarService.removeTrustedDevice(peerId);
+    _trustedIds.remove(peerId);
+    _lanAllowedIds.remove(peerId);
+    _autoSyncedThisSession.remove(peerId);
+    _peers.remove(peerId);
+    _peersController.add(_peers.values.toList());
+    _emitProgress(SyncProgress(
+      progress: 1.0,
+      message: '${known.name} ended the connection. '
+          'Nothing more is shared with that device.',
+      isComplete: true,
+    ));
   }
 
   void setAutoSync(bool v) => _autoSyncEnabled = v;

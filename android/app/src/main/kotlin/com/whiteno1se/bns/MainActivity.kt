@@ -1,7 +1,10 @@
 package com.whiteno1se.bns
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
+import android.os.Bundle
 import android.speech.RecognizerIntent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,6 +17,37 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private val popupRequestCode = 7326
+
+    /// THE PHONE'S EARS FOR THE LAN (owner's test, 2026-07-27: the phone's
+    /// hello reached the PC, but the PC's never reached the phone). Android
+    /// filters broadcast/multicast frames in the Wi-Fi driver to save
+    /// battery; a held MulticastLock is the only way an app hears them.
+    /// Held while the app is in front — exactly when discovery matters.
+    private var multicastLock: WifiManager.MulticastLock? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        try {
+            val wifi = applicationContext
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager
+            multicastLock = wifi.createMulticastLock("bns-lan-discovery").apply {
+                setReferenceCounted(true)
+                acquire()
+            }
+        } catch (_: Exception) {
+            // No Wi-Fi service (emulator, odd ROM) — discovery degrades,
+            // the app itself never suffers for it.
+        }
+    }
+
+    override fun onDestroy() {
+        try {
+            multicastLock?.let { if (it.isHeld) it.release() }
+        } catch (_: Exception) {
+        }
+        multicastLock = null
+        super.onDestroy()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

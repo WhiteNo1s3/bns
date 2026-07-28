@@ -12,10 +12,11 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
-import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/speech_popup.dart';
+import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
+import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 
@@ -217,6 +218,27 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   Future<void> _transcribeWithVosk(String wavPath) async {
     try {
       final support = await getApplicationSupportDirectory();
+      // WHISPER FIRST — it is the only offline ear here that knows Hebrew
+      // (owner, 2026-07-27). Vosk stays as the lighter English fallback for
+      // anyone who already installed it.
+      final whisperDir = p.join(support.path, 'whisper');
+      if (WhisperService.isInstalled(whisperDir)) {
+        if (mounted) {
+          setState(() => _liveTranscript =
+              L.t('Reading the words…', 'קורא את המילים…'));
+        }
+        final heard = await WhisperService.transcribeWav(
+          whisperDir,
+          wavPath,
+          language: L.isHebrew ? 'he' : 'auto',
+        );
+        if (!mounted) return;
+        setState(() {
+          _liveTranscript = heard;
+          if (heard.isNotEmpty) _offerWordsAfterRecord = false;
+        });
+        if (heard.isNotEmpty) return;
+      }
       final voskDir = p.join(support.path, 'vosk');
       if (!VoskService.isInstalled(voskDir)) return;
       final text = await VoskService.transcribeWav(voskDir, wavPath);
@@ -378,32 +400,53 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     // leaves, offer the door that works (Hebrew included) to put words on
     // it. Declining is always allowed — the voice is already safe.
     if (text.isEmpty && transcript.isEmpty && _audioPath != null) {
+      // Each platform is offered the door that actually opens for it:
+      // phones re-speak into the live engine; desktops have the recording
+      // read back by whisper — no second performance required.
+      final canReSpeak = SttService.isSupportedPlatform;
       final addWords = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
           title: Text(L.t('Put words to it?', 'לשים על זה מילים?')),
-          content: Text(L.t(
-              'Your voice is kept. Words let it be read, found later, and '
-              'shown to someone who can help — say it once more and it '
-              'becomes text.',
-              'הקול שלך שמור. מילים מאפשרות לקרוא את זה, למצוא את זה אחר כך '
-              'ולהראות למי שיכול לעזור — עוד פעם אחת בקול, וזה הופך לטקסט.')),
+          content: Text(canReSpeak
+              ? L.t(
+                  'Your voice is kept. Words let it be read, found later, and '
+                  'shown to someone who can help — say it once more and it '
+                  'becomes text.',
+                  'הקול שלך שמור. מילים מאפשרות לקרוא את זה, למצוא את זה אחר כך '
+                  'ולהראות למי שיכול לעזור — עוד פעם אחת בקול, וזה הופך לטקסט.')
+              : L.t(
+                  'Your voice is kept. This computer can read the recording '
+                  'and write the words itself — no need to say it again.',
+                  'הקול שלך שמור. המחשב הזה יכול להאזין להקלטה ולכתוב את '
+                  'המילים בעצמו — אין צורך להגיד שוב.')),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(c, false),
                 child: Text(L.t('Voice only', 'רק הקול'))),
             FilledButton.icon(
                 onPressed: () => Navigator.pop(c, true),
-                icon: const Icon(Icons.mic),
-                label: Text(L.t('Say it in words', 'להגיד את זה במילים'))),
+                icon: Icon(canReSpeak ? Icons.mic : Icons.hearing),
+                label: Text(canReSpeak
+                    ? L.t('Say it in words', 'להגיד את זה במילים')
+                    : L.t('Read the recording', 'להאזין להקלטה'))),
           ],
         ),
       );
       if (addWords == true) {
-        await _toggleSpeakWords();
+        if (canReSpeak) {
+          await _toggleSpeakWords();
+        } else {
+          await _transcribeWithVosk(_audioPath!);
+        }
         if (!mounted) return;
         text = _textController.text.trim();
         transcript = _liveTranscript.trim();
+        // Whisper's words stand in as the note's text when nothing was typed.
+        if (text.isEmpty && transcript.isNotEmpty) {
+          _textController.text = transcript;
+          text = transcript;
+        }
       }
     }
 

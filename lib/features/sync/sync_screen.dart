@@ -15,6 +15,7 @@ import 'package:bns/core/models/trusted_device.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/services/vosk_service.dart';
+import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:path/path.dart' as path_util;
 import 'package:path_provider/path_provider.dart';
@@ -241,15 +242,26 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<String> _voskDir() async =>
       path_util.join((await getApplicationSupportDirectory()).path, 'vosk');
 
+  Future<String> _whisperDir() async =>
+      path_util.join((await getApplicationSupportDirectory()).path, 'whisper');
+
   Future<void> _refreshVoskStatus() async {
     if (!Platform.isWindows) return;
-    final installed = VoskService.isInstalled(await _voskDir());
+    // Whisper is the ear that knows Hebrew; Vosk (English-only) still
+    // counts as installed for anyone who set it up earlier.
+    final hasWhisper = WhisperService.isInstalled(await _whisperDir());
+    final hasVosk = VoskService.isInstalled(await _voskDir());
     if (mounted) {
-      setState(() => _voskStatus = installed
+      setState(() => _voskStatus = hasWhisper
           ? L.t(
-              'Installed — recordings on this PC become words by themselves.',
-              'מותקן — הקלטות במחשב הזה הופכות למילים מעצמן.')
-          : L.t('Not installed yet.', 'עוד לא מותקן.'));
+              'Installed — recordings on this PC become words by themselves, '
+              'in Hebrew and in English.',
+              'מותקן — הקלטות במחשב הזה הופכות למילים מעצמן, בעברית ובאנגלית.')
+          : hasVosk
+              ? L.t(
+                  'English ears installed. Install again to add Hebrew.',
+                  'מותקנות אוזניים לאנגלית. אפשר להתקין שוב כדי להוסיף עברית.')
+              : L.t('Not installed yet.', 'עוד לא מותקן.'));
     }
   }
 
@@ -257,7 +269,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (_voskBusy) return;
     setState(() => _voskBusy = true);
     try {
-      await VoskService.install(await _voskDir(), onStatus: (s) {
+      await WhisperService.install(await _whisperDir(), onStatus: (s) {
         if (mounted) setState(() => _voskStatus = s);
       });
     } catch (e) {
@@ -465,10 +477,43 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _service.setAutoSync(v);
   }
 
+  /// Un-pairing is a real decision — it must be asked, never slipped
+  /// (owner QA, 2026-07-27: "there is no warning, it's a bummer").
   Future<void> _forget(TrustedDevice d) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(L.t('End the connection with ${d.name}?',
+            'לנתק את החיבור עם ${d.name}?')),
+        content: Text(L.t(
+            'That device will no longer receive anything from here, and '
+            'this one stops accepting from it. Both sides are told. '
+            'Nothing already saved is deleted — you can pair again anytime.',
+            'המכשיר הזה לא יקבל יותר שום דבר מכאן, וגם לא נקבל ממנו. '
+            'שני הצדדים יידעו על כך. שום דבר ששמור כבר לא נמחק — '
+            'תמיד אפשר לצמד מחדש.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: Text(L.t('Keep the connection', 'להשאיר את החיבור'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(c).colorScheme.error),
+            child: Text(L.t('End it', 'לנתק')),
+          ),
+        ],
+      ),
+    );
+    if (sure != true) return;
     await _service.forgetDevice(d.id);
     await _service.refreshTrustPolicy();
     await _loadTrusted();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'Connection with ${d.name} ended. The other device was told.',
+            'החיבור עם ${d.name} נותק. המכשיר השני יודע על כך.'))));
   }
 
   /// Save a per-device change (LAN allowed / auto-sync) and make the running
@@ -1182,23 +1227,25 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     value: _sttEnabled,
                     onChanged: _setSttEnabled,
                   ),
-                  // Windows has no built-in speech-to-text bridge — the
-                  // open-source Vosk engine (Apache-2.0, offline, free
-                  // forever) is the honest choice. One download, then every
-                  // recording on this PC becomes readable words by itself.
+                  // Windows itself is deaf to Hebrew (checked, 2026-07-27:
+                  // WinRT + legacy engines list en-GB/en-US only; Voice
+                  // typing knows Hebrew but no app may call it). whisper.cpp
+                  // is the offline ear that does — MIT, free, no cloud.
                   if (Platform.isWindows)
                     ListTile(
                       dense: true,
                       leading: const Icon(Icons.hearing),
                       title: Text(L.t(
-                          'Offline ears for this PC (Vosk, open source)',
-                          'אוזניים לא-מקוונות למחשב הזה (Vosk, קוד פתוח)')),
+                          'Offline ears for this PC — Hebrew & English '
+                          '(whisper.cpp, open source)',
+                          'אוזניים לא-מקוונות למחשב הזה — עברית ואנגלית '
+                          '(whisper.cpp, קוד פתוח)')),
                       subtitle: Text(_voskStatus.isEmpty
                           ? L.t(
                               'Turns recordings into readable words — offline, '
-                              'free, no cloud. About 47 MB, one time.',
+                              'free, no cloud. About 473 MB, one time.',
                               'הופך הקלטות למילים קריאות — לא מקוון, חינם, בלי '
-                              'ענן. בערך 47 MB, פעם אחת.')
+                              'ענן. בערך 473 MB, פעם אחת.')
                           : _voskStatus),
                       trailing: _voskBusy
                           ? const SizedBox(

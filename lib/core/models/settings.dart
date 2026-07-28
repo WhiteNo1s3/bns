@@ -105,6 +105,17 @@ class AppSettings {
   // truth for behavior and are kept coherent by the selector.
   final int careLevel;
 
+  // CAREGIVER DEVICE — this copy belongs to the person who HELPS, not the
+  // person being helped (owner, 2026-07-27). It changes what this device
+  // is for: building the other person's day, seeing what they told, and
+  // never nagging its holder about routines that are not theirs.
+  //
+  // It is a property of the DEVICE, not of the patient — and it is never
+  // announced on the patient's screen. Being helped in the shower already
+  // costs privacy; the app must not add a badge that says "you are
+  // watched" to a person who may be paranoid and right to be.
+  final bool caregiverDevice;
+
   // CANCELLED feature (owner decision 2026-07-06): the 0.12a account-server
   // pivot. The client/server code is quarantined in prototypes/cloud-pivot/
   // and is NOT in any build. These two fields stay only as inert
@@ -140,6 +151,7 @@ class AppSettings {
     this.guidedMode = false,
     this.fullCareMode = false,
     this.careLevel = 1,
+    this.caregiverDevice = false,
     this.serverUrl,
     this.serverToken,
   });
@@ -173,6 +185,7 @@ class AppSettings {
     bool? guidedMode,
     bool? fullCareMode,
     int? careLevel,
+    bool? caregiverDevice,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
   }) {
@@ -205,6 +218,7 @@ class AppSettings {
       guidedMode: guidedMode ?? this.guidedMode,
       fullCareMode: fullCareMode ?? this.fullCareMode,
       careLevel: careLevel ?? this.careLevel,
+      caregiverDevice: caregiverDevice ?? this.caregiverDevice,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
           serverToken == _unset ? this.serverToken : serverToken as String?,
@@ -236,6 +250,7 @@ class AppSettings {
         'guidedMode': guidedMode,
         'fullCareMode': fullCareMode,
         'careLevel': careLevel,
+        'caregiverDevice': caregiverDevice,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
       };
@@ -279,6 +294,7 @@ class AppSettings {
             (json['guidedMode'] == true
                 ? 4
                 : (json['fullCareMode'] == true ? 3 : 1)),
+        caregiverDevice: json['caregiverDevice'] as bool? ?? false,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,
       );

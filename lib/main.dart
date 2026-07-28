@@ -21,10 +21,12 @@ import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/features/memory/memories_screen.dart';
 import 'package:bns/features/diary/day_thread_screen.dart';
+import 'package:bns/features/caregiver/caregiver_home_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/export/bns_exporter.dart';
+import 'package:bns/data/sync/lan_sync_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -69,6 +71,13 @@ Future<void> _startupChores(List<String> args) async {
     // Desktop: double-clicking an associated .bns file passes its path here.
     BnsFileHandler.checkDesktopArgs(args, null);
   } catch (_) {}
+  try {
+    // SEAMLESS SYNC (owner, 2026-07-27: "we see too many seams... to take an
+    // Alzheimer patient to work this out at level 3/4, we are in trouble").
+    // Signing in IS the sync: discovery starts with the app and trusted
+    // devices catch up by themselves, with nobody visiting a sync screen.
+    await LanSyncService.instance.startForApp();
+  } catch (_) {}
 }
 
 /// Wraps a page with the modern desktop shell when on PC (Windows/mac/Linux wide window).
@@ -86,8 +95,12 @@ final _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) =>
-          _wrapForDesktop(context, const TodayScreen(), state.uri.toString()),
+      // WHOSE HOME IS THIS? On a helper's device the front door opens onto
+      // THEIR person's day — a caregiver landing on their own empty Today
+      // was useless, and the routines that arrive by sync were never theirs
+      // to tick. Same app, same release: one build knows both hats.
+      builder: (context, state) => _wrapForDesktop(
+          context, const _HomeForThisDevice(), state.uri.toString()),
     ),
     GoRoute(
       path: '/calendar',
@@ -141,6 +154,20 @@ final _router = GoRouter(
     ),
   ],
 );
+
+/// Picks the front door for THIS device: the person's Today, or — when
+/// this copy belongs to a helper — the day of the person they help.
+/// Watches settings, so flipping the switch re-homes the app instantly.
+class _HomeForThisDevice extends ConsumerWidget {
+  const _HomeForThisDevice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider).asData?.value;
+    if (settings?.caregiverDevice == true) return const CaregiverHomeScreen();
+    return const TodayScreen();
+  }
+}
 
 class BnsApp extends ConsumerStatefulWidget {
   const BnsApp({super.key});

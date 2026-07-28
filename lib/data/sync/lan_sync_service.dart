@@ -71,6 +71,31 @@ class LanSyncService {
   static const String magic = 'BNS_HELLO';
   static const int transferPort = 42425;
 
+  /// ONE service for the whole app (owner, 2026-07-27: "we see too many
+  /// seams"). Discovery used to live and die with the Sync SCREEN, so
+  /// devices only found each other while a person sat on that screen —
+  /// hopeless for someone at care level 3 or 4. The app now starts this at
+  /// launch and it keeps listening quietly for the rest of the session.
+  static final LanSyncService instance = LanSyncService();
+
+  /// True once [startForApp] has run this session, so the app can start it
+  /// on launch without the Sync screen fighting over it.
+  bool _appStarted = false;
+
+  /// Bring sync up for the whole app: discover, and quietly catch up with
+  /// every trusted device that allows it. Safe to call repeatedly.
+  Future<void> startForApp() async {
+    if (_appStarted) return;
+    _appStarted = true;
+    try {
+      final settings = await IsarService.getSettings();
+      await start(deviceName: settings.effectiveShareName, autoSync: true);
+    } catch (_) {
+      // No Wi-Fi, a port already taken — the app itself never suffers.
+      _appStarted = false;
+    }
+  }
+
   final _peers = <String, BnsPeer>{};
 
   RawDatagramSocket? _udpSocket;
@@ -81,6 +106,11 @@ class LanSyncService {
       StreamController.broadcast();
   final StreamController<SyncProgress> _progressController =
       StreamController.broadcast();
+
+  /// Who is on the network right now — for a screen that opens after
+  /// discovery has already been running, so it shows devices immediately
+  /// instead of an empty list waiting for the next hello.
+  List<BnsPeer> get currentPeers => _peers.values.toList();
 
   Stream<List<BnsPeer>> get peersStream => _peersController.stream;
   Stream<SyncProgress> get progressStream => _progressController.stream;
@@ -350,8 +380,16 @@ class LanSyncService {
       } else if (header.startsWith('PULL ')) {
         final requesterId = header.substring(5).trim();
         final trusted = await IsarService.getTrustedDevice(requesterId);
-        if (trusted?.sharedSecret == null || !trusted!.lanSyncAllowed) {
-          // Unknown or LAN-disabled device gets nothing. Never plaintext, never data.
+        if (trusted == null) {
+          // We un-paired from this device. SAY so instead of going quiet —
+          // silence looked exactly like a network hiccup, which is why the
+          // other side kept showing "connected" (owner QA, 2026-07-27).
+          socket.add(utf8.encode('REVOKED\n'));
+          await socket.flush();
+          return;
+        }
+        if (trusted.sharedSecret == null || !trusted.lanSyncAllowed) {
+          // Paired but switched off: no data, and no revocation either.
           return;
         }
         final f = await BnsExporter.exportFullSnapshot();
@@ -471,6 +509,17 @@ class LanSyncService {
 
     final encBytes = b.takeBytes();
     if (encBytes.isEmpty) return;
+
+    // "REVOKED" — the other side has un-paired from us. Drop them here too,
+    // so a severed connection heals itself the moment anyone tries to sync,
+    // even if the goodbye message never arrived.
+    if (encBytes.length <= 16) {
+      final asText = utf8.decode(encBytes, allowMalformed: true).trim();
+      if (asText == 'REVOKED') {
+        await _handleRevoke(peer.deviceId);
+        return;
+      }
+    }
 
     final outPath = '${(await getTemporaryDirectory()).path}/pull.bns';
     final decrypted = await _decryptToFileInIsolate(

@@ -117,6 +117,11 @@ class NotificationsService {
   static Future<void> rescheduleAll() async {
     if (!_initialized) return;
     await cancelAll();
+    // A CAREGIVER IS NOT THE PATIENT (owner, 2026-07-27). Their device
+    // carries the other person's day so they can build and watch it — it
+    // must never buzz them at 07:00 to take pills that are not theirs.
+    final settings = await IsarService.getSettings();
+    if (settings.caregiverDevice) return;
     final routines = await IsarService.getAllRoutines();
     for (final r in routines.where((r) => r.isActive && r.time != null)) {
       await scheduleRoutineReminder(r);

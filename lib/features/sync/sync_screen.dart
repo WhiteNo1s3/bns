@@ -14,6 +14,7 @@ import 'package:bns/data/sync/lan_sync_service.dart'
 import 'package:bns/core/models/trusted_device.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -33,7 +34,9 @@ class SyncScreen extends ConsumerStatefulWidget {
 }
 
 class _SyncScreenState extends ConsumerState<SyncScreen> {
-  final LanSyncService _service = LanSyncService();
+  // The app's one running service — the screen looks in on it, never
+  // owns it (discovery must not stop when this screen closes).
+  final LanSyncService _service = LanSyncService.instance;
 
   List<BnsPeer> _discovered = [];
   List<TrustedDevice> _trusted = [];
@@ -82,6 +85,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _keybinds = Map<String, String>.from(settings.keybinds);
     _enabledKeybinds = Map<String, bool>.from(settings.enabledKeybinds);
     _appLanguage = settings.appLanguage;
+    _caregiverDevice = settings.caregiverDevice;
     _refreshVoskStatus();
 
     // Receiver side of pairing: another device initiated and shows a code —
@@ -97,6 +101,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
     await _service.start(
         deviceName: settings.effectiveShareName, autoSync: _autoSync);
+
+    // Discovery has been running since launch — show what it already knows.
+    _discovered = _service.currentPeers;
 
     _service.peersStream.listen((p) {
       if (mounted) setState(() => _discovered = p);
@@ -231,6 +238,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   // The app's language — Hebrew first, the whole tree re-skins live.
   String _appLanguage = 'he';
+
+  // Is THIS device the helper's? (Never shown on the other person's screen.)
+  bool _caregiverDevice = false;
+
+  Future<void> _setCaregiverDevice(bool v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(caregiverDevice: v));
+    // Reminders belong to the person being helped, not the helper.
+    await NotificationsService.rescheduleAll();
+    if (mounted) setState(() => _caregiverDevice = v);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v
+            ? L.t(
+                'This device is set up as a helper\'s. Reminders here are '
+                'off — they belong to the person you help. Nothing changed '
+                'on their device.',
+                'המכשיר הזה מוגדר כמכשיר של מלווה. התזכורות כאן כבויות — '
+                'הן שייכות למי שאתה מלווה. שום דבר לא השתנה אצלו.')
+            : L.t('This device is your own again — reminders are back on.',
+                'המכשיר הזה שוב שלך — התזכורות חזרו.'))));
+  }
 
   Future<void> _setAppLanguage(String lang) async {
     final s = await IsarService.getSettings();
@@ -1212,6 +1241,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       selected: {_appLanguage},
                       onSelectionChanged: (s) => _setAppLanguage(s.first),
                     ),
+                  ),
+                  // WHOSE DEVICE IS THIS? Set on the HELPER'S own device,
+                  // never on the person's — and never announced to them.
+                  // Being helped already costs privacy; the app will not add
+                  // a badge saying "you are watched".
+                  SwitchListTile(
+                    dense: true,
+                    secondary: const Icon(Icons.volunteer_activism_outlined),
+                    title: Text(L.t('This device belongs to a caregiver',
+                        'המכשיר הזה שייך למלווה')),
+                    subtitle: Text(
+                        L.t(
+                            'For the person who HELPS: their day is carried '
+                            'here to build and to watch over, and reminders '
+                            'on this device stay quiet — they belong to the '
+                            'person being helped.',
+                            'למי שמלווה: היום של האדם נמצא כאן כדי לבנות '
+                            'ולהשגיח, והתזכורות במכשיר הזה שותקות — הן '
+                            'שייכות למי שמלווים.'),
+                        style: const TextStyle(fontSize: 12)),
+                    value: _caregiverDevice,
+                    onChanged: _setCaregiverDevice,
                   ),
                   SwitchListTile(
                     dense: true,

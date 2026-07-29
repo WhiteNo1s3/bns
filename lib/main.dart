@@ -754,9 +754,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
 
     final nowMin = DateTime.now().hour * 60 + DateTime.now().minute;
+    // ANSWERED SINKS — done OR "didn't happen" (owner, 2026-07-29: "the
+    // morning routine went over the night one until I pushed it away as
+    // not today, and then went down to its place"). A skip is an ANSWER,
+    // exactly like a ✓; only unanswered things deserve the top of a list.
+    bool answered(Routine r) =>
+        _doneTodayIds.contains(r.id) || _skippedTodayIds.contains(r.id);
     list.sort((a, b) {
-      final aDone = _doneTodayIds.contains(a.id);
-      final bDone = _doneTodayIds.contains(b.id);
+      final aDone = answered(a);
+      final bDone = answered(b);
       if (aDone != bDone) return aDone ? 1 : -1; // handled sinks
       final am = minutes(a), bm = minutes(b);
       if (!_nextFirstOrder) return am.compareTo(bm);
@@ -1354,6 +1360,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   const SizedBox(height: 20),
 
                   routinesAsync.when(
+                    // SILK: every ✓ invalidates the provider, and a reload
+                    // used to blank the whole list for a spinner before
+                    // painting it again — a flash, a jump, and a lost place
+                    // on every single tap. Keep showing what is already
+                    // there while the new data arrives.
+                    skipLoadingOnReload: true,
+                    skipLoadingOnRefresh: true,
                     data: (routines) {
                       final todaysRoutines = routines
                           .where((r) => r.appliesOn(today) && r.isActive)
@@ -1369,9 +1382,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         doneIds: _doneTodayIds,
                         skippedIds: _skippedTodayIds,
                       );
-                      final hero =
-                          openNext.isNotEmpty ? openNext.first : null;
-                      final coming = openNext.skip(1).take(2).toList();
+                      // ALWAYS RETURN: something already started outranks
+                      // the clock. Half-done work is the easiest thing in
+                      // the world to lose and the hardest to come back to —
+                      // so the app carries the place, not the person.
+                      final started = openNext.where((r) {
+                        final done = _stepProgress[r.id] ?? 0;
+                        return r.steps.isNotEmpty &&
+                            done > 0 &&
+                            done < r.steps.length;
+                      }).toList();
+                      final hero = started.isNotEmpty
+                          ? started.first
+                          : (openNext.isNotEmpty ? openNext.first : null);
+                      final resuming = started.isNotEmpty;
+                      final coming = openNext
+                          .where((r) => r.id != hero?.id)
+                          .take(2)
+                          .toList();
 
                       if (todaysRoutines.isEmpty) {
                         return Padding(
@@ -1404,6 +1432,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             NextHeroCard(
                               routine: hero,
                               textScale: _textScale,
+                              resuming: resuming,
                               stepsDone: _stepProgress[hero.id] ?? 0,
                               recentNote: _recentNoteText[hero.id],
                               onDone: () => _toggleComplete(hero),

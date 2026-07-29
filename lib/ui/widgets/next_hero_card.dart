@@ -18,6 +18,13 @@ class NextHeroCard extends StatelessWidget {
   final VoidCallback? onStepDone;
   final double textScale;
 
+  /// This one was already STARTED and left in the middle (owner, 2026-07-29:
+  /// "I did half the things to go to bed and couldn't come back — it's like
+  /// a bug in my brain"). Half-finished work used to vanish the moment the
+  /// screen changed; now it comes back on top and says so, so nobody has to
+  /// remember where they were.
+  final bool resuming;
+
   const NextHeroCard({
     super.key,
     required this.routine,
@@ -28,6 +35,7 @@ class NextHeroCard extends StatelessWidget {
     this.recentNote,
     this.onStepDone,
     this.textScale = 1.0,
+    this.resuming = false,
   });
 
   @override
@@ -53,7 +61,9 @@ class NextHeroCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              L.t('Next', 'הבא'),
+              resuming
+                  ? L.t('You started this', 'התחלת את זה')
+                  : L.t('Next', 'הבא'),
               style: TextStyle(
                 fontSize: 13 * textScale,
                 fontWeight: FontWeight.w600,
@@ -61,6 +71,18 @@ class NextHeroCard extends StatelessWidget {
                 color: cs.onPrimaryContainer.withValues(alpha: 0.75),
               ),
             ),
+            if (resuming)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  L.t('Pick up where you left off — nothing was lost.',
+                      'אפשר להמשיך מאיפה שהפסקת — שום דבר לא אבד.'),
+                  style: TextStyle(
+                    fontSize: 13 * textScale,
+                    color: cs.onPrimaryContainer.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             if (time != null)
               Text(

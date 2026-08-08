@@ -32,6 +32,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/services/audio_playback_service.dart';
+import 'package:bns/services/desktop_reminder_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/file_handler.dart';
@@ -57,11 +58,22 @@ void main(List<String> args) {
 
 Future<void> _startupChores(List<String> args) async {
   try {
+    // A tapped reminder lands where it points: Today, or the plan's day.
+    NotificationsService.onOpen = (route) => _router.go(route);
+    // Reminders follow the data by themselves: any persisted change —
+    // an edited routine, a new plan, a LAN sync, a .bns import — quietly
+    // refreshes the schedule (debounced + fingerprinted, so it's free).
+    IsarService.onDataChanged = NotificationsService.maybeRescheduleSoon;
     await NotificationsService.init();
     await NotificationsService.rescheduleAll();
   } catch (_) {
     // Reminders are a courtesy — the app runs fine without them today.
   }
+  try {
+    // Windows has no system notifications for Flutter yet — while the app
+    // is open, a gentle in-app reminder card carries the moment instead.
+    DesktopReminderService.start(onOpen: (route) => _router.go(route));
+  } catch (_) {}
   try {
     // Prune old historical data to keep files small (2-week default rolling).
     // Future planning (calendar) is preserved. Routines stay.
@@ -283,6 +295,8 @@ class _BnsAppState extends ConsumerState<BnsApp> {
     final app = MaterialApp.router(
       title: 'BNS',
       debugShowCheckedModeBanner: false,
+      // Windows in-app reminders appear through this from any screen.
+      scaffoldMessengerKey: DesktopReminderService.messengerKey,
       locale: L.locale,
       supportedLocales: const [Locale('he'), Locale('en')],
       localizationsDelegates: const [

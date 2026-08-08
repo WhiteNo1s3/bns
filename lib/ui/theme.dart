@@ -94,6 +94,30 @@ class BnsTheme {
     }
   }
 
+  /// The gentle colors a reminder may wear — chosen by the person
+  /// (settings.notificationColor). Also used by the settings color chips.
+  /// All soft, none alarming; there is deliberately no red.
+  static const Map<String, Color> reminderColors = {
+    'teal': Color(0xFF14B8A6),
+    'lavender': Color(0xFF8B5CF6),
+    'green': Color(0xFF22C55E),
+    'amber': Color(0xFFF59E0B),
+    'rose': Color(0xFFF472B6),
+    'sky': Color(0xFF38BDF8),
+  };
+
+  /// The color reminders arrive in, by the like of the user:
+  /// 'auto' follows the app's own relaxing palette, anything else is one of
+  /// [reminderColors]. Unknown values fall back to the palette seed, so an
+  /// old .bns from a newer app never breaks anything.
+  static Color reminderColor(AppSettings s) {
+    if (s.notificationColor != 'auto') {
+      final named = reminderColors[s.notificationColor];
+      if (named != null) return named;
+    }
+    return _seedForPalette(s.relaxingPalette);
+  }
+
   // Reusable category tints inspired directly by PillMemorizer timeline
   static Color categoryColor(String category) {
     switch (category.toLowerCase()) {

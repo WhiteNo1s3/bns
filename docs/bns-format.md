@@ -250,6 +250,19 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   "themeMode": "system" | "light" | "dark",
   "relaxingPalette": "teal" | "lavender" | "sand" | "deep",
   "notificationsEnabled": true,
+  // Reminders, by the like of the user (level 1-2 wave, 2026-08-08):
+  // how loud a reminder arrives. 'quiet' waits in the shade, 'gentle'
+  // (default) is a normal notification with the soft chime, 'bright' is a
+  // banner that's hard to miss.
+  "reminderStyle": "quiet" | "gentle" | "bright",
+  // Reminder accent color: 'auto' follows the app palette; otherwise one of
+  // teal | lavender | green | amber | rose | sky (keys stay English —
+  // identifiers travel, the UI shows translated names). Unknown values fall
+  // back to 'auto' behavior, so newer files never break older apps.
+  "notificationColor": "auto",
+  // Heads-up before calendar plans with a time, in minutes.
+  // -1 = no plan reminders, 0 = right at the time. Default 30.
+  "eventReminderMinutes": 30,
   "hapticsEnabled": true,
   "lastFullSyncAt": "2026-07-03T22:10:00.000Z"
 }

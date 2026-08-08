@@ -27,6 +27,12 @@ class IsarService {
   static int _revision = 0;
   static int get revision => _revision;
 
+  /// Fired after every persisted change (fire-and-forget). Wired in main to
+  /// the notifications service, so editing a routine, adding a plan, a LAN
+  /// sync or a .bns import all refresh reminders by themselves — no screen
+  /// has to remember to ask.
+  static void Function()? onDataChanged;
+
   /// Await all pending disk writes (used on app pause/exit — belt and
   /// suspenders on top of the per-change atomic writes).
   static Future<void> flush() => _writeChain;
@@ -99,6 +105,9 @@ class IsarService {
   /// Writes are chained so they never interleave.
   static Future<void> _persist() {
     _revision++;
+    try {
+      onDataChanged?.call();
+    } catch (_) {}
     final snapshotJson = jsonEncode(_data!.toJson());
     _writeChain = _writeChain.then((_) async {
       final file = await _storeFile();

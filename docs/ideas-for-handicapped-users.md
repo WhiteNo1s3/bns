@@ -256,3 +256,59 @@ Never put diary *construction* on level 4. Words yes; planning no.
 - “After a voice note, was adding words easy — or did it feel like a second app?”  
 - “Did the mic ever feel broken or silent for no reason?”  
 - Existing AGENTS questions still apply (confusing? mad at you? LAN safe?).
+
+## Reminders that actually arrive (level 1-2 wave, 2026-08-08)
+
+Levels 1-2 are the independent people — reminders are the app keeping a
+promise FOR them, so this wave is about reminders being real, kind, and
+theirs.
+
+### Shipped
+
+- ✅ **They fire now (Android).** The scheduled-notification receivers were
+  missing from the manifest, so every scheduled reminder was silently lost.
+  Registered, plus the boot receiver — reminders survive a phone restart
+  and an app update (a reboot must not eat a medication reminder).
+- ✅ **Right days only.** A Tuesday routine reminds on Tuesday, not daily
+  (per-weekday scheduling for weekly/weekdays/custom routines).
+- ✅ **Plans get a heads-up.** Calendar events with a time remind before
+  the moment — the person picks the lead: off / right on time / 10 / 30
+  (default) / 60 minutes before. 14-day rolling horizon, capped so
+  routines always keep room (iOS ~64 pending limit).
+- ✅ **How loud is theirs to choose.** Quiet (waits in the list, silent),
+  Gentle (default — soft chime), Bright (banner, hard to miss). Own
+  Android channel per style so the system respects the choice.
+- ✅ **Colored by the like of the user.** 'My app colors' follows the
+  relaxing palette; or a gentle named color: teal, lavender, green, amber,
+  rose, sky. Deliberately no red — a reminder is never an alarm.
+- ✅ **Tap lands home.** A routine reminder opens Today; a plan reminder
+  opens that day's page. Works from a closed app too.
+- ✅ **Reminders follow the data by themselves.** Any change — an edited
+  time, a new plan, a LAN sync, a .bns import — quietly refreshes the
+  schedule (debounced, fingerprinted; no screen has to remember to ask).
+- ✅ **Windows is not left out.** No system notifications exist for it yet,
+  so while BNS is open a gentle in-app card appears at the moment, in the
+  person's chosen color, with an Open button.
+- ✅ **The helper's device stays silent** (caregiver law unchanged) and the
+  master switch has a real UI now (Sync screen → Reminders).
+- ✅ macOS/Linux init fixed (missing platform settings made notifications
+  silently dead there).
+
+### Where it lives
+
+- `lib/core/reminder_plan.dart` — PURE planning (what should be scheduled,
+  fingerprints, tap routes). Tested in `test/reminder_plan_test.dart`.
+- `lib/services/notifications_service.dart` — turns the plan into real
+  scheduled notifications (channels, colors, styles).
+- `lib/services/desktop_reminder_service.dart` — the Windows in-app card.
+- Settings fields: `reminderStyle`, `notificationColor`,
+  `eventReminderMinutes` (see `docs/bns-format.md`).
+
+### Live test questions (add to session checklist)
+
+- "Did a reminder actually appear at the time — and after restarting the
+  phone?"
+- "Was the reminder's loudness what you chose — and did the color feel
+  like yours?"
+- "Did tapping it land you where you expected?"
+- "On the PC, did the little card show up while the app was open?"

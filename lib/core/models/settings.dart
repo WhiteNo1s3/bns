@@ -19,6 +19,25 @@ class AppSettings {
   final ThemeModeSetting themeMode;
   final RelaxingPalette relaxingPalette;
   final bool notificationsEnabled;
+
+  // How loudly a reminder arrives — the person chooses (level 1-2 wave,
+  // 2026-08-08). 'quiet' = sits in the shade, no sound; 'gentle' = a normal
+  // notification with the soft default chime (the default — a reminder
+  // nobody ever sees helps nobody); 'bright' = banner on top of the screen,
+  // for the days when the shade might as well not exist.
+  final String reminderStyle;
+
+  // The color of reminders, by the like of the user: 'auto' follows the
+  // app's own palette; otherwise a gentle named color (teal, lavender,
+  // green, amber, rose, sky). Android paints the notification accent with
+  // it; the PC in-app reminder card wears it too.
+  final String notificationColor;
+
+  // Plans (calendar events with a time) get a heads-up this many minutes
+  // before. 0 = right at the time, -1 = no plan reminders. Default 30 —
+  // enough time to get ready without living in the future.
+  final int eventReminderMinutes;
+
   final bool hapticsEnabled;
   final DateTime? lastFullSyncAt;
 
@@ -132,6 +151,9 @@ class AppSettings {
     this.themeMode = ThemeModeSetting.system,
     this.relaxingPalette = RelaxingPalette.teal,
     this.notificationsEnabled = true,
+    this.reminderStyle = 'gentle',
+    this.notificationColor = 'auto',
+    this.eventReminderMinutes = 30,
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
     // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
@@ -167,6 +189,9 @@ class AppSettings {
     ThemeModeSetting? themeMode,
     RelaxingPalette? relaxingPalette,
     bool? notificationsEnabled,
+    String? reminderStyle,
+    String? notificationColor,
+    int? eventReminderMinutes,
     bool? hapticsEnabled,
     Object? lastFullSyncAt = _unset,
     int? retentionDays,
@@ -196,6 +221,9 @@ class AppSettings {
       themeMode: themeMode ?? this.themeMode,
       relaxingPalette: relaxingPalette ?? this.relaxingPalette,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      reminderStyle: reminderStyle ?? this.reminderStyle,
+      notificationColor: notificationColor ?? this.notificationColor,
+      eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
       lastFullSyncAt: lastFullSyncAt == _unset
           ? this.lastFullSyncAt
@@ -232,6 +260,9 @@ class AppSettings {
         'themeMode': themeMode.name,
         'relaxingPalette': relaxingPalette.name,
         'notificationsEnabled': notificationsEnabled,
+        'reminderStyle': reminderStyle,
+        'notificationColor': notificationColor,
+        'eventReminderMinutes': eventReminderMinutes,
         'hapticsEnabled': hapticsEnabled,
         'lastFullSyncAt': lastFullSyncAt?.toIso8601String(),
         'retentionDays': retentionDays,
@@ -265,6 +296,10 @@ class AppSettings {
             RelaxingPalette.values.asNameMap()[json['relaxingPalette']] ??
                 RelaxingPalette.teal,
         notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
+        reminderStyle: json['reminderStyle'] as String? ?? 'gentle',
+        notificationColor: json['notificationColor'] as String? ?? 'auto',
+        eventReminderMinutes:
+            (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,
         hapticsEnabled: json['hapticsEnabled'] as bool? ?? true,
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null

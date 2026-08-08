@@ -17,6 +17,7 @@ import 'package:bns/platform/android_widget.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/services/whisper_service.dart';
+import 'package:bns/ui/theme.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:path/path.dart' as path_util;
 import 'package:path_provider/path_provider.dart';
@@ -43,6 +44,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   SyncProgress _progress = SyncProgress.idle;
   bool _autoSync = true;
   bool _quietMode = false;
+  // Reminders — the person's own knobs (level 1-2 wave, 2026-08-08).
+  bool _notificationsEnabled = true;
+  String _reminderStyle = 'gentle';
+  String _notificationColor = 'auto';
+  int _eventReminderMinutes = 30;
   bool _sttEnabled = true;
   bool _autoImage = true;
   bool _discovering = false;
@@ -80,6 +86,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _careLevel = settings.careLevel;
     _autoSync = true; // default; could persist per device but simple
     _quietMode = settings.quietMode;
+    _notificationsEnabled = settings.notificationsEnabled;
+    _reminderStyle = settings.reminderStyle;
+    _notificationColor = settings.notificationColor;
+    _eventReminderMinutes = settings.eventReminderMinutes;
     _sttEnabled = settings.sttEnabled;
     _autoImage = settings.autoImageEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
@@ -131,6 +141,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _userType = s.userType;
         _deviceName = s.deviceName;
         _quietMode = s.quietMode;
+        _notificationsEnabled = s.notificationsEnabled;
+        _reminderStyle = s.reminderStyle;
+        _notificationColor = s.notificationColor;
+        _eventReminderMinutes = s.eventReminderMinutes;
         _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
         _fullCareMode = s.fullCareMode;
@@ -231,6 +245,56 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               : L.t('Quiet mode off.', 'מצב שקט כבוי.'))),
     );
   }
+
+  // ---- Reminders: the person's own knobs ----
+
+  Future<void> _setNotificationsEnabled(bool v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(notificationsEnabled: v));
+    // Right now, not in two seconds — flipping the switch should be felt.
+    await NotificationsService.rescheduleAll(force: true);
+    await _loadRetention();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v
+            ? L.t('Reminders are on — a soft nudge at the times you chose.',
+                'התזכורות פועלות — נגיעה רכה בזמנים שבחרת.')
+            : L.t('Reminders are off. Everything still waits for you inside.',
+                'התזכורות כבויות. הכול עדיין מחכה לך בפנים.'))));
+  }
+
+  Future<void> _setReminderStyle(String v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(reminderStyle: v));
+    await NotificationsService.rescheduleAll(force: true);
+    await _loadRetention();
+  }
+
+  Future<void> _setNotificationColor(String v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(notificationColor: v));
+    await NotificationsService.rescheduleAll(force: true);
+    await _loadRetention();
+  }
+
+  Future<void> _setEventReminderMinutes(int v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(eventReminderMinutes: v));
+    await NotificationsService.rescheduleAll(force: true);
+    await _loadRetention();
+  }
+
+  /// The person-facing names of the reminder colors (keys stay English —
+  /// they are identifiers that travel in the .bns).
+  static String _colorName(String key) => switch (key) {
+        'teal' => L.t('Teal', 'טורקיז'),
+        'lavender' => L.t('Lavender', 'לבנדר'),
+        'green' => L.t('Green', 'ירוק'),
+        'amber' => L.t('Amber', 'ענבר'),
+        'rose' => L.t('Rose', 'ורוד'),
+        'sky' => L.t('Sky', 'תכלת'),
+        _ => key,
+      };
 
   // The open-source ear on this PC (Vosk): '' = not checked yet.
   String _voskStatus = '';
@@ -1226,6 +1290,130 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     value: _quietMode,
                     onChanged: _setQuietMode,
                   ),
+                  const Divider(height: 24),
+                  // ---- Reminders: when, how loud, and in what color ----
+                  SwitchListTile(
+                    dense: true,
+                    secondary: const Icon(Icons.notifications_none),
+                    title: Text(
+                        L.t('Remind me at the times I chose',
+                            'להזכיר לי בזמנים שבחרתי'),
+                        style: Theme.of(context).textTheme.titleSmall),
+                    subtitle: Text(
+                        Platform.isWindows
+                            ? L.t(
+                                'A soft nudge when a routine or a plan has '
+                                'its moment. On this computer it appears '
+                                'inside BNS while it\'s open.',
+                                'נגיעה רכה כשמגיע הזמן של שגרה או תוכנית. '
+                                'במחשב הזה זה מופיע בתוך BNS כשהיא פתוחה.')
+                            : L.t(
+                                'A soft nudge when a routine or a plan has '
+                                'its moment.',
+                                'נגיעה רכה כשמגיע הזמן של שגרה או תוכנית.'),
+                        style: const TextStyle(fontSize: 12)),
+                    value: _notificationsEnabled,
+                    onChanged: _setNotificationsEnabled,
+                  ),
+                  if (_notificationsEnabled) ...[
+                    const SizedBox(height: 4),
+                    Text(L.t('How a reminder arrives:', 'איך תזכורת מגיעה:'),
+                        style: const TextStyle(fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: Text(L.t('Quietly — waits in the list',
+                              'בשקט — מחכה ברשימה')),
+                          selected: _reminderStyle == 'quiet',
+                          onSelected: (_) => _setReminderStyle('quiet'),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Gently — with a soft sound',
+                              'בעדינות — עם צליל רך')),
+                          selected: _reminderStyle == 'gentle',
+                          onSelected: (_) => _setReminderStyle('gentle'),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Clearly — hard to miss',
+                              'ברור — קשה לפספס')),
+                          selected: _reminderStyle == 'bright',
+                          onSelected: (_) => _setReminderStyle('bright'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                        L.t('Reminder color — whatever feels good to you:',
+                            'צבע התזכורות — מה שנעים לך:'),
+                        style: const TextStyle(fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          avatar: CircleAvatar(
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary),
+                          label: Text(L.t('My app colors', 'צבעי האפליקציה')),
+                          selected: _notificationColor == 'auto',
+                          onSelected: (_) => _setNotificationColor('auto'),
+                        ),
+                        for (final entry in BnsTheme.reminderColors.entries)
+                          ChoiceChip(
+                            avatar:
+                                CircleAvatar(backgroundColor: entry.value),
+                            label: Text(_colorName(entry.key)),
+                            selected: _notificationColor == entry.key,
+                            onSelected: (_) =>
+                                _setNotificationColor(entry.key),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                        L.t('A heads-up before plans on the calendar:',
+                            'התראה מראש לפני תוכניות בלוח השנה:'),
+                        style: const TextStyle(fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: Text(L.t('No heads-up', 'בלי התראה')),
+                          selected: _eventReminderMinutes == -1,
+                          onSelected: (_) => _setEventReminderMinutes(-1),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Right on time', 'בזמן עצמו')),
+                          selected: _eventReminderMinutes == 0,
+                          onSelected: (_) => _setEventReminderMinutes(0),
+                        ),
+                        ChoiceChip(
+                          label: Text(
+                              L.t('10 min before', '10 דקות לפני')),
+                          selected: _eventReminderMinutes == 10,
+                          onSelected: (_) => _setEventReminderMinutes(10),
+                        ),
+                        ChoiceChip(
+                          label: Text(
+                              L.t('30 min before', '30 דקות לפני')),
+                          selected: _eventReminderMinutes == 30,
+                          onSelected: (_) => _setEventReminderMinutes(30),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('An hour before', 'שעה לפני')),
+                          selected: _eventReminderMinutes == 60,
+                          onSelected: (_) => _setEventReminderMinutes(60),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const Divider(height: 24),
                   // Hebrew first (owner, 2026-07-26): the first users are
                   // Israeli. One tap here and the whole app — words and
                   // direction — follows, instantly.

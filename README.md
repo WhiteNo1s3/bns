@@ -174,8 +174,17 @@ cd C:\dev\bns
 - **Windows / macOS / iOS**: See `docs/packaging-and-associations.md` for Info.plist and registry details.
 - Code handler lives in `lib/services/file_handler.dart`.
 
-### Notifications
-Gentle daily reminders are scheduled for any routine that has a time (see `NotificationsService`). They use low importance so they never feel pushy.
+### Notifications (level 1-2 wave, 2026-08-08)
+Gentle reminders for every routine that has a time — on its own days only —
+and a heads-up before calendar plans (lead configurable: off / on time /
+10 / 30 / 60 min). The person chooses how loud (Quiet / Gentle / Bright)
+and the reminder color (app palette or a gentle named color — never red).
+Tapping a reminder opens Today (routines) or the plan's day. Reminders
+survive phone restarts, reschedule themselves after any edit/sync/import,
+and stay silent on a caregiver's device. On Windows (no system
+notifications for Flutter yet) an in-app card in the chosen color appears
+while BNS is open. All knobs live in Sync screen → Reminders; planning
+logic is pure and tested (`lib/core/reminder_plan.dart`).
 
 ## Key Features (All Awesome)
 - **.bns is our compact database** to deliver full active data (routines, events, active memories/captures, logs, settings, audio). App updates local DB; .bns is gzipped (data.json.gz) for compactness, spread to users via app. Trashed excluded.

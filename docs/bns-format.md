@@ -207,6 +207,12 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   "time": "14:30",
   "notes": "Bring recent MRI report",
   "isAllDay": false,
+  // A PLAN CARRIES WEIGHT (2026-08-09): a one-time thing stands in Today
+  // like a gentle step and can be answered. Person-facing name: a "plan"
+  // (never "task"). null/absent = still open.
+  "answer": "done" | "skipped" | null,
+  "answerReason": "The bus never came",   // the kept why, optional
+  "answerAt": "2026-07-15T15:00:00.000",  // when it was answered
   "createdAt": "..."
 }
 ```

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_today_desc">היום — מה שחשוב עכשיו, בעדינות.</string>
+    <string name="widget_upcoming_desc">בקרוב — הימים הבאים במבט אחד, ועוד זיכרון טוב.</string>
+    <string name="widget_actions_desc">פעולות מהירות — להוסיף שגרה, לשמור זיכרון, או פשוט להתחיל לדבר.</string>
+    <string name="widget_today_title">🧠 היום</string>
+    <string name="widget_upcoming_title">🌿 בקרוב</string>
+    <string name="widget_action_routine">＋ שגרה</string>
+    <string name="widget_action_memory">＋ זיכרון</string>
+    <string name="widget_action_voice">🎤 קול</string>
+</resources>

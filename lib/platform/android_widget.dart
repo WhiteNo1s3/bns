@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:home_widget/home_widget.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +33,10 @@ class AndroidBnsWidget {
     if (!Platform.isAndroid) return;
     try {
       final settings = await IsarService.getSettings();
+      // The widget can render before the app tree ever built (boot,
+      // background update) — make sure its words follow the person's
+      // language, not the default.
+      L.lang = settings.appLanguage;
       final allRoutines = await IsarService.getAllRoutines();
       final forwardDays =
           settings.widgetForwardDays.clamp(0, 14); // cap to avoid stress
@@ -58,7 +63,8 @@ class AndroidBnsWidget {
           .length;
       final progress = todayRoutines.isEmpty
           ? ''
-          : '$handled of ${todayRoutines.length} handled';
+          : L.t('$handled of ${todayRoutines.length} handled',
+              '$handled מתוך ${todayRoutines.length} טופלו');
 
       // Upcoming plans in the next forwardDays.
       String upcoming = '';
@@ -69,7 +75,10 @@ class AndroidBnsWidget {
           final dateStr = DateFormat('yyyy-MM-dd').format(futureDate);
           final events = await IsarService.getEventsForDate(dateStr);
           if (events.isNotEmpty) {
-            final dayLabel = d == 1 ? 'Tomorrow' : DateFormat('EEEE').format(futureDate);
+            final dayLabel = d == 1
+                ? L.t('Tomorrow', 'מחר')
+                : DateFormat('EEEE', L.isHebrew ? 'he' : 'en')
+                    .format(futureDate);
             upcomingEvents
                 .add('$dayLabel: ${events.map((e) => e.title).join(", ")}');
           }
@@ -90,30 +99,39 @@ class AndroidBnsWidget {
       final recentStory = lastMem.contextNote ?? lastMem.text ?? '';
 
       // Kind, user-type-aware summary.
-      String summary =
-          'You showed up. Small steps = big wins. You got this!';
+      String summary = L.t('You showed up. Small steps = big wins. You got this!',
+          'הגעת. צעדים קטנים = ניצחונות גדולים. את/ה יכול/ה!');
       if (doneCount > 0) {
-        summary = 'You showed up. $doneCount done today. You got this!';
+        summary = L.t('You showed up. $doneCount done today. You got this!',
+            'הגעת. $doneCount נעשו היום. את/ה יכול/ה!');
       }
       if (settings.userType.contains('kid')) {
-        summary = 'Awesome job! $doneCount wins today 🌟 You are amazing!';
+        summary = L.t('Awesome job! $doneCount wins today 🌟 You are amazing!',
+            'עבודה מדהימה! $doneCount ניצחונות היום 🌟 את/ה מדהים/ה!');
       } else if (settings.userType == 'ADHD') {
-        summary = 'You did it. $doneCount steps. Brain high-fives you.';
+        summary = L.t('You did it. $doneCount steps. Brain high-fives you.',
+            'עשית את זה. $doneCount צעדים. המוח נותן לך כיף.');
       }
 
       await HomeWidget.saveWidgetData<String>(
           'today_mission',
           missionLines.isEmpty
-              ? 'Nothing due today — rest is allowed 🌿'
+              ? L.t('Nothing due today — rest is allowed 🌿',
+                  'שום דבר לא מחכה היום — מותר לנוח 🌿')
               : missionLines);
       await HomeWidget.saveWidgetData<String>('today_progress', progress);
       await HomeWidget.saveWidgetData<String>('summary', summary);
-      await HomeWidget.saveWidgetData<String>('upcoming',
-          upcoming.isEmpty ? 'Nothing planned ahead. That\'s allowed.' : upcoming);
+      await HomeWidget.saveWidgetData<String>(
+          'upcoming',
+          upcoming.isEmpty
+              ? L.t('Nothing planned ahead. That\'s allowed.',
+                  'אין תוכניות קדימה. גם זה בסדר.')
+              : upcoming);
       await HomeWidget.saveWidgetData<String>(
           'recent_memory',
           recentStory.isEmpty
-              ? 'You\'ve done great things before.'
+              ? L.t('You\'ve done great things before.',
+                  'כבר עשית דברים נהדרים בעבר.')
               : recentStory);
 
       for (final provider in _providers) {

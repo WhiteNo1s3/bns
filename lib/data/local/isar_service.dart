@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/keybinds.dart';
 
@@ -141,9 +142,11 @@ class IsarService {
     if (d.routines.isEmpty && !d.seeded) {
       final now = DateTime.now();
       d.routines.addAll([
+        // Hebrew-first seeds (the first users are Israeli; L defaults to
+        // 'he' before anyone chose anything).
         Routine(
           id: 'seed-1',
-          title: 'Morning stretch + water',
+          title: L.t('Morning stretch + water', 'מתיחות בוקר + כוס מים'),
           recurrenceType: RecurrenceType.daily,
           time: '08:00',
           createdAt: now,
@@ -151,7 +154,8 @@ class IsarService {
         ),
         Routine(
           id: 'seed-2',
-          title: 'Take supplements (with food if possible)',
+          title: L.t('Take supplements (with food if possible)',
+              'תוספים (עם אוכל אם אפשר)'),
           recurrenceType: RecurrenceType.weekdays,
           daysOfWeek: const [1, 2, 3, 4, 5],
           time: '08:15',
@@ -160,7 +164,8 @@ class IsarService {
         ),
         Routine(
           id: 'seed-3',
-          title: 'Gentle walk or sit outside',
+          title: L.t('Gentle walk or sit outside',
+              'הליכה רגועה או ישיבה בחוץ'),
           recurrenceType: RecurrenceType.daily,
           createdAt: now,
           updatedAt: now,
@@ -236,6 +241,23 @@ class IsarService {
     d.events.add(withId);
     await _persist();
     return withId;
+  }
+
+  /// Answer a plan: 'done' (the quiet ✓), 'skipped' (didn't happen, with an
+  /// optional kept why), or null — the answer taken back, the plan simply
+  /// open again (never secretly something else).
+  static Future<void> answerEvent(String id, String? answer,
+      {String? reason}) async {
+    final d = await _load();
+    final i = d.events.indexWhere((e) => e.id == id);
+    if (i < 0) return;
+    d.events[i] = d.events[i].copyWith(
+      answer: answer,
+      answerReason: answer == null ? null : reason,
+      answerAt: answer == null ? null : DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    await _persist();
   }
 
   // ---- Quick Captures ----

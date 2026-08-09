@@ -312,3 +312,41 @@ theirs.
   like yours?"
 - "Did tapping it land you where you expected?"
 - "On the PC, did the little card show up while the app was open?"
+
+## Plans carry weight + Hebrew everywhere (2026-08-09)
+
+**The word is PLAN (תוכנית) — never "task" (owner: the handicap must not
+feel like handicap).** A doctor appointment, an errand, a one-time thing:
+not a routine, but today it stands IN the day.
+
+### Shipped
+
+- ✅ **Plans sort into Today**: one-time calendar things weave into the
+  day list by the same clock laws as routines (answered sinks, both order
+  preferences honored). `lib/core/day_items.dart` (pure, tested).
+- ✅ **Plans are answerable**: the same checkbox language — tap = "Is it
+  done? 🌿", long-press = "didn't happen" with a kept why. Answers live on
+  the plan itself in the .bns (`answer`/`answerReason`/`answerAt`).
+- ✅ **Answered plans stop reminding** (scheduled + Windows in-app both).
+- ✅ **Quick add on Today**: "A plan for today" — title + optional time,
+  never forced into a routine. Also offered on the empty day.
+- ✅ **Hebrew completeness**: the Android home widgets now speak the
+  person's language (all summaries, empty states, "Tomorrow", progress);
+  widget buttons/headers localized via Android resources (values-iw) — and
+  "＋ Task" became "＋ Routine"/"＋ שגרה" per the no-task law; first-run
+  seed routines Hebrew-first; user-type names translated; .bns import
+  messages translated.
+
+### Parked (don't lose)
+
+- Plans in the NEXT hero card + "Coming up" strip (today they join the
+  list only).
+- Answered-plan ✓ shown in the calendar day view + day thread feed.
+- Per-app language for widget buttons (today they follow the phone's
+  language, which is right for almost everyone).
+
+### Live test questions
+
+- "Did your doctor appointment show up inside your day, in its place?"
+- "Did ticking it feel exactly like ticking a routine?"
+- "Is every word on the home widgets in your language?"

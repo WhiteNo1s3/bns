@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/platform/android_widget.dart';
@@ -26,14 +27,17 @@ class BnsFileHandler {
       if (context != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Imported .bns: ${file.path.split(Platform.pathSeparator).last}. Your data is updated. You got this.')),
+              content: Text(L.t(
+                  'Imported .bns: ${file.path.split(Platform.pathSeparator).last}. Your data is updated. You got this.',
+                  'קובץ .bns נקלט: ${file.path.split(Platform.pathSeparator).last}. הנתונים עודכנו. הכול אצלך.'))),
         );
       }
     } catch (e) {
       if (context != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import had a problem: $e')),
+          SnackBar(
+              content: Text(L.t('Import had a problem: $e',
+                  'הייתה בעיה בקליטת הקובץ: $e'))),
         );
       }
     }

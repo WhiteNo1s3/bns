@@ -141,6 +141,20 @@ void main() {
       expect(edge, isEmpty);
     });
 
+    test('an answered plan needs no reminding', () {
+      final plan = planReminders(
+        routines: const [],
+        events: [
+          event('done', '2026-08-08', '14:30').copyWith(answer: 'done'),
+          event('open', '2026-08-08', '16:00'),
+        ],
+        settings: settings,
+        now: now,
+      );
+      expect(plan, hasLength(1));
+      expect(plan.single.payload, 'event:open:2026-08-08');
+    });
+
     test('plans are capped so routines always keep room', () {
       final many = [
         for (var i = 0; i < 40; i++)

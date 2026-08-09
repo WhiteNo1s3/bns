@@ -113,6 +113,9 @@ List<PlannedReminder> planReminders({
     final upcoming = <(DateTime, CalendarEvent)>[];
     for (final e in events) {
       if (e.isAllDay || e.time == null) continue;
+      // An answered plan (✓ or "didn't happen") needs no reminding —
+      // the person already met it.
+      if (e.isAnswered) continue;
       final hm = _parseTime(e.time!);
       final date = DateTime.tryParse(e.date);
       if (hm == null || date == null) continue;
@@ -178,7 +181,7 @@ String reminderFingerprint({
     if (e.isAllDay || e.time == null) continue;
     final date = DateTime.tryParse(e.date);
     if (date == null || date.isAfter(horizon)) continue;
-    b.write('|e:${e.id},${e.title},${e.date},${e.time}');
+    b.write('|e:${e.id},${e.title},${e.date},${e.time},${e.answer ?? ''}');
   }
   return b.toString();
 }

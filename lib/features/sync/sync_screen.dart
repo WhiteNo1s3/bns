@@ -284,6 +284,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _loadRetention();
   }
 
+  /// Person-facing names for the user types (values stay identifiers).
+  static String _userTypeName(String key) => switch (key) {
+        'normal' => L.t('Regular', 'רגיל'),
+        'kid-ADHD' => L.t('Kid (ADHD)', 'ילד/ה (קשב)'),
+        'ADHD' => L.t('ADHD', 'קשב וריכוז'),
+        'custom (penguin)' => L.t('Custom (penguin)', 'מותאם (פינגווין)'),
+        _ => key,
+      };
+
   /// The person-facing names of the reminder colors (keys stay English —
   /// they are identifiers that travel in the .bns).
   static String _colorName(String key) => switch (key) {
@@ -1152,8 +1161,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       style: TextStyle(fontSize: 11)),
                   DropdownButton<String>(
                     value: _userType,
+                    // Stored values stay English identifiers (they travel
+                    // in the .bns); only the shown words translate.
                     items: ['normal', 'kid-ADHD', 'ADHD', 'custom (penguin)']
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .map((t) => DropdownMenuItem(
+                            value: t, child: Text(_userTypeName(t))))
                         .toList(),
                     onChanged: (v) async {
                       if (v != null) {
@@ -1163,8 +1175,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         await _loadRetention();
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(L.t(
-                                'Type set to $v - UI adapts (brighter for fog, kid-fluent)',
-                                'הסוג הוגדר ל-$v — המסך מתאים את עצמו (בהיר יותר, זורם לילדים)'))));
+                                'Set to ${_userTypeName(v)} — the screen adapts itself',
+                                'הוגדר ל${_userTypeName(v)} — המסך מתאים את עצמו'))));
                       }
                     },
                   ),

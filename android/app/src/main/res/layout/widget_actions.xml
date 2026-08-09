@@ -15,7 +15,7 @@
         android:minHeight="48dp"
         android:gravity="center"
         android:background="@drawable/widget_btn_bg"
-        android:text="＋ Task"
+        android:text="@string/widget_action_routine"
         android:textStyle="bold"
         android:textSize="14sp"
         android:textColor="@color/bnsWidgetOnAccent" />
@@ -29,7 +29,7 @@
         android:minHeight="48dp"
         android:gravity="center"
         android:background="@drawable/widget_btn_bg"
-        android:text="＋ Memory"
+        android:text="@string/widget_action_memory"
         android:textStyle="bold"
         android:textSize="14sp"
         android:textColor="@color/bnsWidgetOnAccent" />
@@ -43,7 +43,7 @@
         android:minHeight="48dp"
         android:gravity="center"
         android:background="@drawable/widget_btn_bg"
-        android:text="🎤 Voice"
+        android:text="@string/widget_action_voice"
         android:textStyle="bold"
         android:textSize="14sp"
         android:textColor="@color/bnsWidgetOnAccent" />

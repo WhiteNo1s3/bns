@@ -10,7 +10,9 @@ import 'package:bns/ui/theme.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/providers/app_providers.dart';
+import 'package:bns/core/day_items.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
+import 'package:bns/ui/widgets/plan_tile.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
@@ -534,6 +536,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Map<String, List<QuickCapture>> _keptByRoutine = const {};
   // Today's storms: the mad-vents of this day, kept and revisitable.
   List<QuickCapture> _madToday = const [];
+  // Today's PLANS — one-time things (a doctor appointment, an errand) that
+  // stand in the day with the weight of a step (owner, 2026-08-09).
+  List<CalendarEvent> _todayPlans = const [];
   Map<String, int> _stepProgress = const {}; // routineId → parts done today
   bool _nextFirstOrder = false; // false = morning→night (default)
   bool _guidedMode = false; // level 4: only the list, inspector builds
@@ -558,6 +563,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final settings = await IsarService.getSettings();
+    final todayPlans = await IsarService.getEventsForDate(todayStr);
     // The kept "why"s: need-help notes from the last few days, latest one
     // per routine. They ride the tiles so the reason is met, not searched.
     final captures = await IsarService.getAllCaptures();
@@ -617,6 +623,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       _recentNoteWhen = noteWhen;
       _keptByRoutine = kept;
       _madToday = mad;
+      _todayPlans = todayPlans;
       _stepProgress = steps;
       _nextFirstOrder = settings.todayOrder == 'next';
       final lastSyncAt = trusted.isEmpty
@@ -757,37 +764,52 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     return '${DateFormat('EEE').format(at)} $hm';
   }
 
-  /// Two ways to see the day (owner, 2026-07-08): morning→night (default,
-  /// the calm timeline) or "what's next" — the closest upcoming task from
-  /// right now first, so 18:18 shows the 18:30 thing on top. Done items
-  /// sink to the bottom in both.
-  void _sortForToday(List<Routine> list) {
-    int minutes(Routine r) {
-      if (r.time == null) return 24 * 60; // timeless tasks go last
-      final p = r.time!.split(':');
-      return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
-    }
+  // (Day ordering lives in lib/core/day_items.dart now — routines and
+  // plans woven by the same laws, testable on their own.)
 
-    final nowMin = DateTime.now().hour * 60 + DateTime.now().minute;
-    // ANSWERED SINKS — done OR "didn't happen" (owner, 2026-07-29: "the
-    // morning routine went over the night one until I pushed it away as
-    // not today, and then went down to its place"). A skip is an ANSWER,
-    // exactly like a ✓; only unanswered things deserve the top of a list.
-    bool answered(Routine r) =>
-        _doneTodayIds.contains(r.id) || _skippedTodayIds.contains(r.id);
-    list.sort((a, b) {
-      final aDone = answered(a);
-      final bDone = answered(b);
-      if (aDone != bDone) return aDone ? 1 : -1; // handled sinks
-      final am = minutes(a), bm = minutes(b);
-      if (!_nextFirstOrder) return am.compareTo(bm);
-      // "What's next": upcoming (>= now) first by nearness, then the
-      // earlier-today ones, then timeless.
-      int rank(int m) => m >= 24 * 60 ? 2 : (m >= nowMin ? 0 : 1);
-      final ra = rank(am), rb = rank(bm);
-      if (ra != rb) return ra.compareTo(rb);
-      return am.compareTo(bm);
-    });
+  /// The day's tiles: routines and plans in their woven order. Keyboard
+  /// selection follows the routine's position among ROUTINES (the arrows
+  /// walk steps; plans answer to taps), so the highlight index counts only
+  /// them.
+  List<Widget> _dayTiles(List<Object> dayList) {
+    final tiles = <Widget>[];
+    var routineIndex = 0;
+    for (final item in dayList) {
+      if (item is Routine) {
+        final r = item;
+        final i = routineIndex++;
+        tiles.add(Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: RoutineTile(
+            routine: r,
+            isDone: _doneTodayIds.contains(r.id),
+            big: _guidedMode,
+            stepsDone: _stepProgress[r.id] ?? 0,
+            onStepDone: r.steps.isNotEmpty ? () => _advanceStep(r) : null,
+            selected: _routinesFocus.hasFocus && i == _kbSelected,
+            skippedToday: _skippedTodayIds.contains(r.id),
+            recentNote: _recentNoteText[r.id],
+            recentNoteWhen: _recentNoteWhen[r.id],
+            keptCount: _keptByRoutine[r.id]?.length ?? 0,
+            onShowKept: () =>
+                _showKeptWords(r.title, _keptByRoutine[r.id] ?? const []),
+            onToggle: () => _toggleComplete(r),
+            onSkip: () => _openDidntHappenSheet(r),
+          ),
+        ));
+      } else if (item is CalendarEvent) {
+        tiles.add(Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: PlanTile(
+            plan: item,
+            big: _guidedMode,
+            onToggle: () => _togglePlanDone(item),
+            onSkip: () => _openPlanDidntHappenSheet(item),
+          ),
+        ));
+      }
+    }
+    return tiles;
   }
 
   Future<void> _toggleTodayOrder() async {
@@ -1183,6 +1205,196 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     ).whenComplete(saveProblemNote);
   }
 
+  /// A plan's checkbox — the same gentle guard in both directions as a
+  /// routine's: a stray tap must not fake a win, a real ✓ stays takeable-back.
+  Future<void> _togglePlanDone(CalendarEvent plan) async {
+    if (!plan.isDone) {
+      final sure = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(plan.title),
+          content: Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Not yet', 'עוד לא'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(L.t('Done ✓', 'נעשה ✓'))),
+          ],
+        ),
+      );
+      if (sure != true) return;
+      await IsarService.answerEvent(plan.id, 'done');
+      final settings = await IsarService.getSettings();
+      if (!settings.quietMode) _confetti.play();
+    } else {
+      final takeBack = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(plan.title),
+          content: Text(L.t('Take the ✓ back? That happens — no harm.',
+              'להוריד את ה-✓? קורה — שום נזק.')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
+          ],
+        ),
+      );
+      if (takeBack != true) return;
+      await IsarService.answerEvent(plan.id, null);
+    }
+    await _refreshDoneToday();
+    AndroidBnsWidget.updateWidget();
+  }
+
+  /// Long-press on a plan = "it didn't happen" — same kind door as
+  /// routines: state it, optionally say what got in the way, kept forever.
+  void _openPlanDidntHappenSheet(CalendarEvent plan) {
+    final noteCtrl = TextEditingController(text: plan.answerReason ?? '');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            24, 24, 24, 40 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(plan.title,
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Text(L.t(
+                'Didn\'t happen? That\'s okay — plans move. If something got '
+                    'in the way, write it down so it can get help.',
+                'לא קרה? זה בסדר — תוכניות זזות. אם משהו הפריע, אפשר לכתוב '
+                    'אותו כאן כדי שיהיה אפשר לעזור.')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 3,
+              minLines: 1,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: L.t('What got in the way? (tap the mic to speak)',
+                    'מה הפריע? (הקשה על המיקרופון כדי לדבר)'),
+                border: const OutlineInputBorder(),
+                suffixIcon: DictationMicButton(controller: noteCtrl),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                if (ctx.mounted) Navigator.pop(ctx);
+                await IsarService.answerEvent(plan.id, 'skipped',
+                    reason: noteCtrl.text.trim().isEmpty
+                        ? null
+                        : noteCtrl.text.trim());
+                await _refreshDoneToday();
+              },
+              child: Text(L.t('It didn\'t happen', 'זה לא קרה')),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(L.t('Close', 'סגירה')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A one-time thing lands in today without touching routines (owner,
+  /// 2026-08-09: "a doctor appointment and a plan I have for today").
+  /// Title + optional time; the reminder follows by itself.
+  Future<void> _addPlanForToday() async {
+    final titleCtrl = TextEditingController();
+    TimeOfDay? picked;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setDlg) => AlertDialog(
+          title: Text(L.t('A plan for today', 'תוכנית להיום')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: L.t('What\'s the plan?', 'מה התוכנית?'),
+                  hintText: L.t('e.g. Doctor at the clinic',
+                      'למשל: רופא במרפאה'),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: DictationMicButton(controller: titleCtrl),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.schedule, size: 18),
+                    label: Text(picked == null
+                        ? L.t('Pick a time (optional)', 'לבחור שעה (רשות)')
+                        : picked!.format(c)),
+                    onPressed: () async {
+                      final t = await showTimePicker(
+                          context: c,
+                          initialTime: picked ?? TimeOfDay.now());
+                      if (t != null) setDlg(() => picked = t);
+                    },
+                  ),
+                  if (picked != null)
+                    TextButton(
+                      onPressed: () => setDlg(() => picked = null),
+                      child: Text(L.t('No time — just today',
+                          'בלי שעה — פשוט היום')),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Cancel', 'ביטול'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(L.t('Put it in my day', 'לשים ביום שלי'))),
+          ],
+        ),
+      ),
+    );
+    final title = titleCtrl.text.trim();
+    if (saved != true || title.isEmpty) return;
+    final now = DateTime.now();
+    await IsarService.addEvent(CalendarEvent(
+      id: '',
+      title: title,
+      date: DateFormat('yyyy-MM-dd').format(now),
+      time: picked == null
+          ? null
+          : '${picked!.hour.toString().padLeft(2, '0')}:'
+              '${picked!.minute.toString().padLeft(2, '0')}',
+      createdAt: now,
+      updatedAt: now,
+    ));
+    await _refreshDoneToday();
+    AndroidBnsWidget.updateWidget();
+  }
+
   Future<void> _saveDiaryEntry() async {
     final text = _diaryController.text.trim();
     if (text.isEmpty) return;
@@ -1389,9 +1601,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       final todaysRoutines = routines
                           .where((r) => r.appliesOn(today) && r.isActive)
                           .toList();
-                      _sortForToday(todaysRoutines);
-                      _todayRoutines =
-                          todaysRoutines; // for the keyboard handler
+                      // One day, one list: routines and plans woven by the
+                      // same clock laws (answered sinks, order preference
+                      // honored). A doctor appointment stands IN the day.
+                      final dayList = weaveDayList(
+                        routines: todaysRoutines,
+                        plans: _todayPlans,
+                        doneRoutineIds: _doneTodayIds,
+                        skippedRoutineIds: _skippedTodayIds,
+                        nextFirst: _nextFirstOrder,
+                        now: DateTime.now(),
+                      );
+                      _todayRoutines = dayList
+                          .whereType<Routine>()
+                          .toList(); // for the keyboard handler
 
                       // Hero always uses clock "what's next" order — the
                       // list below can still follow the person's preference.
@@ -1419,7 +1642,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           .take(2)
                           .toList();
 
-                      if (todaysRoutines.isEmpty) {
+                      if (dayList.isEmpty) {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Column(
@@ -1435,6 +1658,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   label: Text(L.t(
                                       'Add a routine when you\'re ready',
                                       'להוסיף שגרה כשמתאים לך')),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _addPlanForToday,
+                                  icon: const Icon(Icons.event),
+                                  label: Text(L.t(
+                                      'Or a one-time plan for today',
+                                      'או תוכנית חד-פעמית להיום')),
                                 ),
                               ],
                             ],
@@ -1518,68 +1749,44 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             child: Column(
                               children: [
                                 if (!_guidedMode)
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton.icon(
-                                      onPressed: _toggleTodayOrder,
-                                      icon: Icon(
-                                          _nextFirstOrder
-                                              ? Icons.schedule
-                                              : Icons.wb_twilight,
-                                          size: 16),
-                                      label: Text(
-                                          _nextFirstOrder
-                                              ? L.t('List: what\'s next',
-                                                  'רשימה: מה הבא בתור')
-                                              : L.t(
-                                                  'List: morning to night',
-                                                  'רשימה: מהבוקר עד הלילה'),
-                                          style:
-                                              const TextStyle(fontSize: 12)),
-                                    ),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // One-time things enter the day here
+                                      // — never forced into a routine.
+                                      TextButton.icon(
+                                        onPressed: _addPlanForToday,
+                                        icon: const Icon(Icons.add_circle_outline,
+                                            size: 16),
+                                        label: Text(
+                                            L.t('A plan for today',
+                                                'תוכנית להיום'),
+                                            style: const TextStyle(
+                                                fontSize: 12)),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: _toggleTodayOrder,
+                                        icon: Icon(
+                                            _nextFirstOrder
+                                                ? Icons.schedule
+                                                : Icons.wb_twilight,
+                                            size: 16),
+                                        label: Text(
+                                            _nextFirstOrder
+                                                ? L.t('List: what\'s next',
+                                                    'רשימה: מה הבא בתור')
+                                                : L.t(
+                                                    'List: morning to night',
+                                                    'רשימה: מהבוקר עד הלילה'),
+                                            style: const TextStyle(
+                                                fontSize: 12)),
+                                      ),
+                                    ],
                                   ),
-                                for (int i = 0;
-                                    i < todaysRoutines.length;
-                                    i++)
-                                  Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 8),
-                                    child: RoutineTile(
-                                      routine: todaysRoutines[i],
-                                      isDone: _doneTodayIds
-                                          .contains(todaysRoutines[i].id),
-                                      big: _guidedMode,
-                                      stepsDone: _stepProgress[
-                                              todaysRoutines[i].id] ??
-                                          0,
-                                      onStepDone: todaysRoutines[i]
-                                              .steps.isNotEmpty
-                                          ? () => _advanceStep(
-                                              todaysRoutines[i])
-                                          : null,
-                                      selected: _routinesFocus.hasFocus &&
-                                          i == _kbSelected,
-                                      skippedToday: _skippedTodayIds
-                                          .contains(todaysRoutines[i].id),
-                                      recentNote: _recentNoteText[
-                                          todaysRoutines[i].id],
-                                      recentNoteWhen: _recentNoteWhen[
-                                          todaysRoutines[i].id],
-                                      keptCount: _keptByRoutine[
-                                                  todaysRoutines[i].id]
-                                              ?.length ??
-                                          0,
-                                      onShowKept: () => _showKeptWords(
-                                          todaysRoutines[i].title,
-                                          _keptByRoutine[
-                                                  todaysRoutines[i].id] ??
-                                              const []),
-                                      onToggle: () => _toggleComplete(
-                                          todaysRoutines[i]),
-                                      onSkip: () => _openDidntHappenSheet(
-                                          todaysRoutines[i]),
-                                    ),
-                                  ),
+                                // Routines AND plans, woven by one clock
+                                // (a plan carries the weight of a step).
+                                ..._dayTiles(dayList),
                               ],
                             ),
                           ),

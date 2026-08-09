@@ -75,7 +75,7 @@ class DesktopReminderService {
     if (lead < 0) return;
     final events = await IsarService.getAllEvents();
     for (final e in events) {
-      if (e.isAllDay || e.time == null) continue;
+      if (e.isAllDay || e.time == null || e.isAnswered) continue;
       final date = DateTime.tryParse(e.date);
       if (date == null) continue;
       final at = _timeOn(DateTime(date.year, date.month, date.day), e.time!);

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/sync_policy.dart';
+import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/data/export/bns_exporter.dart';
@@ -57,6 +58,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   int _eventReminderMinutes = 30;
   bool _sttEnabled = true;
   bool _autoImage = true;
+  String _homePath = '';
   int _retentionDays = 20;
   int _widgetForwardDays = 2;
   String _userType = 'normal';
@@ -101,6 +103,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _enabledKeybinds = Map<String, bool>.from(settings.enabledKeybinds);
     _appLanguage = settings.appLanguage;
     _caregiverDevice = settings.caregiverDevice;
+    _homePath = await BnsHome.currentPath();
     _refreshVoskStatus();
 
     // (Receiver-side pairing prompts are app-wide now — main.dart installs
@@ -807,6 +810,55 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.saveTrustedDevice(updated);
     await _service.refreshTrustPolicy();
     await _loadTrusted();
+  }
+
+  /// Move the BNS home — data file, audio, exports — to a folder the
+  /// person chooses. Copy-then-switch: the old folder stays as a backup.
+  Future<void> _chooseHome() async {
+    final picked = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: L.t('Choose where BNS keeps your data',
+            'בחר איפה BNS ישמור את המידע שלך'));
+    if (picked == null || picked.trim().isEmpty) return;
+    if (!mounted) return;
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(L.t('Move your BNS home?', 'להעביר את הבית של BNS?')),
+        content: Text(L.t(
+            'Everything — your data file, voice notes, and exports — will '
+            'be copied to:\n\n$picked\n\nand live there from now on. The '
+            'old copy stays where it is as a quiet backup. Nothing is '
+            'deleted.',
+            'הכול — קובץ המידע, הקלטות הקול והייצוא — יועתק אל:\n\n$picked'
+            '\n\nויגור שם מעכשיו. העותק הישן נשאר במקומו כגיבוי שקט. '
+            'שום דבר לא נמחק.')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: Text(L.t('Stay here', 'להישאר כאן'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(L.t('Move home', 'להעביר את הבית'))),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    try {
+      final newPath = await IsarService.moveHome(picked);
+      if (!mounted) return;
+      setState(() => _homePath = newPath);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'BNS moved home. Everything now lives in $newPath — the old '
+              'copy stays as a backup.',
+              'BNS עבר דירה. הכול גר עכשיו ב-$newPath — העותק הישן נשאר '
+              'כגיבוי.'))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t('The move didn\'t complete: $e',
+              'ההעברה לא הושלמה: $e'))));
+    }
   }
 
   Future<void> _manualExport() async {
@@ -1677,6 +1729,29 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     value: _autoImage,
                     onChanged: _setAutoImage,
                   ),
+                  // Where the data ACTUALLY lives — chosen, not hardcoded
+                  // (owner, 2026-08-09: "we have to make it not hardcoded
+                  // to save the bns file"). Desktop only: phones keep
+                  // their app storage.
+                  if (!Platform.isAndroid && !Platform.isIOS)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.home_outlined),
+                      title: Text(L.t('Where your BNS lives',
+                          'איפה ה-BNS שלך גר')),
+                      subtitle: Text(
+                        _homePath.isEmpty ? '…' : _homePath,
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: TextButton.icon(
+                        onPressed: _chooseHome,
+                        icon: const Icon(Icons.drive_file_move_outline,
+                            size: 18),
+                        label: Text(
+                            L.t('Choose folder', 'בחירת תיקייה')),
+                      ),
+                    ),
 
                   const SizedBox(height: 16),
                   const Divider(),

@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/keybinds.dart';
 
@@ -98,7 +98,9 @@ class IsarService {
   }
 
   static Future<File> _storeFile() async {
-    final dir = await getApplicationDocumentsDirectory();
+    // Not hardcoded to documents anymore: the person chooses where BNS
+    // lives (owner, 2026-08-09); BnsHome holds the answer.
+    final dir = await BnsHome.dir();
     return File('${dir.path}/$_fileName');
   }
 
@@ -680,10 +682,64 @@ class IsarService {
   // ---- Audio directory helper ----
 
   static Future<Directory> getAudioDir() async {
-    final base = await getApplicationDocumentsDirectory();
+    final base = await BnsHome.dir();
     final dir = Directory('${base.path}/audio');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
+  }
+
+  /// A stored audio path that still opens — or null.
+  ///
+  /// Captures carry absolute paths from the machine that recorded them; a
+  /// new PC or user name kills them (the C:\Users\Shaltiel\... ghosts).
+  /// When the absolute path is dead, the same FILENAME inside the current
+  /// audio folder is the answer — that is where imports and moves put it.
+  static Future<String?> resolveAudioPath(String? stored) async {
+    if (stored == null || stored.isEmpty) return null;
+    try {
+      if (await File(stored).exists()) return stored;
+      // Ghost paths mix / and \ (they crossed machines) — split on both.
+      final name = stored.split(RegExp(r'[\\/]')).last;
+      if (name.isEmpty) return null;
+      final local = File('${(await getAudioDir()).path}/$name');
+      if (await local.exists()) return local.path;
+    } catch (_) {}
+    return null;
+  }
+
+  // ---- The home itself ----
+
+  /// Move the whole BNS home (data file, audio/, exports/) to [newPath]
+  /// and remember the choice. COPIES, then switches — the old folder stays
+  /// behind untouched, a quiet backup. Never deletes the person's data.
+  static Future<String> moveHome(String newPath) async {
+    final target = Directory(newPath.trim());
+    await target.create(recursive: true);
+    final old = await BnsHome.dir();
+    if (old.path == target.path) return target.path;
+
+    // Let any in-flight write finish in the old home first.
+    await _writeChain;
+
+    for (final sub in ['audio', 'exports']) {
+      final src = Directory('${old.path}/$sub');
+      if (!await src.exists()) continue;
+      final dst = Directory('${target.path}/$sub');
+      await dst.create(recursive: true);
+      await for (final f in src.list()) {
+        if (f is! File) continue;
+        try {
+          await f.copy('${dst.path}/${f.uri.pathSegments.last}');
+        } catch (_) {
+          // One stubborn file must not stop the move.
+        }
+      }
+    }
+
+    await BnsHome.setDir(target);
+    // First persist writes bns_data.json into the NEW home.
+    if (_data != null) await _persist();
+    return target.path;
   }
 }
 

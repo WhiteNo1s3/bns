@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'package:path_provider/path_provider.dart';
+import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/pack/bns_file_imager.dart';
 import 'package:bns/data/pack/bns_packers.dart';
@@ -69,16 +69,12 @@ class BnsExporter {
     // "super annoyed at the elevator" in his own voice IS the information.
     // Referenced by path: they stream into the file, never through memory
     // (full care mode ships EVERY recording — that can be a lot of audio).
-    final audioDir = await IsarService.getAudioDir();
     final audioEntries = <BnsAudioFileRef>[];
     for (final cap in captures) {
-      final p = cap.audioPath;
-      if (p == null) continue;
-      final name = p.split(Platform.pathSeparator).last.split('/').last;
-      final f = File('${audioDir.path}/$name');
-      if (await f.exists()) {
-        audioEntries.add((name: name, path: f.path));
-      }
+      final resolved = await IsarService.resolveAudioPath(cap.audioPath);
+      if (resolved == null) continue;
+      final f = File(resolved);
+      audioEntries.add((name: f.uri.pathSegments.last, path: f.path));
     }
 
     final manifest = {
@@ -110,8 +106,8 @@ class BnsExporter {
       'settings': {'shareName': settings.effectiveShareName},
     };
 
-    final docs = await getApplicationDocumentsDirectory();
-    final exportsDir = Directory('${docs.path}/exports');
+    final home = await BnsHome.dir();
+    final exportsDir = Directory('${home.path}/exports');
     await exportsDir.create(recursive: true);
     final safeName = settings.effectiveShareName.replaceAll(' ', '_');
     final outPath = '${exportsDir.path}/BNS_Family_$safeName.bns';
@@ -136,22 +132,14 @@ class BnsExporter {
   static Future<File> exportFullSnapshot({String? fixedFileName}) async {
     await IsarService.pruneOldData();
     final snapshot = await IsarService.getFullSnapshot();
-    final audioDir = await IsarService.getAudioDir();
 
-    // Resolve audio paths on the main isolate (cheap); heavy work goes below.
+    // Resolve audio paths on the main isolate (cheap); heavy work goes
+    // below. resolveAudioPath also heals paths recorded on OTHER machines
+    // by falling back to the same filename in the current audio folder.
     final audioPaths = <String>[];
     for (final cap in snapshot.captures) {
-      if (cap.audioPath != null) {
-        final file = File(cap.audioPath!);
-        if (await file.exists()) {
-          audioPaths.add(file.path);
-        } else {
-          // Try relative inside audio dir
-          final relative = File(
-              '${audioDir.path}/${cap.audioPath!.split(Platform.pathSeparator).last}');
-          if (await relative.exists()) audioPaths.add(relative.path);
-        }
-      }
+      final resolved = await IsarService.resolveAudioPath(cap.audioPath);
+      if (resolved != null) audioPaths.add(resolved);
     }
 
     final manifest = {
@@ -187,8 +175,8 @@ class BnsExporter {
     final manifestJson = jsonEncode(manifest);
     final dataJson = jsonEncode(data);
 
-    final docs = await getApplicationDocumentsDirectory();
-    final exportsDir = Directory('${docs.path}/exports');
+    final home = await BnsHome.dir();
+    final exportsDir = Directory('${home.path}/exports');
     await exportsDir.create(recursive: true);
 
     final timestamp =

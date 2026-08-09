@@ -155,7 +155,9 @@ class BnsImporter {
         continue;
       }
 
-      final originalName = cap.audioPath!.split(Platform.pathSeparator).last;
+      // Paths cross machines (Windows \ and phone /) — split on both, or a
+      // file recorded on one platform never matches on the other.
+      final originalName = cap.audioPath!.split(RegExp(r'[\\/]')).last;
       final matching = audioFiles.firstWhere(
         (f) => f.path.endsWith(originalName),
         orElse: () => File(''),

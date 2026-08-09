@@ -7,6 +7,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
+import 'package:bns/ui/layout.dart';
 
 /// Modern desktop shell for PC (Windows/macOS/Linux primary use).
 ///
@@ -290,10 +291,10 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isDesktopPlatform =
-        Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-    final useDesktopLayout = isDesktopPlatform && size.width >= 820;
+    // WIDTH decides, not platform (tablets wave, 2026-08-09): an Android
+    // tablet or iPad in landscape gets the same comfortable sidebar as a PC.
+    // Phones and narrow windows keep the simple flow.
+    final useDesktopLayout = BnsLayout.isWide(context);
 
     if (!useDesktopLayout) {
       // Narrow or mobile: just the child (original behavior preserved)

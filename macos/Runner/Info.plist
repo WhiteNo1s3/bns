@@ -4,6 +4,12 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Hebrew first + English (the two-language law). -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>he</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>
@@ -46,10 +52,38 @@
 			<array>
 				<string>bns</string>
 			</array>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.whiteno1se.bns</string>
+			</array>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
+		</dict>
+	</array>
+	<!-- Same exported UTType as iOS (com.whiteno1se.bns): Finder learns what
+	     a .bns IS, so double-click, Quick Actions and "Open With" all agree. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>BNS Backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.whiteno1se.bns</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bns</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/octet-stream</string>
+			</dict>
 		</dict>
 	</array>
 	<!-- For clean native macOS support with Apple Silicon (M1/M2+) - relevant and affordable for all users -->

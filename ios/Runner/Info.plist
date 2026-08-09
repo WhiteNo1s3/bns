@@ -4,6 +4,13 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- Hebrew first + English (the two-language law) — declared so iOS
+	     localizes system prompts and the App Store listing accordingly. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>he</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>BNS</string>
 	<key>CFBundleExecutable</key>
@@ -74,6 +81,13 @@
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>bns</string>
+			</array>
+			<!-- Modern iOS matches documents by UTType — this points at the
+			     exported com.whiteno1se.bns declaration below, so "Open in
+			     BNS" appears in Files/Mail/AirDrop shares. -->
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.whiteno1se.bns</string>
 			</array>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>

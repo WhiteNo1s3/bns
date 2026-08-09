@@ -1,7 +1,22 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// The person's own release certificate ("certified" APK): generated ONCE by
+// scripts/make-keystore.ps1, which writes android/key.properties + the .jks.
+// Both are gitignored — a signing identity never enters the repo. Without
+// them the release still builds (debug-signed) so `flutter run --release`
+// keeps working on any machine.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -27,6 +42,17 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // The dev copy installs NEXT TO the real app, never over it —
@@ -35,9 +61,13 @@ android {
             versionNameSuffix = "-dev"
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Real certificate when the keystore exists (scripts/make-keystore.ps1),
+            // debug keys otherwise so a fresh clone still runs.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // Ship builds, not source: R8 shrinks + obfuscates the JVM side.
             // (Dart side is AOT + --obfuscate via scripts/build.ps1.)
             // Diagnostic escape hatch: set env ORG_GRADLE_PROJECT_bnsNoMinify=true

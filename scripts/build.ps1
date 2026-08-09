@@ -20,6 +20,11 @@ param(
 
 Write-Host "=== BNS Packaging ===" -ForegroundColor Cyan
 
+# Version straight from pubspec — every artifact is named for its version,
+# so GitHub releases stay unambiguous (special build per version).
+$Version = ((Get-Content "pubspec.yaml" | Select-String '^version:') -replace 'version:\s*', '' -replace '\+.*', '').Trim()
+Write-Host "Version: $Version"
+
 if ($Target -eq "host" -or $Target -eq "windows") {
     Write-Host "Building Windows..." -ForegroundColor Green
     flutter build windows --release
@@ -29,8 +34,8 @@ if ($Target -eq "host" -or $Target -eq "windows") {
         # fully self-contained, no installer, no admin rights.
         New-Item -ItemType Directory -Force dist | Out-Null
         Compress-Archive -Path "build\windows\x64\runner\Release\*" `
-            -DestinationPath "dist\BNS-windows-x64.zip" -Force
-        Write-Host "Tester package: dist\BNS-windows-x64.zip (unzip + run bns.exe; optional: scripts\register-bns.ps1 for .bns double-click)"
+            -DestinationPath "dist\BNS-v$Version-windows-x64.zip" -Force
+        Write-Host "Tester package: dist\BNS-v$Version-windows-x64.zip (unzip + run bns.exe; optional: scripts\register-bns.ps1 for .bns double-click)"
     }
 }
 
@@ -41,6 +46,14 @@ if ($Target -eq "host" -or $Target -eq "android") {
     # build\symbols — keep them if you ever need to read a crash stack.
     flutter build apk --release --obfuscate --split-debug-info=build\symbols
     Write-Host "APK: build\app\outputs\flutter-apk\app-release.apk"
+    New-Item -ItemType Directory -Force dist | Out-Null
+    Copy-Item "build\app\outputs\flutter-apk\app-release.apk" "dist\BNS-v$Version-android.apk" -Force
+    if (Test-Path "android\key.properties") {
+        Write-Host "Certified build (your own release certificate): dist\BNS-v$Version-android.apk" -ForegroundColor Green
+    } else {
+        Write-Host "NOTE: debug-signed (no release keystore yet). Run scripts\make-keystore.ps1 ONCE for certified builds." -ForegroundColor Yellow
+        Write-Host "APK copied to: dist\BNS-v$Version-android.apk"
+    }
     Write-Host "Install and add the BNS widgets to home. .bns files open and import."
     if ($DiagAndroid) {
         # Diagnostic twin without R8/obfuscation: if the hardened APK
@@ -55,15 +68,9 @@ if ($Target -eq "host" -or $Target -eq "android") {
     }
 }
 
-if ($Target -eq "ios") {
-    Write-Host "Building iOS (run on a Mac)..." -ForegroundColor Green
-    flutter build ios --release
-}
-
-if ($Target -eq "macos") {
-    Write-Host "Building clean native macOS (run on a Mac)..." -ForegroundColor Green
-    flutter build macos --release
-    Write-Host "macOS app: build/macos/Build/Products/Release/"
+if ($Target -eq "ios" -or $Target -eq "macos") {
+    Write-Host "iOS/macOS compile only on a Mac (Xcode is macOS-only)." -ForegroundColor Yellow
+    Write-Host "On the Mac: ./scripts/build-apple.sh   (guide: docs/apple-build-guide.md)"
 }
 
 if ($Target -eq "linux") {

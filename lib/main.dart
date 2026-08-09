@@ -5,6 +5,7 @@ import 'package:flutter/services.dart'; // for LogicalKeyboardKey
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:bns/ui/layout.dart';
 import 'package:bns/ui/theme.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/models/models.dart';
@@ -1217,11 +1218,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Widget build(BuildContext context) {
     final routinesAsync = ref.watch(routinesProvider);
     final today = DateTime.now();
-    // On wide PC windows the sidebar already handles navigation — hide the
-    // duplicate nav buttons below to keep the screen calm and focused.
-    final isDesktopWide =
-        (Platform.isWindows || Platform.isMacOS || Platform.isLinux) &&
-            MediaQuery.sizeOf(context).width >= 820;
+    // On wide screens the sidebar shell already handles navigation — hide
+    // the duplicate nav buttons below to keep the screen calm and focused.
+    // Width decides (tablets wave, 2026-08-09): an Android tablet or iPad
+    // in landscape has the sidebar too, not just PCs.
+    final hasSidebar = BnsLayout.isWide(context);
+    // Keyboard hints stay a PC thing — a tablet has no Ctrl to press.
+    final isDesktopWide = hasSidebar &&
+        (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
     return Scaffold(
       appBar: BnsAppBar(
@@ -1676,10 +1680,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         'Today\'s words — everything said and done',
                         'מילות היום — כל מה שנאמר ונעשה')),
                   ),
-                  // On PC the sidebar covers navigation — these stay for mobile.
+                  // When the sidebar is on screen (PC or a wide tablet) it
+                  // covers navigation — these stay for phones.
                   // Guided mode: the calendar stays (visual, read-mostly);
                   // managing routines is the inspector's job, not shown here.
-                  if (!isDesktopWide) ...[
+                  if (!hasSidebar) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: () => context.push('/calendar'),

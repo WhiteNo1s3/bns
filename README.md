@@ -165,8 +165,13 @@ flutter run -d windows
 ```powershell
 cd C:\dev\bns
 .\scripts\build.ps1 -Target windows
-.\scripts\build.ps1 -Target android
+.\scripts\make-keystore.ps1   # ONCE: your Android release certificate
+.\scripts\build.ps1 -Target android   # certified APK → dist\BNS-v<version>-android.apk
 ```
+On a Mac (iPhone + iPad + Mac app): `./scripts/build-apple.sh` — the whole
+first hour on a new Mac is written down in `docs/apple-build-guide.md`
+(everything Apple-side is pre-configured in the repo; only Xcode + your
+Apple ID are needed there).
 
 ### .bns file association
 - The app recognizes `.bns` (see `docs/bns-format.md` and `docs/packaging-and-associations.md`).

@@ -1784,16 +1784,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       // One-time things enter the day here
-                                      // — never forced into a routine.
-                                      TextButton.icon(
+                                      // — never forced into a routine. A
+                                      // real button, not 12px whisper text:
+                                      // on the PC nobody FOUND it (owner
+                                      // QA, 2026-08-09).
+                                      FilledButton.tonalIcon(
                                         onPressed: _addPlanForToday,
-                                        icon: const Icon(Icons.add_circle_outline,
-                                            size: 16),
-                                        label: Text(
-                                            L.t('A plan for today',
-                                                'תוכנית להיום'),
-                                            style: const TextStyle(
-                                                fontSize: 12)),
+                                        icon: const Icon(Icons.event, size: 18),
+                                        label: Text(L.t('A plan for today',
+                                            'תוכנית להיום')),
                                       ),
                                       TextButton.icon(
                                         onPressed: _toggleTodayOrder,

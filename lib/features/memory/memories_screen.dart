@@ -481,7 +481,16 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                 return Card(
                                   margin: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 6),
-                                  color: isPast ? Colors.grey.shade100 : null,
+                                  // Past = a quieter shade of the SAME theme.
+                                  // A hardcoded light grey here painted white
+                                  // dark-mode text on a light card — every
+                                  // memory older than a week was unreadable
+                                  // on the PC (owner QA, 2026-08-09).
+                                  color: isPast
+                                      ? Theme.of(ctx)
+                                          .colorScheme
+                                          .surfaceContainerHighest
+                                      : null,
                                   child: ListTile(
                                     leading: Icon(
                                       m.memoryLevel == MemoryLevel.memorize

@@ -39,6 +39,7 @@ import 'package:bns/services/desktop_reminder_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/file_handler.dart';
+import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:confetti/confetti.dart';
 
 void main(List<String> args) {
@@ -66,7 +67,12 @@ Future<void> _startupChores(List<String> args) async {
     // Reminders follow the data by themselves: any persisted change —
     // an edited routine, a new plan, a LAN sync, a .bns import — quietly
     // refreshes the schedule (debounced + fingerprinted, so it's free).
-    IsarService.onDataChanged = NotificationsService.maybeRescheduleSoon;
+    // The same change also travels to trusted devices on the network —
+    // the silky half of sync: nobody presses anything.
+    IsarService.onDataChanged = () {
+      NotificationsService.maybeRescheduleSoon();
+      LanSyncService.instance.noteLocalDataChanged();
+    };
     await NotificationsService.init();
     await NotificationsService.rescheduleAll();
   } catch (_) {
@@ -87,6 +93,30 @@ Future<void> _startupChores(List<String> args) async {
     BnsFileHandler.checkDesktopArgs(args, null);
   } catch (_) {}
   try {
+    // A pairing request must reach the person on ANY screen — it used to
+    // be answered only while the Sync screen was open, so "I pressed sync
+    // on the phone and the PC did nothing" (owner QA, 2026-08-09).
+    LanSyncService.instance.onPairRequest = (req) async {
+      final ctx = _router.routerDelegate.navigatorKey.currentContext;
+      if (ctx == null) return null;
+      return showDialog<String>(
+        context: ctx,
+        barrierDismissible: false,
+        builder: (_) => EnterCodeDialog(peerName: req.deviceName),
+      );
+    };
+    // Sync results surface wherever the person is — completions and
+    // problems as gentle toasts; routine background chatter stays subtle.
+    LanSyncService.instance.progressStream.listen((p) {
+      if (p.subtle) return;
+      if (!p.isComplete && p.error == null) return;
+      DesktopReminderService.messengerKey.currentState?.showSnackBar(SnackBar(
+        content:
+            Text(p.error == null ? p.message : '${p.message}\n${p.error}'),
+        duration: Duration(seconds: p.error == null ? 4 : 8),
+        behavior: SnackBarBehavior.floating,
+      ));
+    });
     // SEAMLESS SYNC (owner, 2026-07-27: "we see too many seams... to take an
     // Alzheimer patient to work this out at level 3/4, we are in trouble").
     // Signing in IS the sync: discovery starts with the app and trusted

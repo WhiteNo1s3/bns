@@ -350,3 +350,53 @@ not a routine, but today it stands IN the day.
 - "Did your doctor appointment show up inside your day, in its place?"
 - "Did ticking it feel exactly like ticking a routine?"
 - "Is every word on the home widgets in your language?"
+
+## Wave: silky sync (2026-08-09, owner QA in his own words: "sync is
+## getting out of hand... I also want it silky")
+
+### Shipped
+
+- ✅ **The killer bug**: leaving the Sync screen disposed the app-wide
+  sync singleton — discovery, transfers, and event streams all died until
+  restart ("the pc couldn't see the device anymore"). Screens can no
+  longer stop the service; it is a lifelong resident.
+- ✅ **One-step pairing**: tapping Pair sends the request immediately —
+  the other device asks for the code while the person is reading it. The
+  deceptive "I typed it there — connect" button is gone. Honest failure
+  copy + "Try again (fresh code)".
+- ✅ **Mistyped codes get caught**: first sync after pairing pulls first
+  and verifies the key; a mismatch says "the code didn't match on both
+  sides", undoes the broken pairing on both ends, and offers a fresh
+  start. No more silently-broken-forever pairings.
+- ✅ **Pairing requests reach any screen**: the enter-code prompt is
+  installed app-wide (main.dart), not only while the Sync screen is open.
+- ✅ **Continuous auto-sync**: cooldown-based (10 min), not
+  once-per-session; local changes push to nearby trusted devices ~4s
+  after the edit (ping-pong-proof: changes that arrived FROM a peer never
+  push back). Pure policy in `lib/core/sync_policy.dart`, tested.
+- ✅ **Trusted devices first**: "Your devices" always shows every paired
+  device — online dot, last-synced, one big "Sync now" that knocks on the
+  last known address directly (no waiting for discovery). Seeking NEW
+  devices is its own separate corner with its own "Look again".
+- ✅ **Nothing hides**: sync completions and problems surface as gentle
+  toasts anywhere in the app (routine background chatter stays subtle);
+  every silent failure path now says what happened, in both languages.
+- ✅ **Faster discovery**: hello burst on screen open + direct unicast
+  knocks at trusted devices' last addresses every beat; ghost peers fall
+  off the list after 2 minutes.
+
+### Parked (don't lose)
+
+- The wire protocol is FROZEN until the owner's phone (2026-07-29 build)
+  finishes its data migration — old app and new PC side interoperate.
+- Key rotation / re-pair without un-pair (today: forget + fresh code).
+- Sync history line ("last 3 syncs") on the device card.
+
+### Live test questions
+
+- "Pair the phone to the PC: did the phone ask for the code the moment
+  the PC showed it?"
+- "Type a WRONG code on purpose: did both sides say so and recover?"
+- "Change a routine on one device: did the other have it within ~10s
+  without touching anything?"
+- "Leave the Sync screen, come back: does everything still appear?"

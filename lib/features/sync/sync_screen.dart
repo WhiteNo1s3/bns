@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
+import 'package:bns/core/sync_policy.dart';
+import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -42,6 +45,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   List<BnsPeer> _discovered = [];
   List<TrustedDevice> _trusted = [];
   SyncProgress _progress = SyncProgress.idle;
+  StreamSubscription<List<BnsPeer>>? _peersSub;
+  StreamSubscription<SyncProgress>? _progressSub;
+  bool _seekBusy = false;
   bool _autoSync = true;
   bool _quietMode = false;
   // Reminders — the person's own knobs (level 1-2 wave, 2026-08-08).
@@ -51,7 +57,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   int _eventReminderMinutes = 30;
   bool _sttEnabled = true;
   bool _autoImage = true;
-  bool _discovering = false;
   int _retentionDays = 20;
   int _widgetForwardDays = 2;
   String _userType = 'normal';
@@ -98,33 +103,30 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _caregiverDevice = settings.caregiverDevice;
     _refreshVoskStatus();
 
-    // Receiver side of pairing: another device initiated and shows a code —
-    // the user types it here. Declining (or closing) shares nothing.
-    _service.onPairRequest = (req) async {
-      if (!mounted) return null;
-      return showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => _EnterCodeDialog(peerName: req.deviceName),
-      );
-    };
+    // (Receiver-side pairing prompts are app-wide now — main.dart installs
+    // the handler, so a request lands even when this screen is closed.)
 
     await _service.start(
         deviceName: settings.effectiveShareName, autoSync: _autoSync);
 
-    // Discovery has been running since launch — show what it already knows.
+    // Discovery has been running since launch — show what it already knows,
+    // and knock right now so known devices light up without the 5s wait.
     _discovered = _service.currentPeers;
+    _service.pokeDiscovery();
 
-    _service.peersStream.listen((p) {
+    _peersSub = _service.peersStream.listen((p) {
       if (mounted) setState(() => _discovered = p);
     });
 
-    _service.progressStream.listen((p) {
-      if (mounted) setState(() => _progress = p);
+    _progressSub = _service.progressStream.listen((p) {
+      if (!mounted) return;
+      setState(() => _progress = p);
+      // A finished sync refreshes "last synced" on the device cards.
+      if (p.isComplete) _loadTrusted();
     });
 
     _loadTrusted();
-    setState(() => _discovering = true);
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadTrusted() async {
@@ -546,32 +548,213 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     AndroidBnsWidget.updateWidget();
   }
 
-  Future<void> _sync(BnsPeer peer) async {
+  /// Sync with a trusted device even when discovery hasn't spotted it yet —
+  /// knock directly on its last known address. Syncing must never wait for
+  /// "seeking" (owner, 2026-08-09: "why are we seeking for new ones and not
+  /// syncing the devices — that is what important").
+  Future<void> _syncTrusted(TrustedDevice d) async {
+    final peer = _peerFor(d) ??
+        BnsPeer(
+          deviceName: d.name,
+          address: d.lastAddress,
+          port: LanSyncService.transferPort,
+          lastSeen: DateTime.now(),
+          deviceId: d.id,
+        );
     await _service.syncWithPeer(peer);
     await _loadTrusted();
   }
 
-  Future<void> _startPairing(BnsPeer peer) async {
-    final code = _service.generatePairingCode();
+  BnsPeer? _peerFor(TrustedDevice d) {
+    for (final p in _discovered) {
+      if (p.deviceId == d.id) return p;
+    }
+    return null;
+  }
 
-    // Initiator side: show the code big and clear; the user types it on the
-    // other device. The code itself never travels over the network.
-    final confirmed = await showDialog<bool>(
+  bool _isOnline(TrustedDevice d) {
+    final p = _peerFor(d);
+    return p != null && peerLooksOnline(p.lastSeen, DateTime.now());
+  }
+
+  /// One step: the dialog opens with the code AND the request already on
+  /// its way — the other device asks for the code right now, while the
+  /// person reads it here. The first sync afterwards doubles as the code
+  /// check, so a mistyped code is caught and said out loud, not silently
+  /// broken forever.
+  Future<void> _startPairing(BnsPeer peer) async {
+    final paired = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _PairingDialog(
-        code: code,
+      builder: (ctx) => ShowCodeDialog(
         peerName: peer.deviceName,
-        onConfirm: () async {
-          final ok = await _service.completePairing(peer, code);
-          if (ctx.mounted) Navigator.pop(ctx, ok);
-        },
+        generateCode: _service.generatePairingCode,
+        sendRequest: (code) => _service.requestPairing(peer, code),
       ),
     );
+    if (paired != true) return;
+    await _loadTrusted();
+    await _service.verifyNewPairing(peer);
+    await _loadTrusted();
+  }
 
-    if (confirmed == true) {
-      await _loadTrusted();
-    }
+  Future<void> _seekAgain() async {
+    setState(() => _seekBusy = true);
+    _service.pokeDiscovery();
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) setState(() => _seekBusy = false);
+  }
+
+  /// One paired device: always visible (online or not), status at a glance,
+  /// one big Sync button. The fiddly switches live behind "More".
+  Widget _trustedCard(TrustedDevice d) {
+    final theme = Theme.of(context);
+    final online = _isOnline(d);
+    final when = d.lastSyncedAt.toLocal().toString().substring(0, 16);
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.circle,
+                size: 14,
+                color: online
+                    ? const Color(0xFF22C55E)
+                    : theme.colorScheme.outlineVariant),
+            title: Text(d.name,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              online
+                  ? L.t('On the network now · synced $when',
+                      'ברשת עכשיו · סונכרן $when')
+                  : L.t(
+                      'Not nearby right now · synced $when — syncs the '
+                      'moment it returns',
+                      'לא בסביבה כרגע · סונכרן $when — יסתנכרן ברגע שיחזור'),
+              style: const TextStyle(fontSize: 12),
+            ),
+            trailing: FilledButton.icon(
+              onPressed: () => _syncTrusted(d),
+              icon: const Icon(Icons.sync, size: 18),
+              label: Text(L.t('Sync now', 'סנכרן עכשיו')),
+            ),
+          ),
+          ExpansionTile(
+            shape: const Border(),
+            collapsedShape: const Border(),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+            title: Text(L.t('More', 'עוד'),
+                style: TextStyle(
+                    fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
+            children: [
+              SwitchListTile(
+                dense: true,
+                title: Text(
+                    L.t('LAN transfers allowed', 'העברות ברשת הביתית מותרות')),
+                subtitle: Text(L.t(
+                    'Off = still paired, but nothing flows either way.',
+                    'כבוי = עדיין מצומד, אבל שום דבר לא עובר לשום כיוון.')),
+                value: d.lanSyncAllowed,
+                onChanged: (v) =>
+                    _updateTrustedDevice(d.copyWith(lanSyncAllowed: v)),
+              ),
+              SwitchListTile(
+                dense: true,
+                title: Text(L.t('Sync by itself with this device',
+                    'סנכרון מעצמו עם המכשיר הזה')),
+                value: d.autoSyncEnabled,
+                onChanged: (v) =>
+                    _updateTrustedDevice(d.copyWith(autoSyncEnabled: v)),
+              ),
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.link_off, color: theme.colorScheme.error),
+                title: Text(L.t('End the connection (un-pair)',
+                    'ניתוק החיבור (ביטול צימוד)')),
+                onTap: () => _forget(d),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Seeking a NEW device is a deliberate, separate act with its own corner —
+  /// it never stands between the person and everyday syncing.
+  Widget _addDeviceCard() {
+    final theme = Theme.of(context);
+    final unknown = _discovered
+        .where((p) => !_trusted.any((t) => t.id == p.deviceId))
+        .toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.add_link),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(L.t('Add a new device', 'הוספת מכשיר חדש'),
+                      style: theme.textTheme.titleSmall),
+                ),
+                _seekBusy
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : TextButton.icon(
+                        onPressed: _seekAgain,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: Text(L.t('Look again', 'חפש שוב')),
+                      ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              L.t(
+                  'Open BNS on the other device and it will appear here. '
+                  'Pairing asks for a code once — after that, the two sync '
+                  'by themselves.',
+                  'פתח את BNS במכשיר השני והוא יופיע כאן. הצימוד מבקש קוד '
+                  'פעם אחת — ומשם, השניים מסתנכרנים מעצמם.'),
+              style: TextStyle(
+                  fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+            ),
+            if (unknown.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  L.t('No new devices in sight right now.',
+                      'אין מכשירים חדשים באופק כרגע.'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+            ...unknown.map((p) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.devices_other),
+                  title: Text(p.deviceName),
+                  subtitle:
+                      Text(p.address, textDirection: TextDirection.ltr),
+                  trailing: FilledButton.tonal(
+                    onPressed: () => _startPairing(p),
+                    child: Text(L.t('Pair', 'צימוד')),
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleAutoSync(bool v) async {
@@ -928,7 +1111,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   @override
   void dispose() {
-    _service.dispose();
+    // NEVER stop or dispose the service here — it is the app's lifelong
+    // resident. Its old dispose() call killed discovery + transfers
+    // app-wide the first time anyone LEFT this screen, which is why "the
+    // pc couldn't see the device anymore" (owner QA, 2026-08-09). Only the
+    // screen's own listeners go.
+    _peersSub?.cancel();
+    _progressSub?.cancel();
     super.dispose();
   }
 
@@ -981,70 +1170,37 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
           const SizedBox(height: 16),
 
-          // Trusted / Known devices
-          Text(L.t('Your trusted devices', 'המכשירים המהימנים שלך'),
+          // Your devices — every paired device, always visible, online or
+          // not. Syncing lives HERE, with the devices that matter; seeking
+          // new ones is a separate corner below.
+          Text(L.t('Your devices', 'המכשירים שלך'),
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (_trusted.isEmpty)
             Text(L.t(
-                'No devices paired yet. Discover one below to start a secure connection.',
-                'עוד אין מכשירים מצומדים. מצא אחד למטה כדי להתחיל חיבור מאובטח.')),
-          ..._trusted.map((d) => Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.phone_android),
-                        title: Text(d.name),
-                        subtitle: Text(L.t(
-                            'Last synced: ${d.lastSyncedAt.toLocal().toString().substring(0, 16)}',
-                            'סונכרן לאחרונה: ${d.lastSyncedAt.toLocal().toString().substring(0, 16)}')),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: L.t('Forget this device (un-pair)',
-                              'שכח את המכשיר הזה (ביטול צימוד)'),
-                          onPressed: () => _forget(d),
-                        ),
-                      ),
-                      SwitchListTile(
-                        dense: true,
-                        title: Text(L.t('LAN transfers allowed',
-                            'העברות ברשת הביתית מותרות')),
-                        subtitle: Text(L.t(
-                            'We advise keeping this on for your own devices. Off = still paired, but nothing flows either way.',
-                            'מומלץ להשאיר פועל עבור המכשירים שלך. כבוי = עדיין מצומד, אבל שום דבר לא עובר לשום כיוון.')),
-                        value: d.lanSyncAllowed,
-                        onChanged: (v) =>
-                            _updateTrustedDevice(d.copyWith(lanSyncAllowed: v)),
-                      ),
-                      SwitchListTile(
-                        dense: true,
-                        title: Text(L.t('Auto-sync when nearby',
-                            'סנכרון אוטומטי כשקרובים')),
-                        value: d.autoSyncEnabled,
-                        onChanged: (v) => _updateTrustedDevice(
-                            d.copyWith(autoSyncEnabled: v)),
-                      ),
-                    ],
-                  ),
-                ),
-              )),
+                'No devices connected yet. Use "Add a new device" below — '
+                'once is enough, then syncing happens by itself.',
+                'עוד אין מכשירים מחוברים. השתמש ב"הוספת מכשיר חדש" למטה — '
+                'פעם אחת מספיקה, ומשם הסנכרון קורה מעצמו.')),
+          ..._trusted.map(_trustedCard),
 
-          const SizedBox(height: 24),
-
-          // Auto-sync toggle
+          const SizedBox(height: 8),
           SwitchListTile(
-            title: Text(L.t('Auto-sync when trusted devices are nearby',
-                'סנכרון אוטומטי כשמכשירים מהימנים בסביבה')),
+            dense: true,
+            title: Text(L.t('Sync by itself', 'סנכרון מעצמו')),
             subtitle: Text(L.t(
-                'Happens gently in the background when this screen is open',
-                'קורה בעדינות ברקע כשהמסך הזה פתוח')),
+                'Whenever the app is open and a device you trust is around — '
+                'quietly, both ways, nothing to press.',
+                'בכל פעם שהאפליקציה פתוחה ומכשיר שאתה סומך עליו בסביבה — '
+                'בשקט, לשני הכיוונים, בלי ללחוץ על כלום.')),
             value: _autoSync,
             onChanged: _toggleAutoSync,
             activeColor: color,
           ),
+
+          const SizedBox(height: 24),
+
+          _addDeviceCard(),
 
           const SizedBox(height: 16),
 
@@ -1550,30 +1706,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          // Discovered devices
-          Text(L.t('Devices found on your Wi-Fi', 'מכשירים שנמצאו ב-Wi-Fi שלך'),
-              style: Theme.of(context).textTheme.titleMedium),
-          if (_discovering && _discovered.isEmpty)
-            const LinearProgressIndicator(),
-
-          ..._discovered.map((p) {
-            final isTrusted = _trusted.any((t) => t.id == p.deviceId);
-            return Card(
-              child: ListTile(
-                title: Text(p.deviceName),
-                subtitle: Text(p.address),
-                trailing: FilledButton(
-                  onPressed: () => isTrusted ? _sync(p) : _startPairing(p),
-                  child: Text(isTrusted
-                      ? L.t('Sync now', 'סנכרן עכשיו')
-                      : L.t('Pair & Sync (secure)', 'צימוד וסנכרון (מאובטח)')),
-                ),
-              ),
-            );
-          }),
-
           const SizedBox(height: 32),
 
           // Manual - still easy
@@ -1768,110 +1900,7 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
   }
 }
 
-/// Big, clear, low-stress pairing confirmation dialog.
-/// Shows the code on both devices so the user can visually verify.
-class _PairingDialog extends StatelessWidget {
-  final String code;
-  final String peerName;
-  final VoidCallback onConfirm;
-
-  const _PairingDialog({
-    required this.code,
-    required this.peerName,
-    required this.onConfirm,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(L.t('Secure Pairing', 'צימוד מאובטח')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(L.t('Type this code on $peerName (open its Sync screen):',
-              'הקלד את הקוד הזה במכשיר $peerName (פתח שם את מסך הסנכרון):')),
-          const SizedBox(height: 24),
-          Text(
-            code,
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
-                ),
-          ),
-          const SizedBox(height: 16),
-          Text(L.t(
-              'The code never leaves this screen — only someone who can read it here can pair.',
-              'הקוד לא עוזב את המסך הזה — רק מי שיכול לקרוא אותו כאן יכול לצמד.')),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(L.t('Cancel', 'ביטול')),
-        ),
-        FilledButton(
-          onPressed: onConfirm,
-          child: Text(L.t('I typed it there — connect securely',
-              'הקלדתי אותו שם — התחבר באופן מאובטח')),
-        ),
-      ],
-    );
-  }
-}
-
-/// Receiver side of pairing: type the 6-digit code shown on the other device.
-class _EnterCodeDialog extends StatefulWidget {
-  final String peerName;
-
-  const _EnterCodeDialog({required this.peerName});
-
-  @override
-  State<_EnterCodeDialog> createState() => _EnterCodeDialogState();
-}
-
-class _EnterCodeDialogState extends State<_EnterCodeDialog> {
-  final _codeController = TextEditingController();
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(L.t('"${widget.peerName}" wants to pair',
-          '"${widget.peerName}" רוצה להתחבר')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(L.t(
-              'Enter the 6-digit code shown on that device. If you didn\'t expect this, just decline — nothing is shared.',
-              'הקלד את הקוד בן 6 הספרות שמוצג במכשיר השני. אם לא ציפית לזה, פשוט סרב — שום דבר לא משותף.')),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _codeController,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            style: const TextStyle(fontSize: 28, letterSpacing: 8),
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-                border: OutlineInputBorder(), counterText: ''),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(L.t('Decline', 'סרב')),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _codeController.text.trim()),
-          child: Text(L.t('Pair securely', 'צמד באופן מאובטח')),
-        ),
-      ],
-    );
-  }
-}
+// The pairing dialogs (initiator's ShowCodeDialog, receiver's
+// EnterCodeDialog) live in pairing_dialogs.dart — main.dart needs the
+// receiver side app-wide, so a pairing request reaches the person on any
+// screen, not only while this one is open.

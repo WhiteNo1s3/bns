@@ -9,6 +9,8 @@ import 'package:encrypt/encrypt.dart' as enc;
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/sync_policy.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -51,6 +53,25 @@ class PairingRequest {
       required this.address});
 }
 
+/// What came back when we asked another device to pair.
+enum PairingResult {
+  /// The person there typed a code and accepted.
+  accepted,
+
+  /// A clear "no" — declined, or nobody was listening there.
+  declined,
+
+  /// We couldn't reach the device at all.
+  unreachable,
+}
+
+/// Both sides derived a key from the typed code — and they don't match.
+/// Every transfer would decrypt to garbage; the only cure is a fresh pairing.
+/// Before this existed, a mistyped code just made sync "broken" with no words
+/// (owner QA, 2026-08-09: "that makes the app want the number and it syncs
+/// broken").
+class _CodeMismatch implements Exception {}
+
 /// Secure + progress-aware LAN sync service.
 ///
 /// Security model:
@@ -62,10 +83,13 @@ class PairingRequest {
 /// - PULL requests only get data encrypted with the requester's shared key —
 ///   an unknown device gets nothing.
 ///
-/// Wire protocol (TCP, one line header then raw bytes):
+/// Wire protocol (TCP, one line header then raw bytes) — FROZEN for
+/// compatibility: the owner's phone runs a 2026-07-29 build of this same
+/// protocol and must keep syncing until its data is safely migrated.
 ///   PAIR <deviceId> <deviceName...>   → receiver prompts for code, replies "OK"/"NO"
 ///   PUSH <deviceId>                    → header line, then IV+ciphertext of a .bns
 ///   PULL <deviceId>                    → replies with IV+ciphertext of a .bns
+///   REVOKE <deviceId>                  → the sender un-paired from us
 class LanSyncService {
   static const int discoveryPort = 42424;
   static const String magic = 'BNS_HELLO';
@@ -76,23 +100,24 @@ class LanSyncService {
   /// devices only found each other while a person sat on that screen —
   /// hopeless for someone at care level 3 or 4. The app now starts this at
   /// launch and it keeps listening quietly for the rest of the session.
+  ///
+  /// NOTHING may stop it. Until 2026-08-09 the Sync screen's dispose()
+  /// killed this singleton on the way out — one visit to the screen and the
+  /// whole app went deaf until restart ("the pc I couldn't get to see the
+  /// device anymore"). There is deliberately no dispose() anymore.
   static final LanSyncService instance = LanSyncService();
 
-  /// True once [startForApp] has run this session, so the app can start it
-  /// on launch without the Sync screen fighting over it.
-  bool _appStarted = false;
-
   /// Bring sync up for the whole app: discover, and quietly catch up with
-  /// every trusted device that allows it. Safe to call repeatedly.
+  /// every trusted device that allows it. Safe to call repeatedly — also as
+  /// a retry after a launch without Wi-Fi.
   Future<void> startForApp() async {
-    if (_appStarted) return;
-    _appStarted = true;
+    if (isRunning) return;
     try {
       final settings = await IsarService.getSettings();
       await start(deviceName: settings.effectiveShareName, autoSync: true);
     } catch (_) {
-      // No Wi-Fi, a port already taken — the app itself never suffers.
-      _appStarted = false;
+      // No Wi-Fi, a port already taken — the app itself never suffers,
+      // and the next call simply tries again.
     }
   }
 
@@ -101,6 +126,7 @@ class LanSyncService {
   RawDatagramSocket? _udpSocket;
   ServerSocket? _tcpServer;
   Timer? _broadcastTimer;
+  Timer? _changePushTimer;
 
   final StreamController<List<BnsPeer>> _peersController =
       StreamController.broadcast();
@@ -115,9 +141,11 @@ class LanSyncService {
   Stream<List<BnsPeer>> get peersStream => _peersController.stream;
   Stream<SyncProgress> get progressStream => _progressController.stream;
 
-  /// Set by the Sync screen: asks the user to type the code shown on the
-  /// initiating device. Return null to decline. If nobody is listening
-  /// (screen closed), pairing requests are declined — never auto-accepted.
+  /// Asks the person to type the code shown on the initiating device.
+  /// Return null to decline. Set app-wide at startup (main.dart), so a
+  /// pairing request reaches the person on ANY screen — it used to exist
+  /// only while the Sync screen was open, which read as "I pressed sync on
+  /// the phone and the PC did nothing" (owner QA, 2026-08-09).
   Future<String?> Function(PairingRequest request)? onPairRequest;
 
   String? _deviceName;
@@ -126,10 +154,23 @@ class LanSyncService {
   final Set<String> _trustedIds = {};
   // Per-device LAN kill switch: paired but LAN-disabled devices sync nothing.
   final Set<String> _lanAllowedIds = {};
-  final Set<String> _autoSyncedThisSession = {};
+  // Per-device auto-sync choice (the trusted card's own switch).
+  final Set<String> _autoSyncIds = {};
+  // Last known addresses — so known devices are POKED directly instead of
+  // waiting for broadcast luck ("why are we seeking for new ones and not
+  // syncing the devices").
+  final Map<String, String> _trustedAddresses = {};
+  // When each device last auto-synced — replaces the old once-per-session
+  // latch that froze sync until restart.
+  final Map<String, DateTime> _lastAutoSyncAt = {};
+  // In-flight guard: one sync conversation per device at a time.
+  final Set<String> _syncingWith = {};
+  // True while merging data that ARRIVED from a peer — those changes must
+  // not schedule a push back, or two devices would ping-pong forever.
+  bool _applyingRemoteData = false;
 
   /// Reload trust + per-device LAN permissions from the store.
-  /// Call after pairing, forgetting, or toggling "LAN allowed" in the UI.
+  /// Call after pairing, forgetting, or toggling switches in the UI.
   Future<void> refreshTrustPolicy() async {
     final trusted = await IsarService.getTrustedDevices();
     _trustedIds
@@ -138,6 +179,14 @@ class LanSyncService {
     _lanAllowedIds
       ..clear()
       ..addAll(trusted.where((d) => d.lanSyncAllowed).map((d) => d.id));
+    _autoSyncIds
+      ..clear()
+      ..addAll(trusted.where((d) => d.autoSyncEnabled).map((d) => d.id));
+    _trustedAddresses
+      ..clear()
+      ..addEntries(trusted
+          .where((d) => d.lastAddress.isNotEmpty)
+          .map((d) => MapEntry(d.id, d.lastAddress)));
   }
 
   bool get isRunning => _udpSocket != null;
@@ -171,12 +220,33 @@ class LanSyncService {
       _broadcastBeat = (_broadcastBeat + 1) % 6;
       if (_broadcastBeat == 0) await _refreshBroadcastTargets();
       _broadcastHello();
+      _pokeMissingTrusted();
+      _evictStalePeers();
     });
     await _startTcpServer();
     _broadcastHello();
+    _pokeMissingTrusted();
 
-    _emitProgress(const SyncProgress(
-        progress: 0.0, message: 'Looking for your other devices on Wi-Fi...'));
+    _emitProgress(SyncProgress(
+        progress: 0.0,
+        message: L.t('Looking for your other devices on Wi-Fi...',
+            'מחפשים את המכשירים האחרים שלך ב-Wi-Fi...'),
+        subtle: true));
+  }
+
+  /// A burst of hellos right now — for a screen that just opened or a person
+  /// who pressed "look again". Discovery beats every 5s anyway; this removes
+  /// the up-to-5s "nothing is happening" gap that read as "very slow".
+  void pokeDiscovery() {
+    if (!isRunning) return;
+    _refreshBroadcastTargets().then((_) {
+      if (!isRunning) return;
+      _broadcastHello();
+      _pokeMissingTrusted();
+      Timer(const Duration(milliseconds: 700), () {
+        if (isRunning) _broadcastHello();
+      });
+    });
   }
 
   /// Every network this machine actually sits on gets its own hello.
@@ -240,6 +310,25 @@ class LanSyncService {
     }
   }
 
+  /// Hellos aimed straight at trusted devices we can't currently see, at
+  /// their last known address. Broadcast can be deaf in one direction
+  /// (Android Wi-Fi chips filter it aggressively); a unicast knock usually
+  /// still lands — the known device answers, and sync follows by itself.
+  void _pokeMissingTrusted() {
+    if (_udpSocket == null) return;
+    final bytes = _helloBytes(isReply: false);
+    if (bytes == null) return;
+    for (final entry in _trustedAddresses.entries) {
+      final seen = _peers[entry.key];
+      if (seen != null && peerLooksOnline(seen.lastSeen, DateTime.now())) {
+        continue;
+      }
+      try {
+        _udpSocket!.send(bytes, InternetAddress(entry.value), discoveryPort);
+      } catch (_) {}
+    }
+  }
+
   /// Answer a hello straight back to whoever sent it.
   ///
   /// Broadcast is often deaf in ONE direction — an Android Wi-Fi chip
@@ -281,15 +370,51 @@ class LanSyncService {
       _peers[peer.deviceId] = peer;
       _peersController.add(_peers.values.toList());
 
-      // Auto-sync trusted AND lan-allowed devices, at most once per session.
-      if (_autoSyncEnabled &&
-          _trustedIds.contains(peer.deviceId) &&
-          _lanAllowedIds.contains(peer.deviceId) &&
-          !_autoSyncedThisSession.contains(peer.deviceId)) {
-        _autoSyncedThisSession.add(peer.deviceId);
+      // Trusted device in sight → catch up, again and again — a cooldown,
+      // not a once-per-session latch (that latch meant the SECOND change of
+      // the day never traveled until someone restarted the app).
+      if (shouldAutoSyncOnSight(
+        autoSyncEnabled: _autoSyncEnabled && _autoSyncIds.contains(peerId),
+        trusted: _trustedIds.contains(peerId),
+        lanAllowed: _lanAllowedIds.contains(peerId),
+        lastAutoSyncAt: _lastAutoSyncAt[peerId],
+        now: DateTime.now(),
+      )) {
+        _lastAutoSyncAt[peerId] = DateTime.now();
         syncWithPeer(peer, isAuto: true);
       }
     } catch (_) {}
+  }
+
+  /// Ghost peers (left the network long ago) fall off the list.
+  void _evictStalePeers() {
+    final now = DateTime.now();
+    final before = _peers.length;
+    _peers.removeWhere(
+        (_, p) => now.difference(p.lastSeen) > kPeerEvictAfter);
+    if (_peers.length != before) {
+      _peersController.add(_peers.values.toList());
+    }
+  }
+
+  /// Something changed locally (a routine edited, a plan answered, a capture
+  /// saved). After a short debounce, every trusted device currently on the
+  /// network receives the update — the silky part: nobody presses anything.
+  void noteLocalDataChanged() {
+    if (!isRunning || _applyingRemoteData) return;
+    _changePushTimer?.cancel();
+    _changePushTimer = Timer(kChangePushDebounce, () {
+      final now = DateTime.now();
+      for (final peer in _peers.values.toList()) {
+        if (!_autoSyncEnabled) break;
+        if (!_trustedIds.contains(peer.deviceId)) continue;
+        if (!_lanAllowedIds.contains(peer.deviceId)) continue;
+        if (!_autoSyncIds.contains(peer.deviceId)) continue;
+        if (!peerLooksOnline(peer.lastSeen, now)) continue;
+        _lastAutoSyncAt[peer.deviceId] = now;
+        syncWithPeer(peer, isAuto: true);
+      }
+    });
   }
 
   Future<void> _startTcpServer() async {
@@ -323,10 +448,14 @@ class LanSyncService {
 
       if (header.startsWith('PUSH ')) {
         await _handlePush(header.substring(5).trim(), body);
+      } else if (header.startsWith('REVOKE ')) {
+        await _handleRevoke(header.substring(7).trim());
       }
     } catch (e) {
-      _emitProgress(
-          SyncProgress(progress: 0, message: 'Receive problem', error: '$e'));
+      _emitProgress(SyncProgress(
+          progress: 0,
+          message: L.t('Receive problem', 'תקלה בקבלה'),
+          error: '$e'));
     } finally {
       try {
         await socket.close();
@@ -367,16 +496,13 @@ class LanSyncService {
           sharedSecret: key.base64,
           autoSyncEnabled: true,
         ));
-        _trustedIds.add(peerId);
+        await refreshTrustPolicy();
         socket.add(utf8.encode('OK\n'));
-        _emitProgress(const SyncProgress(
+        _emitProgress(SyncProgress(
             progress: 1.0,
-            message: 'Paired safely. You can sync now.',
+            message: L.t('Paired safely. The first sync starts by itself.',
+                'הצימוד הושלם בבטחה. הסנכרון הראשון מתחיל מעצמו.'),
             isComplete: true));
-      } else if (header.startsWith('REVOKE ')) {
-        // No secret needed to hear "we are done" — the worst a forged
-        // revoke can do is make two devices pair again, deliberately.
-        await _handleRevoke(header.substring(7).trim());
       } else if (header.startsWith('PULL ')) {
         final requesterId = header.substring(5).trim();
         final trusted = await IsarService.getTrustedDevice(requesterId);
@@ -412,103 +538,234 @@ class LanSyncService {
       return;
     }
 
-    _emitProgress(const SyncProgress(
-        progress: 0.75, message: 'Receiving your updated information...'));
+    _emitProgress(SyncProgress(
+        progress: 0.75,
+        message: L.t('Receiving your updated information...',
+            'מקבלים את המידע המעודכן שלך...'),
+        subtle: true));
 
     final tempPath = '${(await getTemporaryDirectory()).path}/lan_recv.bns';
-    final decrypted = await _decryptToFileInIsolate(
-        Uint8List.fromList(body), trusted.sharedSecret!, tempPath);
-    if (decrypted == null) return;
+    String? decrypted;
+    try {
+      decrypted = await _decryptToFileInIsolate(
+          Uint8List.fromList(body), trusted.sharedSecret!, tempPath);
+    } catch (_) {
+      decrypted = null;
+    }
+    if (decrypted == null) {
+      // Garbage from a paired device = the two sides hold different keys.
+      // Say it — silence here is what made sync look haunted.
+      _emitProgress(SyncProgress(
+          progress: 0,
+          message: L.t(
+              '${trusted.name} sent something this device could not unlock.',
+              '${trusted.name} שלח משהו שהמכשיר הזה לא הצליח לפתוח.'),
+          error: L.t(
+              'The pairing code probably didn\'t match. End the connection '
+              'on both devices and pair again — a fresh code fixes this.',
+              'כנראה שקוד הצימוד לא תאם. נתקו את החיבור בשני המכשירים '
+              'וצמדו מחדש — קוד טרי מסדר את זה.')));
+      return;
+    }
     final temp = File(decrypted);
-    await BnsImporter.importMerge(temp);
+    _applyingRemoteData = true;
+    try {
+      await BnsImporter.importMerge(temp);
+    } finally {
+      _applyingRemoteData = false;
+    }
     try {
       await temp.delete();
     } catch (_) {}
 
     await IsarService.updateTrustedDeviceLastSync(
         senderId, trusted.lastAddress);
-    _emitProgress(const SyncProgress(
+    // NOT subtle: data arriving from another device is the moment the
+    // person is waiting for ("I didn't see updates on the pc") — say it.
+    _emitProgress(SyncProgress(
         progress: 1.0,
-        message: 'Update complete. All good.',
+        message: L.t('Update from ${trusted.name} is in. All good.',
+            'העדכון מ-${trusted.name} נקלט. הכול טוב.'),
         isComplete: true));
   }
 
   // Public API
 
-  Future<void> syncWithPeer(BnsPeer peer, {bool isAuto = false}) async {
+  /// One full conversation with a trusted device: PULL their latest first
+  /// (so a mistyped pairing code is caught before we send anything), merge
+  /// it in, then PUSH the combined picture back. Returns true when the
+  /// whole round trip succeeded.
+  Future<bool> syncWithPeer(BnsPeer peer,
+      {bool isAuto = false, bool verifyingNewPairing = false}) async {
     final trusted = await IsarService.getTrustedDevice(peer.deviceId);
 
     if (trusted?.sharedSecret == null) {
-      _emitProgress(const SyncProgress(
+      _emitProgress(SyncProgress(
           progress: 0.1,
-          message: 'New device detected. Pairing with a code is required.'));
-      return;
+          message: L.t(
+              'New device detected. Pairing with a code is required.',
+              'זוהה מכשיר חדש. נדרש צימוד עם קוד.')));
+      return false;
     }
     if (!trusted!.lanSyncAllowed) {
       if (!isAuto) {
         _emitProgress(SyncProgress(
             progress: 0,
-            message:
-                'LAN transfers are switched off for ${peer.deviceName}. Flip its "LAN allowed" toggle to sync.'));
+            message: L.t(
+                'LAN transfers are switched off for ${peer.deviceName}. '
+                'Flip its "LAN allowed" toggle to sync.',
+                'העברות ברשת כבויות עבור ${peer.deviceName}. '
+                'הפעל את "העברות ברשת" שלו כדי לסנכרן.')));
       }
-      return;
+      return false;
     }
 
+    if (_syncingWith.contains(peer.deviceId)) return false;
+    _syncingWith.add(peer.deviceId);
     try {
-      _emitProgress(const SyncProgress(
-          progress: 0.15,
-          message: 'Creating a full picture of your current data...'));
+      _emitProgress(SyncProgress(
+          progress: 0.2,
+          message: L.t('Getting the latest from ${peer.deviceName}...',
+              'מביאים את העדכני ביותר מ-${peer.deviceName}...'),
+          subtle: isAuto));
+
+      final pulled = await _pullTrusted(peer, trusted.sharedSecret!);
+      if (pulled == _PullOutcome.revoked) {
+        // _handleRevoke already told the person; nothing more to do here.
+        return false;
+      }
+      if (pulled == _PullOutcome.nothing) {
+        _emitProgress(SyncProgress(
+            progress: 0,
+            message: L.t(
+                '${peer.deviceName} didn\'t share anything back.',
+                '${peer.deviceName} לא שיתף שום דבר בחזרה.'),
+            error: L.t(
+                'On that device, this one may not be paired anymore — or '
+                'LAN transfers are switched off there. If this keeps '
+                'happening, end the connection on both devices and pair '
+                'freshly.',
+                'ייתכן שבמכשיר ההוא הצימוד למכשיר הזה כבר לא קיים — או '
+                'שהעברות ברשת כבויות שם. אם זה חוזר, נתקו את החיבור בשני '
+                'המכשירים וצמדו מחדש.')));
+        return false;
+      }
+
+      _emitProgress(SyncProgress(
+          progress: 0.55,
+          message: L.t('Creating a full picture of your current data...',
+              'יוצרים תמונה מלאה של המידע הנוכחי שלך...'),
+          subtle: isAuto));
 
       final bns = await BnsExporter.exportFullSnapshot();
 
-      _emitProgress(const SyncProgress(
-          progress: 0.4, message: 'Locking it safely for transfer...'));
+      _emitProgress(SyncProgress(
+          progress: 0.7,
+          message: L.t('Locking it safely for transfer...',
+              'נועלים את המידע בבטחה להעברה...'),
+          subtle: isAuto));
 
       final cipher =
           await _encryptFileInIsolate(bns.path, trusted.sharedSecret!);
 
       _emitProgress(SyncProgress(
-          progress: 0.6, message: 'Sending to ${peer.deviceName}...'));
+          progress: 0.85,
+          message: L.t('Sending to ${peer.deviceName}...',
+              'שולחים אל ${peer.deviceName}...'),
+          subtle: isAuto));
 
-      final s = await Socket.connect(peer.address, peer.port);
+      final s = await Socket.connect(peer.address, peer.port,
+          timeout: const Duration(seconds: 15));
       s.add(utf8.encode('PUSH $_myDeviceId\n'));
       s.add(cipher);
       await s.flush();
       await s.close();
 
-      _emitProgress(const SyncProgress(
-          progress: 0.8,
-          message: 'Getting the latest from the other device...'));
-
-      await _pullTrusted(peer, trusted.sharedSecret!);
-
       await IsarService.updateTrustedDeviceLastSync(
           peer.deviceId, peer.address);
+      _lastAutoSyncAt[peer.deviceId] = DateTime.now();
 
-      _emitProgress(const SyncProgress(
-        progress: 1.0,
-        message: 'Everything is in sync across your devices. Nice work.',
-        isComplete: true,
-      ));
-    } catch (e) {
       _emitProgress(SyncProgress(
-          progress: 0, message: 'Sync paused', error: e.toString()));
+        progress: 1.0,
+        message: L.t(
+            'Everything is in sync with ${peer.deviceName}. Nice work.',
+            'הכול מסונכרן עם ${peer.deviceName}. עבודה יפה.'),
+        isComplete: true,
+        subtle: isAuto,
+      ));
+      return true;
+    } on _CodeMismatch {
+      if (verifyingNewPairing) {
+        // The very first sync after pairing is the honesty check: keys
+        // don't match, so the pairing is broken from birth. Undo it here
+        // (and tell the other side) so both screens offer a clean retry.
+        await forgetDevice(peer.deviceId);
+        _emitProgress(SyncProgress(
+            progress: 0,
+            message: L.t(
+                'The code didn\'t match on both sides.',
+                'הקוד לא תאם בשני הצדדים.'),
+            error: L.t(
+                'It happens. Pair again with a fresh code — type it '
+                'carefully on ${peer.deviceName}, and it will hold.',
+                'זה קורה. צמדו שוב עם קוד טרי — הקלד אותו בזהירות '
+                'במכשיר ${peer.deviceName}, וזה יחזיק.')));
+      } else {
+        _emitProgress(SyncProgress(
+            progress: 0,
+            message: L.t(
+                'This device and ${peer.deviceName} no longer hold the '
+                'same key.',
+                'המכשיר הזה ו-${peer.deviceName} כבר לא מחזיקים את אותו '
+                'מפתח.'),
+            error: L.t(
+                'End the connection on both devices and pair again — a '
+                'fresh code fixes this.',
+                'נתקו את החיבור בשני המכשירים וצמדו מחדש — קוד טרי מסדר '
+                'את זה.')));
+      }
+      return false;
+    } catch (e) {
+      if (isAuto) {
+        // A trusted device that just left the network is everyday life,
+        // not an alarm. The next beat will try again.
+        _emitProgress(SyncProgress(
+            progress: 0,
+            message: L.t(
+                '${peer.deviceName} slipped away mid-sync. It will catch '
+                'up when it\'s back.',
+                '${peer.deviceName} התנתק באמצע הסנכרון. הוא ישלים את '
+                'הפער כשיחזור.'),
+            subtle: true));
+      } else {
+        _emitProgress(SyncProgress(
+            progress: 0,
+            message: L.t('Couldn\'t reach ${peer.deviceName} right now.',
+                'לא הצלחנו להגיע אל ${peer.deviceName} כרגע.'),
+            error: L.t(
+                'Check that both devices are on the same Wi-Fi and the '
+                'app is open there, then try again. ($e)',
+                'ודאו ששני המכשירים באותו Wi-Fi ושהאפליקציה פתוחה שם, '
+                'ונסו שוב. ($e)')));
+      }
+      return false;
+    } finally {
+      _syncingWith.remove(peer.deviceId);
     }
   }
 
-  Future<void> _pullTrusted(BnsPeer peer, String secret) async {
-    final s = await Socket.connect(peer.address, peer.port);
+  Future<_PullOutcome> _pullTrusted(BnsPeer peer, String secret) async {
+    final s = await Socket.connect(peer.address, peer.port,
+        timeout: const Duration(seconds: 15));
     s.add(utf8.encode('PULL $_myDeviceId\n'));
     await s.flush();
 
-    final b = BytesBuilder();
-    await for (final c in s) {
-      b.add(c);
-    }
+    final encBytes = Uint8List.fromList(await s
+        .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk))
+        .timeout(const Duration(minutes: 10)));
     await s.close();
 
-    final encBytes = b.takeBytes();
-    if (encBytes.isEmpty) return;
+    if (encBytes.isEmpty) return _PullOutcome.nothing;
 
     // "REVOKED" — the other side has un-paired from us. Drop them here too,
     // so a severed connection heals itself the moment anyone tries to sync,
@@ -517,19 +774,32 @@ class LanSyncService {
       final asText = utf8.decode(encBytes, allowMalformed: true).trim();
       if (asText == 'REVOKED') {
         await _handleRevoke(peer.deviceId);
-        return;
+        return _PullOutcome.revoked;
       }
     }
 
     final outPath = '${(await getTemporaryDirectory()).path}/pull.bns';
-    final decrypted = await _decryptToFileInIsolate(
-        Uint8List.fromList(encBytes), secret, outPath);
-    if (decrypted == null) return;
+    String? decrypted;
+    try {
+      decrypted = await _decryptToFileInIsolate(encBytes, secret, outPath);
+    } catch (_) {
+      decrypted = null;
+    }
+    // Real bytes arrived but the key can't open them: the two devices
+    // derived different keys from the pairing codes they were given.
+    if (decrypted == null) throw _CodeMismatch();
+
     final f = File(decrypted);
-    await BnsImporter.importMerge(f);
+    _applyingRemoteData = true;
+    try {
+      await BnsImporter.importMerge(f);
+    } finally {
+      _applyingRemoteData = false;
+    }
     try {
       await f.delete();
     } catch (_) {}
+    return _PullOutcome.gotData;
   }
 
   // === SECURE PAIRING ===
@@ -539,31 +809,30 @@ class LanSyncService {
   String generatePairingCode() =>
       List.generate(6, (_) => Random.secure().nextInt(10)).join();
 
-  Future<bool> completePairing(BnsPeer peer, String code) async {
+  /// Ask [peer] to pair, RIGHT NOW — the request goes out the moment the
+  /// code appears on this screen, so the other device prompts for the code
+  /// while the person is looking at it. (The old flow only sent the request
+  /// after a "I typed it there" button — the other device sat silent until
+  /// a button that claimed the typing already happened. Owner, 2026-08-09:
+  /// "the button is deceptive.")
+  ///
+  /// Waits generously (typing takes time), then either saves the trust or
+  /// reports plainly what happened.
+  Future<PairingResult> requestPairing(BnsPeer peer, String code) async {
     try {
-      _emitProgress(const SyncProgress(
-          progress: 0.25,
-          message: 'Waiting for the other device to enter the code...'));
-
-      final s = await Socket.connect(peer.address, peer.port);
+      final s = await Socket.connect(peer.address, peer.port,
+          timeout: const Duration(seconds: 10));
       s.add(utf8.encode('PAIR $_myDeviceId ${_deviceName ?? 'BNS Device'}\n'));
       await s.flush();
 
       final reply = utf8
-          .decode(
-            await s
-                .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk)),
-          )
+          .decode(await s
+              .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk))
+              .timeout(const Duration(minutes: 3)))
           .trim();
       await s.close();
 
-      if (reply != 'OK') {
-        _emitProgress(const SyncProgress(
-            progress: 0,
-            message:
-                'The other device declined (or the screen was closed there).'));
-        return false;
-      }
+      if (reply != 'OK') return PairingResult.declined;
 
       final key = deriveKey(code, _myDeviceId);
       await IsarService.saveTrustedDevice(TrustedDevice(
@@ -574,21 +843,20 @@ class LanSyncService {
         sharedSecret: key.base64,
         autoSyncEnabled: true,
       ));
-      _trustedIds.add(peer.deviceId);
-
-      _emitProgress(const SyncProgress(
-          progress: 0.9, message: 'Paired safely. Syncing now...'));
-
-      await syncWithPeer(peer);
-      return true;
-    } catch (e) {
-      _emitProgress(SyncProgress(
-          progress: 0,
-          message: 'Pairing could not be completed',
-          error: e.toString()));
-      return false;
+      await refreshTrustPolicy();
+      return PairingResult.accepted;
+    } on TimeoutException {
+      return PairingResult.declined;
+    } catch (_) {
+      return PairingResult.unreachable;
     }
   }
+
+  /// The first sync right after pairing doubles as the code check: it pulls
+  /// first, so a mismatched key surfaces immediately as "the code didn't
+  /// match" instead of a lifetime of silent broken syncs.
+  Future<bool> verifyNewPairing(BnsPeer peer) =>
+      syncWithPeer(peer, verifyingNewPairing: true);
 
   /// Shared derivation for both sides: sha256(code + initiator deviceId).
   static enc.Key deriveKey(String code, String initiatorDeviceId) {
@@ -653,19 +921,25 @@ class LanSyncService {
   /// stale can keep syncing until the next restart.
   Future<void> forgetDevice(String id) async {
     final peer = await IsarService.getTrustedDevice(id);
+    final lastKnownAddress = _peers[id]?.address ?? peer?.lastAddress;
     await IsarService.removeTrustedDevice(id);
     _trustedIds.remove(id);
     _lanAllowedIds.remove(id);
-    _autoSyncedThisSession.remove(id);
+    _autoSyncIds.remove(id);
+    _trustedAddresses.remove(id);
+    _lastAutoSyncAt.remove(id);
     _peers.remove(id);
     _peersController.add(_peers.values.toList());
 
     // Tell them, best effort: an unreachable device simply learns later,
     // when its own request is refused.
-    final address = _peers[id]?.address ?? peer?.lastAddress;
-    if (address == null || address.isEmpty || _myDeviceId.isEmpty) return;
+    if (lastKnownAddress == null ||
+        lastKnownAddress.isEmpty ||
+        _myDeviceId.isEmpty) {
+      return;
+    }
     try {
-      final socket = await Socket.connect(address, transferPort,
+      final socket = await Socket.connect(lastKnownAddress, transferPort,
           timeout: const Duration(seconds: 3));
       socket.add(utf8.encode('REVOKE $_myDeviceId\n'));
       await socket.flush();
@@ -683,13 +957,18 @@ class LanSyncService {
     await IsarService.removeTrustedDevice(peerId);
     _trustedIds.remove(peerId);
     _lanAllowedIds.remove(peerId);
-    _autoSyncedThisSession.remove(peerId);
+    _autoSyncIds.remove(peerId);
+    _trustedAddresses.remove(peerId);
+    _lastAutoSyncAt.remove(peerId);
     _peers.remove(peerId);
     _peersController.add(_peers.values.toList());
     _emitProgress(SyncProgress(
       progress: 1.0,
-      message: '${known.name} ended the connection. '
-          'Nothing more is shared with that device.',
+      message: L.t(
+          '${known.name} ended the connection. Nothing more is shared '
+          'with that device.',
+          '${known.name} סיים את החיבור. שום דבר לא משותף יותר עם '
+          'המכשיר הזה.'),
       isComplete: true,
     ));
   }
@@ -702,11 +981,17 @@ class LanSyncService {
     await (replace ? BnsImporter.importReplace(f) : BnsImporter.importMerge(f));
   }
 
-  void _emitProgress(SyncProgress p) => _progressController.add(p);
+  void _emitProgress(SyncProgress p) {
+    if (!_progressController.isClosed) _progressController.add(p);
+  }
 
+  /// Pause the machinery (name change restarts, tests). The app itself
+  /// never calls this to "clean up" — sync is a lifelong resident.
   Future<void> stop() async {
     _broadcastTimer?.cancel();
     _broadcastTimer = null;
+    _changePushTimer?.cancel();
+    _changePushTimer = null;
     _udpSocket?.close();
     _udpSocket = null;
     await _tcpServer?.close();
@@ -714,10 +999,7 @@ class LanSyncService {
     _peers.clear();
     if (!_peersController.isClosed) _peersController.add([]);
   }
-
-  void dispose() {
-    stop();
-    _peersController.close();
-    _progressController.close();
-  }
 }
+
+/// What a PULL round actually produced.
+enum _PullOutcome { gotData, nothing, revoked }

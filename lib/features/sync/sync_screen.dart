@@ -638,6 +638,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget _trustedCard(TrustedDevice d) {
     final theme = Theme.of(context);
     final online = _isOnline(d);
+    final syncing = _service.isSyncingWith(d.id);
     final when = d.lastSyncedAt.toLocal().toString().substring(0, 16);
     return Card(
       child: Column(
@@ -661,9 +662,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               style: const TextStyle(fontSize: 12),
             ),
             trailing: FilledButton.icon(
-              onPressed: () => _syncTrusted(d),
-              icon: const Icon(Icons.sync, size: 18),
-              label: Text(L.t('Sync now', 'סנכרן עכשיו')),
+              // Mid-sync the button becomes a spinner and stops taking
+              // presses — six taps must not mean six syncs and six toasts.
+              onPressed: syncing ? null : () => _syncTrusted(d),
+              icon: syncing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.sync, size: 18),
+              label: Text(syncing
+                  ? L.t('Syncing…', 'מסנכרן…')
+                  : L.t('Sync now', 'סנכרן עכשיו')),
             ),
           ),
           ExpansionTile(

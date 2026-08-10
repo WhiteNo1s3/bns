@@ -1,3 +1,4 @@
+import 'dart:async' show Timer;
 import 'dart:io' show Platform;
 import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
@@ -108,15 +109,30 @@ Future<void> _startupChores(List<String> args) async {
     };
     // Sync results surface wherever the person is — completions and
     // problems as gentle toasts; routine background chatter stays subtle.
+    // Toasts REPLACE each other (never queue) and identical repeats are
+    // dropped for a while — pressing Sync six times must not play six
+    // toasts back-to-back (owner QA, 2026-08-10: "annoying").
+    String? lastToast;
+    DateTime lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
     LanSyncService.instance.progressStream.listen((p) {
       if (p.subtle) return;
       if (!p.isComplete && p.error == null) return;
-      DesktopReminderService.messengerKey.currentState?.showSnackBar(SnackBar(
-        content:
-            Text(p.error == null ? p.message : '${p.message}\n${p.error}'),
-        duration: Duration(seconds: p.error == null ? 4 : 8),
-        behavior: SnackBarBehavior.floating,
-      ));
+      final text = p.error == null ? p.message : '${p.message}\n${p.error}';
+      final now = DateTime.now();
+      if (text == lastToast &&
+          now.difference(lastToastAt) < const Duration(seconds: 10)) {
+        return;
+      }
+      lastToast = text;
+      lastToastAt = now;
+      final messenger = DesktopReminderService.messengerKey.currentState;
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(text),
+          duration: Duration(seconds: p.error == null ? 4 : 8),
+          behavior: SnackBarBehavior.floating,
+        ));
     });
     // SEAMLESS SYNC (owner, 2026-07-27: "we see too many seams... to take an
     // Alzheimer patient to work this out at level 3/4, we are in trouble").
@@ -593,6 +609,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     TodayHooks.markNextDone = _markNextDone;
     _loadUserAdapt();
     _refreshDoneToday();
+    // Data can change UNDERNEATH this screen — a sync arriving, a .bns
+    // imported. The person must see it instantly; a restart-to-refresh is
+    // fine for a power user and impossible at level 4 (owner, 2026-08-10).
+    IsarService.dataRevision.addListener(_onDataRevision);
+  }
+
+  Timer? _revisionDebounce;
+
+  void _onDataRevision() {
+    _revisionDebounce?.cancel();
+    _revisionDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      ref.invalidate(routinesProvider);
+      _refreshDoneToday();
+    });
   }
 
   Future<void> _refreshDoneToday() async {
@@ -912,6 +943,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   @override
   void dispose() {
+    IsarService.dataRevision.removeListener(_onDataRevision);
+    _revisionDebounce?.cancel();
     _confetti.dispose();
     _diaryController.dispose();
     if (TodayHooks.diary == _diaryFocus) TodayHooks.diary = null;

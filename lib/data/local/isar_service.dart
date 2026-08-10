@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
@@ -33,6 +34,11 @@ class IsarService {
   /// sync or a .bns import all refresh reminders by themselves — no screen
   /// has to remember to ask.
   static void Function()? onDataChanged;
+
+  /// Bumps on every persisted change. Screens listen and repaint, so data
+  /// arriving from a sync or import shows up INSTANTLY — never "after a
+  /// restart".
+  static final ValueNotifier<int> dataRevision = ValueNotifier<int>(0);
 
   /// Await all pending disk writes (used on app pause/exit — belt and
   /// suspenders on top of the per-change atomic writes).
@@ -108,6 +114,11 @@ class IsarService {
   /// Writes are chained so they never interleave.
   static Future<void> _persist() {
     _revision++;
+    // Screens listen to this so data arriving BEHIND the UI — a LAN sync,
+    // a .bns import — repaints the day instantly. Restarting the app to
+    // see an update is fine for a power user and impossible at level 4
+    // (owner, 2026-08-10: "the things I forgot people will never learn").
+    dataRevision.value = _revision;
     try {
       onDataChanged?.call();
     } catch (_) {}

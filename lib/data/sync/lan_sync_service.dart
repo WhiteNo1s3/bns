@@ -16,6 +16,7 @@ import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/core/models/trusted_device.dart';
+import 'package:bns/platform/android_widget.dart';
 
 /// Simple peer representation discovered on LAN.
 class BnsPeer {
@@ -190,6 +191,11 @@ class LanSyncService {
   }
 
   bool get isRunning => _udpSocket != null;
+
+  /// True while a sync conversation with this device is in flight — the
+  /// UI turns its Sync button into a spinner so pressing it six times
+  /// does six times nothing (owner QA, 2026-08-10).
+  bool isSyncingWith(String deviceId) => _syncingWith.contains(deviceId);
 
   Future<void> start({required String deviceName, bool autoSync = true}) async {
     if (isRunning) return;
@@ -577,6 +583,9 @@ class LanSyncService {
     try {
       await temp.delete();
     } catch (_) {}
+    // The home-screen widget shows the day too — it must not wait for the
+    // app to be opened to learn what just arrived.
+    AndroidBnsWidget.updateWidget();
 
     await IsarService.updateTrustedDeviceLastSync(
         senderId, trusted.lastAddress);
@@ -799,6 +808,7 @@ class LanSyncService {
     try {
       await f.delete();
     } catch (_) {}
+    AndroidBnsWidget.updateWidget();
     return _PullOutcome.gotData;
   }
 
@@ -936,6 +946,15 @@ class LanSyncService {
     if (lastKnownAddress == null ||
         lastKnownAddress.isEmpty ||
         _myDeviceId.isEmpty) {
+      return;
+    }
+    // A re-installed device gets a NEW identity, leaving its old entry
+    // behind as a ghost at the SAME address. Forgetting the ghost must not
+    // send a goodbye there — the device would obediently sever the LIVING
+    // pairing too (it only knows us by our one id). Ghost cleanup is
+    // local; a real goodbye goes only where no newer pairing lives.
+    final others = await IsarService.getTrustedDevices();
+    if (others.any((d) => d.id != id && d.lastAddress == lastKnownAddress)) {
       return;
     }
     try {

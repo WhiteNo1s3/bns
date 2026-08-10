@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/theme.dart';
 
@@ -49,14 +49,19 @@ class DesktopReminderService {
     if (!settings.notificationsEnabled || settings.caregiverDevice) return;
 
     final now = DateTime.now();
-    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    // OWL TIME: which day "today" is follows the person's border — at
+    // 01:30 with a 04:00 border, the 02:00 pills are TONIGHT's, and their
+    // answered-state lives under tonight's date.
+    final rollover = settings.dayRolloverHour;
+    final todayStr = logicalDayKey(now, rollover);
+    final logicalDay = logicalDateOf(now, rollover);
 
     // Routines due right now, still unanswered today.
     final logs = await IsarService.getLogsForDate(todayStr);
     final answered = logs.map((l) => l.routineId).toSet();
     final routines = await IsarService.getAllRoutines();
     for (final r in routines) {
-      if (!r.appliesOn(now) || r.time == null) continue;
+      if (!r.appliesOn(logicalDay) || r.time == null) continue;
       if (answered.contains(r.id)) continue;
       final at = _timeOn(now, r.time!);
       if (at == null || !_inWindow(now, at)) continue;
@@ -78,8 +83,12 @@ class DesktopReminderService {
       if (e.isAllDay || e.time == null || e.isAnswered) continue;
       final date = DateTime.tryParse(e.date);
       if (date == null) continue;
-      final at = _timeOn(DateTime(date.year, date.month, date.day), e.time!);
-      if (at == null) continue;
+      final hm = e.time!.split(':');
+      final h = int.tryParse(hm[0]);
+      final m = hm.length > 1 ? int.tryParse(hm[1]) : null;
+      if (h == null || m == null) continue;
+      // A small-hour plan belongs to that date's NIGHT (owl time).
+      final at = actualMomentOf(date, h, m, rollover);
       final remindAt = at.subtract(Duration(minutes: lead));
       if (!_inWindow(now, remindAt)) continue;
       final key = '${e.date}|e|${e.id}';

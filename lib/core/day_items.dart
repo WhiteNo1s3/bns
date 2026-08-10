@@ -9,8 +9,13 @@
 library;
 
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 
 /// Items are [Routine] or [CalendarEvent] — the UI switches on the type.
+///
+/// [rolloverHour] is the person's day border (owl time): with border 04:00,
+/// the 02:00 pills sort AFTER the 23:00 wind-down — the night belongs to
+/// tonight. 0 keeps the old midnight world exactly.
 List<Object> weaveDayList({
   required List<Routine> routines,
   required List<CalendarEvent> plans,
@@ -18,6 +23,7 @@ List<Object> weaveDayList({
   required Set<String> skippedRoutineIds,
   required bool nextFirst,
   required DateTime now,
+  int rolloverHour = 0,
 }) {
   int minutesOf(Object item) {
     String? t;
@@ -25,7 +31,8 @@ List<Object> weaveDayList({
     if (item is CalendarEvent) t = item.isAllDay ? null : item.time;
     if (t == null) return 24 * 60; // timeless goes last
     final p = t.split(':');
-    return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+    return owlMinutesOf(
+        int.tryParse(p[0]) ?? 0, int.tryParse(p[1]) ?? 0, rolloverHour);
   }
 
   bool answered(Object item) {
@@ -36,7 +43,7 @@ List<Object> weaveDayList({
     return (item as CalendarEvent).isAnswered;
   }
 
-  final nowMin = now.hour * 60 + now.minute;
+  final nowMin = owlNowMinutes(now, rolloverHour);
   final list = <Object>[...routines, ...plans];
   list.sort((a, b) {
     final aDone = answered(a);

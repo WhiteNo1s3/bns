@@ -56,6 +56,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _reminderStyle = 'gentle';
   String _notificationColor = 'auto';
   int _eventReminderMinutes = 30;
+  // Owl time: the hour the person's day ends (0 = midnight).
+  int _dayRolloverHour = 0;
   bool _sttEnabled = true;
   bool _autoImage = true;
   String _homePath = '';
@@ -97,6 +99,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _reminderStyle = settings.reminderStyle;
     _notificationColor = settings.notificationColor;
     _eventReminderMinutes = settings.eventReminderMinutes;
+    _dayRolloverHour = settings.dayRolloverHour;
     _sttEnabled = settings.sttEnabled;
     _autoImage = settings.autoImageEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
@@ -150,6 +153,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _reminderStyle = s.reminderStyle;
         _notificationColor = s.notificationColor;
         _eventReminderMinutes = s.eventReminderMinutes;
+        _dayRolloverHour = s.dayRolloverHour;
         _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
         _fullCareMode = s.fullCareMode;
@@ -287,6 +291,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.updateSettings(s.copyWith(eventReminderMinutes: v));
     await NotificationsService.rescheduleAll(force: true);
     await _loadRetention();
+  }
+
+  /// Owl time: move the border of the day. Reminders reschedule (weekly
+  /// small-hour ones shift to the right calendar night) and the widget
+  /// redraws with the right "today".
+  Future<void> _setDayRolloverHour(int v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(dayRolloverHour: v));
+    await NotificationsService.rescheduleAll(force: true);
+    AndroidBnsWidget.updateWidget();
+    await _loadRetention();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v == 0
+            ? L.t('Your day ends at midnight — the classic way.',
+                'היום שלך נגמר בחצות — הדרך הקלאסית.')
+            : L.t(
+                'Your day now ends at 0$v:00. The night hours stay part '
+                'of tonight — owls are normal here.',
+                'היום שלך נגמר עכשיו ב-0$v:00. שעות הלילה נשארות חלק '
+                'מהלילה הזה — ינשופים הם הנורמלים כאן.'))));
   }
 
   /// Person-facing names for the user types (values stay identifiers).
@@ -1509,6 +1534,45 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         'מצב שקט (פחות אנימציות, קונפטי וצלילים)')),
                     value: _quietMode,
                     onChanged: _setQuietMode,
+                  ),
+                  const Divider(height: 24),
+                  // ---- OWL TIME: the day border is chosen, not assumed
+                  // (owner, 2026-08-10: "my day isn't done in 00:00...
+                  // I cannot set pills at 2:00 and be normal like
+                  // everyone" — now they can, and they are). ----
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.bedtime_outlined),
+                    title: Text(
+                        L.t('When does your day end?',
+                            'מתי היום שלך נגמר?'),
+                        style: Theme.of(context).textTheme.titleSmall),
+                    subtitle: Text(
+                        L.t(
+                            'For night owls: pick 04:00 and everything '
+                            'until then still belongs to tonight — pills '
+                            'at 02:00 sit at the END of today\'s list, '
+                            'and the day flips while you sleep.',
+                            'לינשופים: בחרו 04:00 וכל מה שעד אז עדיין '
+                            'שייך להלילה — כדורים ב-02:00 יושבים בסוף '
+                            'הרשימה של היום, והיום מתחלף בזמן שאתם '
+                            'ישנים.'),
+                        style: const TextStyle(fontSize: 12)),
+                  ),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final h in const [0, 1, 2, 3, 4, 5, 6])
+                        ChoiceChip(
+                          label: Text(h == 0
+                              ? L.t('Midnight', 'חצות')
+                              : '0$h:00'),
+                          selected: _dayRolloverHour == h,
+                          onSelected: (_) => _setDayRolloverHour(h),
+                        ),
+                    ],
                   ),
                   const Divider(height: 24),
                   // ---- Reminders: when, how loud, and in what color ----

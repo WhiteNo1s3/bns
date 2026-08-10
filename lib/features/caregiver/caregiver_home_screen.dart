@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
@@ -53,8 +54,12 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final now = DateTime.now();
-    final dateStr = DateFormat('yyyy-MM-dd').format(now);
+    // The helper watches the PERSON'S day — same owl-time border, so at
+    // 01:30 the caregiver still sees tonight's list, exactly as they do.
+    final settings = await IsarService.getSettings();
+    final logicalDay =
+        logicalDateOf(DateTime.now(), settings.dayRolloverHour);
+    final dateStr = dayKeyOf(logicalDay);
 
     final routines = await IsarService.getAllRoutines();
     final logs = await IsarService.getLogsForDate(dateStr);
@@ -65,13 +70,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
 
     if (!mounted) return;
     setState(() {
-      _todayRoutines = routines.where((r) => r.appliesOn(now)).toList()
+      _todayRoutines = routines.where((r) => r.appliesOn(logicalDay)).toList()
         ..sort((a, b) => (a.time ?? '99:99').compareTo(b.time ?? '99:99'));
       _todayLogs = logs;
       // A helper is trusted with the hard moments too — that is the whole
       // point of level 3 ("the frustration IS the signal").
       _feed = buildDayFeed(
-        date: now,
+        date: logicalDay,
         routines: routines,
         logs: logs,
         captures: captures,
@@ -79,7 +84,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         includeMadVents: true,
       );
       _glance = buildCareGlance(
-        now: now,
+        now: DateTime.now(),
         captures: captures,
         logs: allLogs,
         routines: routines,

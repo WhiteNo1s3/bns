@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:intl/intl.dart';
 
@@ -41,8 +42,10 @@ class AndroidBnsWidget {
       final forwardDays =
           settings.widgetForwardDays.clamp(0, 14); // cap to avoid stress
 
-      final today = DateTime.now();
-      final todayStr = DateFormat('yyyy-MM-dd').format(today);
+      // OWL TIME: the widget's "today" follows the person's day border —
+      // at 01:30 it still shows tonight's list, not a fresh tomorrow.
+      final today = logicalDateOf(DateTime.now(), settings.dayRolloverHour);
+      final todayStr = dayKeyOf(today);
 
       // Today's mission: routines that apply today, as a friendly list.
       final todayRoutines =
@@ -72,7 +75,7 @@ class AndroidBnsWidget {
         final upcomingEvents = <String>[];
         for (int d = 1; d <= forwardDays; d++) {
           final futureDate = today.add(Duration(days: d));
-          final dateStr = DateFormat('yyyy-MM-dd').format(futureDate);
+          final dateStr = dayKeyOf(futureDate);
           final events = await IsarService.getEventsForDate(dateStr);
           if (events.isNotEmpty) {
             final dayLabel = d == 1

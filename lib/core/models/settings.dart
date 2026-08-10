@@ -38,6 +38,13 @@ class AppSettings {
   // enough time to get ready without living in the future.
   final int eventReminderMinutes;
 
+  // OWL TIME (owner, 2026-08-10: "my day isn't done in 00:00"): the hour
+  // the person's day actually ends. 0 = midnight (the old world); an owl
+  // picks e.g. 4 and everything until 04:00 still belongs to tonight —
+  // pills at 02:00 sit at the END of today's list and the day flips while
+  // they sleep. Clamped to 0..6 (lib/core/owl_time.dart).
+  final int dayRolloverHour;
+
   final bool hapticsEnabled;
   final DateTime? lastFullSyncAt;
 
@@ -152,6 +159,7 @@ class AppSettings {
     this.relaxingPalette = RelaxingPalette.teal,
     this.notificationsEnabled = true,
     this.reminderStyle = 'gentle',
+    this.dayRolloverHour = 0,
     this.notificationColor = 'auto',
     this.eventReminderMinutes = 30,
     this.hapticsEnabled = true,
@@ -190,6 +198,7 @@ class AppSettings {
     RelaxingPalette? relaxingPalette,
     bool? notificationsEnabled,
     String? reminderStyle,
+    int? dayRolloverHour,
     String? notificationColor,
     int? eventReminderMinutes,
     bool? hapticsEnabled,
@@ -222,6 +231,7 @@ class AppSettings {
       relaxingPalette: relaxingPalette ?? this.relaxingPalette,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       reminderStyle: reminderStyle ?? this.reminderStyle,
+      dayRolloverHour: dayRolloverHour ?? this.dayRolloverHour,
       notificationColor: notificationColor ?? this.notificationColor,
       eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
@@ -261,6 +271,7 @@ class AppSettings {
         'relaxingPalette': relaxingPalette.name,
         'notificationsEnabled': notificationsEnabled,
         'reminderStyle': reminderStyle,
+        'dayRolloverHour': dayRolloverHour,
         'notificationColor': notificationColor,
         'eventReminderMinutes': eventReminderMinutes,
         'hapticsEnabled': hapticsEnabled,
@@ -297,6 +308,8 @@ class AppSettings {
                 RelaxingPalette.teal,
         notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
         reminderStyle: json['reminderStyle'] as String? ?? 'gentle',
+        dayRolloverHour:
+            ((json['dayRolloverHour'] as num?)?.toInt() ?? 0).clamp(0, 6),
         notificationColor: json['notificationColor'] as String? ?? 'auto',
         eventReminderMinutes:
             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,

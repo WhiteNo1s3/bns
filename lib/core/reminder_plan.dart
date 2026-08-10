@@ -6,6 +6,7 @@ library;
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 
 /// How a planned reminder repeats.
 enum PlannedRepeat {
@@ -93,12 +94,17 @@ List<PlannedReminder> planReminders({
             : r.daysOfWeek;
         for (final dow in days.toSet()) {
           if (dow < 0 || dow > 6) continue;
+          // OWL TIME: a small-hour time (before the person's day border)
+          // means the NIGHT of that weekday — "Tuesday pills at 02:00"
+          // fire on calendar Wednesday 02:00, which IS Tuesday night.
+          final calendarDow =
+              hm.$1 < settings.dayRolloverHour ? (dow + 1) % 7 : dow;
           planned.add(PlannedReminder(
             id: _stableId('r.${r.id}.$dow'),
             title: L.t('Gentle reminder', 'תזכורת עדינה'),
             body: L.t('${r.title} — whenever you\'re ready',
                 '${r.title} — מתי שנוח לך'),
-            firstAt: _nextWeeklyOccurrence(now, dow, hm.$1, hm.$2),
+            firstAt: _nextWeeklyOccurrence(now, calendarDow, hm.$1, hm.$2),
             repeat: PlannedRepeat.weekly,
             payload: 'routine:${r.id}',
           ));
@@ -119,7 +125,9 @@ List<PlannedReminder> planReminders({
       final hm = _parseTime(e.time!);
       final date = DateTime.tryParse(e.date);
       if (hm == null || date == null) continue;
-      final at = DateTime(date.year, date.month, date.day, hm.$1, hm.$2);
+      // OWL TIME: a plan's date is the person's LOGICAL day; a small-hour
+      // time means that day's night (the next calendar day).
+      final at = actualMomentOf(date, hm.$1, hm.$2, settings.dayRolloverHour);
       final remindAt = at.subtract(Duration(minutes: lead));
       if (!remindAt.isAfter(now) || at.isAfter(horizon)) continue;
       upcoming.add((remindAt, e));
@@ -170,7 +178,8 @@ String reminderFingerprint({
     ..write('|${settings.reminderStyle}')
     ..write('|${settings.notificationColor}')
     ..write('|${settings.relaxingPalette.name}')
-    ..write('|${settings.eventReminderMinutes}');
+    ..write('|${settings.eventReminderMinutes}')
+    ..write('|${settings.dayRolloverHour}');
   for (final r in routines) {
     if (!r.isActive || r.time == null) continue;
     b.write('|r:${r.id},${r.title},${r.time},${r.recurrenceType.name},'

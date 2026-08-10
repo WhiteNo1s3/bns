@@ -1,0 +1,193 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/models/models.dart';
+import 'package:bns/core/day_items.dart';
+import 'package:bns/core/owl_time.dart';
+import 'package:bns/core/reminder_plan.dart';
+
+void main() {
+  L.lang = 'en';
+
+  group('logicalDateOf — the movable border', () {
+    test('border 04:00 — 01:30 still belongs to yesterday', () {
+      expect(logicalDateOf(DateTime(2026, 8, 10, 1, 30), 4),
+          DateTime(2026, 8, 9));
+      expect(logicalDateOf(DateTime(2026, 8, 10, 3, 59), 4),
+          DateTime(2026, 8, 9));
+      // At the border the new day begins.
+      expect(logicalDateOf(DateTime(2026, 8, 10, 4, 0), 4),
+          DateTime(2026, 8, 10));
+      expect(logicalDateOf(DateTime(2026, 8, 10, 23, 59), 4),
+          DateTime(2026, 8, 10));
+    });
+
+    test('border 0 = the old midnight world, exactly', () {
+      expect(logicalDateOf(DateTime(2026, 8, 10, 0, 0), 0),
+          DateTime(2026, 8, 10));
+      expect(logicalDateOf(DateTime(2026, 8, 10, 23, 59), 0),
+          DateTime(2026, 8, 10));
+    });
+
+    test('month border folds correctly (Aug 1st, 01:00 → July 31)', () {
+      expect(logicalDateOf(DateTime(2026, 8, 1, 1, 0), 4),
+          DateTime(2026, 7, 31));
+    });
+  });
+
+  group('owlMinutesOf — the night sorts after the evening', () {
+    test('with border 04:00, 02:00 pills come AFTER 23:00 wind-down', () {
+      final evening = owlMinutesOf(23, 0, 4);
+      final pills = owlMinutesOf(2, 0, 4);
+      final morning = owlMinutesOf(8, 0, 4);
+      expect(morning < evening, isTrue);
+      expect(evening < pills, isTrue, reason: 'the night belongs to tonight');
+    });
+
+    test('border 0 keeps plain clock order', () {
+      expect(owlMinutesOf(2, 0, 0) < owlMinutesOf(23, 0, 0), isTrue);
+    });
+  });
+
+  group('actualMomentOf — logical date + small hour = that night', () {
+    test('logical Aug 9 at 02:00 with border 4 happens Aug 10, 02:00', () {
+      expect(actualMomentOf(DateTime(2026, 8, 9), 2, 0, 4),
+          DateTime(2026, 8, 10, 2, 0));
+    });
+    test('daytime hours stay on their own date', () {
+      expect(actualMomentOf(DateTime(2026, 8, 9), 14, 0, 4),
+          DateTime(2026, 8, 9, 14, 0));
+    });
+  });
+
+  group('weaveDayList honors the border', () {
+    Routine r(String id, String? time) => Routine(
+          id: id,
+          title: 'R $id',
+          recurrenceType: RecurrenceType.daily,
+          time: time,
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 1),
+        );
+    String ids(List<Object> l) =>
+        l.map((e) => (e as Routine).id).join(',');
+
+    test('02:00 pills close the day, after the evening', () {
+      final woven = weaveDayList(
+        routines: [r('pills', '02:00'), r('morning', '08:00'), r('wind', '23:00')],
+        plans: const [],
+        doneRoutineIds: const {},
+        skippedRoutineIds: const {},
+        nextFirst: false,
+        now: DateTime(2026, 8, 9, 12, 0),
+        rolloverHour: 4,
+      );
+      expect(ids(woven), 'morning,wind,pills');
+    });
+
+    test('"what\'s next" at 01:00 knows the pills are the nearest thing', () {
+      final woven = weaveDayList(
+        routines: [r('pills', '02:00'), r('morning', '08:00'), r('wind', '23:00')],
+        plans: const [],
+        doneRoutineIds: const {},
+        skippedRoutineIds: const {},
+        nextFirst: true,
+        now: DateTime(2026, 8, 10, 1, 0), // logical Aug 9 night
+        rolloverHour: 4,
+      );
+      // pills (02:00) are upcoming; morning+wind already passed today.
+      expect(ids(woven).startsWith('pills'), isTrue);
+    });
+  });
+
+  group('planReminders honors the border', () {
+    const created = '2026-08-01';
+    final now = DateTime(2026, 8, 8, 10, 0); // Saturday
+
+    Routine weekly(String id, String time, List<int> days) => Routine(
+          id: id,
+          title: 'R $id',
+          recurrenceType: RecurrenceType.weekly,
+          daysOfWeek: days,
+          time: time,
+          createdAt: DateTime.parse(created),
+          updatedAt: DateTime.parse(created),
+        );
+
+    test('"Tuesday night pills at 02:00" fire calendar WEDNESDAY 02:00', () {
+      final plan = planReminders(
+        routines: [weekly('t', '02:00', const [2])], // Tuesday, dow 0=Sun
+        events: const [],
+        settings: const AppSettings().copyWith(dayRolloverHour: 4),
+        now: now,
+      );
+      // Next Tuesday is 2026-08-11 → its night at 02:00 is Wed 2026-08-12.
+      expect(plan.single.firstAt, DateTime(2026, 8, 12, 2, 0));
+    });
+
+    test('without owl time the same routine fires Tuesday 02:00 (dawn)', () {
+      final plan = planReminders(
+        routines: [weekly('t', '02:00', const [2])],
+        events: const [],
+        settings: const AppSettings(),
+        now: now,
+      );
+      expect(plan.single.firstAt, DateTime(2026, 8, 11, 2, 0));
+    });
+
+    test('a plan for tonight at 02:00 reminds that NIGHT, not this morning',
+        () {
+      final e = CalendarEvent(
+        id: 'late',
+        title: 'Night thing',
+        date: '2026-08-08', // the person's "today"
+        time: '02:00',
+        createdAt: DateTime.parse(created),
+        updatedAt: DateTime.parse(created),
+      );
+      final owl = planReminders(
+        routines: const [],
+        events: [e],
+        settings: const AppSettings().copyWith(dayRolloverHour: 4),
+        now: now,
+      );
+      // Actual moment: Aug 9 02:00; heads-up 30 min before, still ahead.
+      expect(owl.single.firstAt, DateTime(2026, 8, 9, 1, 30));
+
+      final midnightWorld = planReminders(
+        routines: const [],
+        events: [e],
+        settings: const AppSettings(),
+        now: now,
+      );
+      // In the old world Aug 8 02:00 already passed — nothing to remind.
+      expect(midnightWorld, isEmpty);
+    });
+
+    test('the border is part of the reminder fingerprint', () {
+      final f0 = reminderFingerprint(
+          routines: const [],
+          events: const [],
+          settings: const AppSettings(),
+          now: now);
+      final f4 = reminderFingerprint(
+          routines: const [],
+          events: const [],
+          settings: const AppSettings().copyWith(dayRolloverHour: 4),
+          now: now);
+      expect(f0, isNot(f4));
+    });
+  });
+
+  group('AppSettings.dayRolloverHour', () {
+    test('roundtrips and clamps to 0..6', () {
+      final s = const AppSettings().copyWith(dayRolloverHour: 4);
+      expect(AppSettings.fromJson(s.toJson()).dayRolloverHour, 4);
+      expect(
+          AppSettings.fromJson(const {'id': 'singleton', 'dayRolloverHour': 9})
+              .dayRolloverHour,
+          6);
+      expect(AppSettings.fromJson(const {'id': 'singleton'}).dayRolloverHour,
+          0);
+    });
+  });
+}

@@ -11,6 +11,7 @@ import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/core/day_items.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/plan_tile.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
@@ -573,6 +574,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   bool _nextFirstOrder = false; // false = morning→night (default)
   bool _guidedMode = false; // level 4: only the list, inspector builds
   String? _lastSyncLine; // cached "last synced" note (no per-frame queries)
+  // OWL TIME: the hour the person's day ends (0 = midnight). Everything
+  // "today" on this screen goes through these two, so a 02:00 pill at
+  // 01:30 still belongs to TONIGHT's list for a person with a 04:00 border.
+  int _rolloverHour = 0;
+
+  DateTime get _logicalToday => logicalDateOf(DateTime.now(), _rolloverHour);
+  String get _todayKey => logicalDayKey(DateTime.now(), _rolloverHour);
 
   @override
   void initState() {
@@ -588,11 +596,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   Future<void> _refreshDoneToday() async {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // Settings first: the person's day border (owl time) decides which
+    // date "today" even is before anything else is fetched.
+    final settings = await IsarService.getSettings();
+    _rolloverHour = settings.dayRolloverHour;
+    final todayStr = _todayKey;
     final logs = await IsarService.getLogsForDate(todayStr);
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
-    final settings = await IsarService.getSettings();
     final todayPlans = await IsarService.getEventsForDate(todayStr);
     // The kept "why"s: need-help notes from the last few days, latest one
     // per routine. They ride the tiles so the reason is met, not searched.
@@ -860,7 +871,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   /// One more part of this routine handled — quiet micro-win. When the last
   /// part lands, the normal gentle "Is it done?" takes over.
   Future<void> _advanceStep(Routine r) async {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final todayStr = _todayKey;
     final done =
         await IsarService.advanceStep(r.id, todayStr, r.steps.length);
     await _refreshDoneToday();
@@ -877,6 +888,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         _userType = s.userType;
         _madActive = mad;
         _guidedMode = s.guidedMode;
+        _rolloverHour = s.dayRolloverHour;
       });
       // Reassurance, never alarm: every change was already saved as it
       // happened, so an ungentle close costs nothing. Say so once.
@@ -931,8 +943,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   /// Complete the next unfinished routine (used by FAB and the mark_done keybind).
   Future<void> _markNextDone() async {
-    final today = DateTime.now();
-    final todayStr = DateFormat('yyyy-MM-dd').format(today);
+    final today = _logicalToday;
+    final todayStr = _todayKey;
     final routines = await IsarService.getAllRoutines();
     final todayR =
         routines.where((r) => r.appliesOn(today) && r.isActive).toList();
@@ -995,7 +1007,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   /// takeable-back. Unchecking removes the log entirely — the day just has
   /// no answer again, it never secretly becomes a "skip".
   Future<void> _toggleComplete(Routine r) async {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final todayStr = _todayKey;
     final isDone = await _isDoneToday(r.id, todayStr);
     if (!mounted) return;
 
@@ -1113,7 +1125,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   void _openDidntHappenSheet(Routine r) {
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final todayStr = _todayKey;
     final noteCtrl = TextEditingController();
     var noteSaved = false;
 
@@ -1413,7 +1425,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await IsarService.addEvent(CalendarEvent(
       id: '',
       title: title,
-      date: DateFormat('yyyy-MM-dd').format(now),
+      // The person's TODAY (owl time) — adding "tonight's plan" at 01:30
+      // must not land it on tomorrow's list.
+      date: _todayKey,
       time: picked == null
           ? null
           : '${picked!.hour.toString().padLeft(2, '0')}:'
@@ -1459,7 +1473,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final routinesAsync = ref.watch(routinesProvider);
-    final today = DateTime.now();
+    final today = _logicalToday; // owl time: 01:30 is still tonight
     // On wide screens the sidebar shell already handles navigation — hide
     // the duplicate nav buttons below to keep the screen calm and focused.
     // Width decides (tablets wave, 2026-08-09): an Android tablet or iPad
@@ -1641,6 +1655,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         skippedRoutineIds: _skippedTodayIds,
                         nextFirst: _nextFirstOrder,
                         now: DateTime.now(),
+                        rolloverHour: _rolloverHour,
                       );
                       _todayRoutines = dayList
                           .whereType<Routine>()

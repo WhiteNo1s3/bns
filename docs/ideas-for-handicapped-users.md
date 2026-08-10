@@ -400,3 +400,45 @@ not a routine, but today it stands IN the day.
 - "Change a routine on one device: did the other have it within ~10s
   without touching anything?"
 - "Leave the Sync screen, come back: does everything still appear?"
+
+## Wave: owl time (2026-08-10, owner: "my day isn't done in 00:00... I
+## cannot set pills at 2:00 and be normal like everyone")
+
+### The idea
+
+Not a 36/48-hour day (that breaks every calendar date) — a MOVABLE
+BORDER. The person says when their day ends (Sync screen → "When does
+your day end?", 00:00–06:00). Everything before the border still belongs
+to tonight. `lib/core/owl_time.dart` (pure, tested): logicalDateOf,
+owlMinutesOf, actualMomentOf.
+
+### Shipped
+
+- ✅ **Setting** `dayRolloverHour` (0 = midnight, the old world; clamped
+  0..6; rides the .bns).
+- ✅ **Today's list**: 02:00 pills sort at the END of today, after the
+  23:00 things; at 01:30 the screen still shows TONIGHT's list, ticks
+  land on tonight's date, "what's next" knows the pills are nearest.
+- ✅ **Adding a plan at 01:30** puts it on tonight's date, not tomorrow's.
+- ✅ **Reminders**: "Tuesday night pills at 02:00" fire calendar
+  Wednesday 02:00 (which IS Tuesday night); a plan's small-hour time
+  reminds on its night; the border is part of the reminder fingerprint.
+- ✅ **Windows in-app reminders, Android widget, caregiver view** all
+  follow the same border — the helper sees the person's day, not the
+  calendar's.
+
+### Parked (don't lose)
+
+- The Today header could whisper "still Saturday night" near the border
+  hours — copy idea, not wired.
+- Day-thread / diary views still cut at calendar midnight (reading
+  history is calendar-honest on purpose; revisit if it feels wrong).
+
+### Live test questions
+
+- "Set the border to 04:00 and look at Today at 01:30 — is it still
+  tonight's list, with the pills at the end?"
+- "Tick the 02:00 pills at 02:05 — do they stay ticked on TONIGHT's
+  list (and tomorrow starts clean)?"
+- "Does the 02:00 reminder arrive on the right night, not at dawn of
+  the wrong day?"

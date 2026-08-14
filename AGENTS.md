@@ -2,6 +2,9 @@
 
 This is a sensitive, high-empathy project for people with neurological challenges (memory loss, executive dysfunction, TBI, etc.).
 
+## Silk memories law (grokBNS, 2026-08-14)
+If the person recorded it, they see it. `quick` / `remember` / `memorize` is retention, never a hide filter. Mad-vents stay hidden. Save lands on Your memories. Today shows What you kept.
+
 ## Non-negotiables
 - **Never** introduce language, stats, or UI that punishes, shames, or creates pressure ("you missed", streak counters that feel bad, red X on incomplete, etc.).
 - On skip or incomplete → always offer kind invitation to log why (voice preferred). Treat the log itself as a win. A **deliberate** skip is a decision, and deciding counts as a win — say so.

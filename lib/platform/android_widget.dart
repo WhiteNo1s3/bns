@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -91,15 +92,9 @@ class AndroidBnsWidget {
 
       // One recent memory — part of the story.
       final recentMemories = await IsarService.getAllCaptures();
-      final lastMem = recentMemories.firstWhere(
-        (c) =>
-            c.memoryLevel != MemoryLevel.quick &&
-            c.deletedAt == null &&
-            !c.tags.contains('mad-vent'), // vents NEVER surface (sacred rule)
-        orElse: () => QuickCapture(
-            id: '', at: DateTime.now(), memoryLevel: MemoryLevel.quick),
-      );
-      final recentStory = lastMem.contextNote ?? lastMem.text ?? '';
+      final kept = visibleMemories(recentMemories);
+      final lastMem = kept.isEmpty ? null : kept.first;
+      final recentStory = lastMem == null ? '' : memoryWords(lastMem);
 
       // Kind, user-type-aware summary.
       String summary = L.t('You showed up. Small steps = big wins. You got this!',

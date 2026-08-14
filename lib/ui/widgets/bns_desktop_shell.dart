@@ -7,6 +7,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
+import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/layout.dart';
 
 /// Modern desktop shell for PC (Windows/macOS/Linux primary use).
@@ -36,6 +37,7 @@ class BnsDesktopShell extends StatefulWidget {
 
 class _BnsDesktopShellState extends State<BnsDesktopShell> {
   int _selectedIndex = 0;
+  bool _guided = false;
 
   List<_DesktopDestination> get _destinations => [
         _DesktopDestination(
@@ -74,8 +76,8 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
           selectedIcon: Icons.psychology,
           label: L.t('Memories', 'זיכרונות'),
           route: '/memories',
-          tooltip: L.t('Memory garden, search, warnings  •  Ctrl+M',
-              'גן הזיכרונות, חיפוש, אזהרות  •  Ctrl+M'),
+          tooltip: L.t('Your memories  •  Ctrl+M',
+              'הזיכרונות שלך  •  Ctrl+M'),
         ),
         _DesktopDestination(
           icon: Icons.mic_outlined,
@@ -105,6 +107,13 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
   void initState() {
     super.initState();
     _updateSelectedFromPath();
+    _loadGuided();
+  }
+
+  Future<void> _loadGuided() async {
+    final s = await IsarService.getSettings();
+    if (!mounted) return;
+    if (s.guidedMode != _guided) setState(() => _guided = s.guidedMode);
   }
 
   void _updateSelectedFromPath() {
@@ -297,8 +306,13 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     final useDesktopLayout = BnsLayout.isWide(context);
 
     if (!useDesktopLayout) {
-      // Narrow or mobile: just the child (original behavior preserved)
-      return widget.child;
+      // Phone: three calm doors. Hunting through tiny icons is how a
+      // Level-1 user almost breaks the phone. Guided mode stays one list.
+      if (_guided) return widget.child;
+      return _PhoneDoors(
+        currentPath: widget.currentPath,
+        child: widget.child,
+      );
     }
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -519,6 +533,61 @@ class _DesktopNavItem extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Phone home: three doors, always in the same place.
+/// Capture keeps the whole screen — one job, no extra taps to miss.
+class _PhoneDoors extends StatelessWidget {
+  final Widget child;
+  final String currentPath;
+
+  const _PhoneDoors({required this.child, required this.currentPath});
+
+  int get _index {
+    if (currentPath.startsWith('/memories')) return 1;
+    if (currentPath.startsWith('/capture')) return 2;
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (currentPath.startsWith('/capture')) return child;
+
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index > 2 ? 0 : _index,
+        height: 72,
+        onDestinationSelected: (i) {
+          switch (i) {
+            case 1:
+              context.go('/memories');
+            case 2:
+              context.go('/capture');
+            default:
+              context.go('/');
+          }
+        },
+        destinations: [
+          NavigationDestination(
+            icon: const Icon(Icons.today_outlined),
+            selectedIcon: const Icon(Icons.today),
+            label: L.t('Today', 'היום'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.menu_book_outlined),
+            selectedIcon: const Icon(Icons.menu_book),
+            label: L.t('Memories', 'זיכרונות'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.mic_none),
+            selectedIcon: const Icon(Icons.mic),
+            label: L.t('Keep this', 'לשמור'),
+          ),
+        ],
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -68,12 +70,18 @@ class _DictationMicButtonState extends State<DictationMicButton> {
       return;
     }
 
-    final mic = await Permission.microphone.request();
-    if (mic != PermissionStatus.granted) {
-      _tellOnce(L.t(
-          'Voice typing needs the microphone. Typing works as always.',
-          'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.'));
-      return;
+    // permission_handler is not on macOS — calling it killed the tap
+    // and the system never asked. On Mac the speech engine asks itself.
+    if (!Platform.isMacOS && !Platform.isLinux) {
+      try {
+        final mic = await Permission.microphone.request();
+        if (mic != PermissionStatus.granted) {
+          _tellOnce(L.t(
+              'Voice typing needs the microphone. Typing works as always.',
+              'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.'));
+          return;
+        }
+      } catch (_) {}
     }
 
     _baseText = widget.controller.text;

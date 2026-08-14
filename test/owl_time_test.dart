@@ -32,6 +32,18 @@ void main() {
       expect(logicalDateOf(DateTime(2026, 8, 1, 1, 0), 4),
           DateTime(2026, 7, 31));
     });
+
+    test('yesterday’s note does not belong on today’s tiles', () {
+      const today = '2026-08-14';
+      expect(
+        belongsToLogicalDay(DateTime(2026, 8, 13, 15, 0), today, 0),
+        isFalse,
+      );
+      expect(
+        belongsToLogicalDay(DateTime(2026, 8, 14, 9, 0), today, 0),
+        isTrue,
+      );
+    });
   });
 
   group('owlMinutesOf — the night sorts after the evening', () {

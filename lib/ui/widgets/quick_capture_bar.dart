@@ -13,8 +13,8 @@ class QuickCaptureBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.tonalIcon(
       icon: const Icon(Icons.mic, size: 22),
-      label: Text(L.t('Quick thought — voice or write',
-          'מחשבה מהירה — בקול או בכתיבה')),
+      label: Text(L.t('Keep this — voice or write',
+          'לשמור את זה — בקול או בכתיבה')),
       onPressed: onTap,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(56),

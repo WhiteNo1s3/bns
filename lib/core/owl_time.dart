@@ -36,6 +36,11 @@ String dayKeyOf(DateTime date) => '${date.year.toString().padLeft(4, '0')}-'
 String logicalDayKey(DateTime now, int rolloverHour) =>
     dayKeyOf(logicalDateOf(now, rolloverHour));
 
+/// True when [at] belongs to the same person-day as [dayKey].
+/// Today’s tiles must not carry Wednesday’s notes into Friday.
+bool belongsToLogicalDay(DateTime at, String dayKey, int rolloverHour) =>
+    logicalDayKey(at, rolloverHour) == dayKey;
+
 /// Minutes into the PERSON'S day for a clock time. With border 04:00,
 /// 23:00 → 1140 and 02:00 → 1320 — the pills sort after the evening,
 /// where the night actually lives.

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -53,11 +54,11 @@ class _DayViewState extends State<DayView> {
     _captures = await IsarService.getCapturesForDate(_date);
     _applicableRoutines = allRoutines.where((r) => r.appliesOn(_date)).toList();
 
-    // Load memories for this day (remember + memorize levels)
+    // Every kept thought from this day — quick notes included.
+    // (Hiding "quick" made recorded memories vanish.)
     final allCaptures = await IsarService.getAllCaptures();
-    _dayMemories = allCaptures
+    _dayMemories = visibleMemories(allCaptures)
         .where((c) =>
-            c.memoryLevel != MemoryLevel.quick &&
             c.at.year == _date.year &&
             c.at.month == _date.month &&
             c.at.day == _date.day)
@@ -567,8 +568,8 @@ class _DayViewState extends State<DayView> {
                               'אף אחד לא רואה את העתיד — אבל דאגה או תקווה אפשר '
                               'לכתוב כבר עכשיו, ולפגוש אותן בעדינות כשהיום יגיע.')
                           : L.t(
-                              'Remember what happened (routines, crises, why). Memorize the day itself.',
-                              'לזכור מה קרה (שגרות, משברים, למה). לשמור את היום עצמו בזיכרון.'),
+                              'Everything you kept this day lives here.',
+                              'כל מה ששמרת ביום הזה חי כאן.'),
                       style: TextStyle(
                           fontSize: 12,
                           color:
@@ -578,8 +579,8 @@ class _DayViewState extends State<DayView> {
                         ? L.t('Nothing written for this day ahead yet.',
                             'עוד לא נכתב כלום ליום הזה.')
                         : L.t(
-                            'No memories captured for this day yet. Use Remember this in routines or capture.',
-                            'עוד אין זיכרונות מהיום הזה. אפשר להשתמש ב"לזכור את זה" בשגרות או בלכידה.'))
+                            'Nothing kept for this day yet.',
+                            'עוד לא נשמר כלום ליום הזה.'))
                   else
                     ..._dayMemories.map((m) {
                       // Words are always there: text, or what the device

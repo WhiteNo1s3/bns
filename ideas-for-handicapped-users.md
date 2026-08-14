@@ -77,6 +77,21 @@ This document collects all the awesome ideas for making BNS better for users wit
 
 **What to Start First**: As per user: add all this to the md files. Then polish sync with progress, pairing, auto-sync. Then complete MVP.
 
+## Silk memories law (grokBNS, 2026-08-14)
+A Level-1 user with cognitive reserve almost broke the phone because the app hid what they had just recorded.
+
+- **If they recorded it, they see it.** `quick` / `remember` / `memorize` is how long something is kept — never a reason to hide it. Mad-vents stay hidden (sacred).
+- Save always lands on **Your memories**. The newest thought is at the top.
+- Today shows **What you kept** (last three) so a recording is not a disappearing trick.
+- Capture has one job: speak or write, then Save. Extra choices sit behind "A little more".
+- Phone: three doors — Today, Memories, Keep this. No hunting through tiny icons.
+- Tap a memory: the words, the voice, Close. No warning quiz. No empty snackbar.
+- Same law on every OS, including Mac. Same `.bns` file.
+
+## Mac microphone + one day at a time (2026-08-14)
+- Recording on Mac must use the **recorder’s own permission**. `permission_handler` has no macOS plugin — calling it killed the tap, so the system never asked.
+- Today’s routine tiles show **today only**. Other days stay in the diary and Memories.
+
 ## New expansions (2026-07-05 session) - ALL IMPLEMENTED ("do them all")
 - ✅ Memorize a day auto-generates summary of that day's routines + events + captures. "You made it". (in DayView)
 - ✅ Search memories by routine or "crisis" tag. Organized list easy to share with doctors. (in Memories + garden)

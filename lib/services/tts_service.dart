@@ -1,4 +1,5 @@
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:bns/core/i18n/l.dart';
 
 /// Speaks short prompts with the DEVICE speech engine — free, on-device,
 /// no cloud AI, no subscriptions (owner rule: "not worth 1$").
@@ -22,6 +23,7 @@ class TtsService {
     if (_configured) return;
     await _tts.awaitSpeakCompletion(true);
     await _tts.setSpeechRate(0.5); // unhurried, low cognitive load
+    await _tts.setLanguage(L.isHebrew ? 'he-IL' : 'en-US');
     _configured = true;
   }
 
@@ -31,6 +33,7 @@ class TtsService {
     if (text.trim().isEmpty) return;
     try {
       await _ensureConfigured();
+      await _tts.setLanguage(L.isHebrew ? 'he-IL' : 'en-US');
       await _tts.stop();
       await _tts.speak(text);
     } catch (_) {

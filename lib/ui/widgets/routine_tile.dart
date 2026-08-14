@@ -24,14 +24,10 @@ class RoutineTile extends StatelessWidget {
   // "Didn't happen" is a TAG, never a checkmark (owner, 2026-07-26). The box
   // stays empty; the day is answered, gently, out loud.
   final bool skippedToday;
-  // The kept "why" from the last few days — shown right on the tile so
-  // seeing the task means meeting your own note again. `recentNoteWhen`
-  // carries the time of day it was written ("today 14:30", "Tue 09:15").
+  // Today's "why" only — other days stay in the diary, not on this tile.
   final String? recentNote;
   final String? recentNoteWhen;
-  // Everything ever told about this one (notes + recordings): a little
-  // door at the end of the row (owner, 2026-07-26: "in the container") —
-  // so "what did I already say, and to whom?" has a place to be answered.
+  // How many things were told about this one TODAY.
   final int keptCount;
   final VoidCallback? onShowKept;
 

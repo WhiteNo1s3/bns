@@ -1,6 +1,8 @@
-# BNS
+# BNS (grokBNS iteration)
 
 **Gentle, privacy-first support for routines, memory, reminders, and feeling good about the progress you make.**
+
+This folder is the silk rebuild of `bns`: same `.bns` format, same platforms (Android, iOS, macOS, Windows, Linux), calmer for a Level-1 mind. The person who records a memory **must see it**. That was the critical bug in the parent tree — "quick notes" saved, then every list hid them.
 
 **Private internal project for whiteno1se enterprise (SHALTIEL). This repository is and will remain private.**
 

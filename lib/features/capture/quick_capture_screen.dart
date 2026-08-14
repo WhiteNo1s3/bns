@@ -1,24 +1,24 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
+import 'package:go_router/go_router.dart';
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/recording_text.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/apple_file_stt.dart';
 import 'package:bns/services/speech_popup.dart';
-import 'package:bns/services/stt_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
-import 'package:bns/ui/widgets/dictation_mic_button.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -51,24 +51,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   final _audioPlayer = AudioPlayer();
   final _uuid = const Uuid();
 
-  String? _audioPath;
   bool _isRecording = false;
   bool _isPlaying = false;
+  bool _hearingWords = false;
   Duration _recordDuration = Duration.zero;
   Timer? _durationTimer;
 
-  /// Transcript of the voice note, when one exists. Live STT-while-recording
-  /// was removed (owner's phone, 2026-07-26): the speech engine stole the mic
-  /// and the recording died. The field stays — transcripts still travel in
-  /// .bns and can come from platforms/engines that CAN share the mic.
-  String _liveTranscript = '';
+  /// Finished takes this visit — voice kept, words land in the box.
+  final List<_Take> _takes = [];
+  String? _playingPath;
 
-  /// After a phone recording stops, offer one calm path to speak words
-  /// (mic is free now). Never concurrent with the recorder.
-  bool _offerWordsAfterRecord = false;
-  bool _dictatingWords = false;
-
-  MemoryLevel _memoryLevel = MemoryLevel.quick;
+  /// Every kept thought is a memory. "Quick" used to hide it after Save.
+  MemoryLevel _memoryLevel = defaultKeptLevel;
+  bool _showMore = false;
   final _contextController =
       TextEditingController(); // for "what happened / why" in remember/memorize
   final Set<String> _selectedTags =
@@ -88,7 +83,12 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       _memoryLevel = MemoryLevel.remember;
     }
     _audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlaying = false);
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _playingPath = null;
+        });
+      }
     });
     if (widget.autoRecord) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
@@ -111,7 +111,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   @override
   void dispose() {
     _durationTimer?.cancel();
-    if (_dictatingWords) SttService.stop();
+    TtsService.stop();
     _textController.dispose();
     _contextController.dispose();
     _audioRecorder.dispose();
@@ -119,81 +119,66 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     super.dispose();
   }
 
-  Future<void> _requestMic() async {
-    final status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(L.t(
-                  'Microphone permission needed for voice notes.',
-                  'צריך הרשאת מיקרופון בשביל הקלטות קוליות.'))),
-        );
-      }
+  /// The recorder itself asks the OS. Never permission_handler here —
+  /// that plugin has no macOS implementation, so request() threw and the
+  /// mic never opened, and macOS never showed its permission sheet.
+  Future<bool> _ensureMic() async {
+    try {
+      final allowed = await _audioRecorder.hasPermission(request: true);
+      if (allowed) return true;
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'The microphone did not open. You can write it instead.',
+            'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
+      ));
     }
+    return false;
   }
 
   Future<void> _toggleRecording() async {
-    await _requestMic();
-
-    // On Windows the recording is WAV so the open-source ear (Vosk) can
-    // read words straight out of the file afterwards — sequential, honest,
-    // no mic fights ever.
-    final desktopStt = Platform.isWindows;
-
+    // WAV everywhere (Android, Apple, Windows): one file the ears can
+    // read — Apple's file STT, Whisper on Windows, Vosk if installed.
     if (_isRecording) {
-      final path = await _audioRecorder.stop();
-      _durationTimer?.cancel();
-      setState(() {
-        _isRecording = false;
-        _audioPath = path;
-        // Phone path: invite words only after the voice is safely kept.
-        // Windows gets Vosk from the file instead.
-        _offerWordsAfterRecord = !desktopStt && path != null;
-      });
-      if (desktopStt && path != null) {
-        _transcribeWithVosk(path);
+      try {
+        final path = await _audioRecorder.stop();
+        _durationTimer?.cancel();
+        if (!mounted) return;
+        setState(() => _isRecording = false);
+        if (path != null) await _keepTake(path);
+      } catch (_) {
+        _durationTimer?.cancel();
+        if (mounted) setState(() => _isRecording = false);
       }
-    } else {
-      // Start recording
+      return;
+    }
+
+    final allowed = await _ensureMic();
+    if (!allowed || !mounted) return;
+
+    try {
       final dir = await IsarService.getAudioDir();
-      final fileName =
-          'cap_${_uuid.v4().substring(0, 8)}.${desktopStt ? 'wav' : 'm4a'}';
+      final fileName = 'cap_${_uuid.v4().substring(0, 8)}.wav';
       final path = p.join(dir.path, fileName);
 
-      final canRecord = await _audioRecorder.hasPermission();
-      if (!canRecord) return;
-
-      // Voice-optimized: mono AAC at 48 kbps — clear speech at ~1/3 the size
-      // of the old 128 kbps default. Small at birth beats compressing later
-      // (m4a is already compressed; re-zipping old files gains ~nothing).
-      // Windows: PCM16 WAV at 16 kHz — exactly what Vosk reads.
       await _audioRecorder.start(
-        desktopStt
-            ? const RecordConfig(
-                encoder: AudioEncoder.wav,
-                sampleRate: 16000,
-                numChannels: 1,
-              )
-            : const RecordConfig(
-                encoder: AudioEncoder.aacLc,
-                bitRate: 48000,
-                sampleRate: 44100,
-                numChannels: 1,
-              ),
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
         path: path,
       );
 
-      if (_dictatingWords) {
-        await SttService.stop();
-        _dictatingWords = false;
-      }
+      await _audioPlayer.stop();
+      await TtsService.stop();
+      if (!mounted) return;
       setState(() {
         _isRecording = true;
-        _audioPath = null;
+        _isPlaying = false;
+        _playingPath = null;
         _recordDuration = Duration.zero;
-        _liveTranscript = '';
-        _offerWordsAfterRecord = false;
       });
 
       _durationTimer?.cancel();
@@ -202,252 +187,119 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           setState(() => _recordDuration += const Duration(seconds: 1));
         }
       });
-
-      // FIELD TRUTH (owner's phone, 2026-07-26): the recorder and the speech
-      // engine CANNOT share one microphone on Android — running both killed
-      // the recording itself (a tiny silent file that ends instantly).
-      // Recording gets the mic to itself now. Words come by typing or by
-      // the dictation mic AFTER the voice is safely kept — and on Windows,
-      // Vosk reads them out of the finished file automatically.
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'The microphone did not open. You can write it instead.',
+              'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
+        ));
+      }
     }
   }
 
-  /// The chaos, decrypted: after a Windows recording lands, the offline
-  /// open-source engine reads words out of the WAV. Quietly skipped when
-  /// the engine isn't installed (Settings offers it) or nothing was heard.
-  Future<void> _transcribeWithVosk(String wavPath) async {
+  /// Voice is already safe. Words land in the box under "הקלטה N".
+  Future<void> _keepTake(String path) async {
+    final n = _takes.length + 1;
+    final take = _Take(n, path);
+    setState(() {
+      _takes.add(take);
+      _hearingWords = true;
+    });
+    final heard = await _hearWords(path);
+    if (!mounted) return;
+    final label = recordingLabel(n, hebrew: L.isHebrew);
+    final next = appendRecordingBlock(
+      current: _textController.text,
+      label: label,
+      transcript: heard,
+    );
+    _textController.text = next;
+    _textController.selection =
+        TextSelection.collapsed(offset: next.length);
+    setState(() => _hearingWords = false);
+  }
+
+  /// Hebrew first, every must-have OS:
+  ///   Apple  — on-device file ear (Mac + iPhone)
+  ///   Windows — Whisper (Hebrew), then Vosk (English)
+  ///   Android — the Waze door writes the words after the voice is kept
+  ///             (the file ear cannot hear Hebrew on that phone)
+  Future<String> _hearWords(String path) async {
+    final locale = L.isHebrew ? 'he-IL' : 'en-US';
     try {
+      if (AppleFileStt.isSupported) {
+        final apple = await AppleFileStt.transcribeFile(path, locale: locale);
+        if (apple.isNotEmpty) return apple;
+      }
       final support = await getApplicationSupportDirectory();
-      // WHISPER FIRST — it is the only offline ear here that knows Hebrew
-      // (owner, 2026-07-27). Vosk stays as the lighter English fallback for
-      // anyone who already installed it.
       final whisperDir = p.join(support.path, 'whisper');
       if (WhisperService.isInstalled(whisperDir)) {
-        if (mounted) {
-          setState(() => _liveTranscript =
-              L.t('Reading the words…', 'קורא את המילים…'));
-        }
         final heard = await WhisperService.transcribeWav(
           whisperDir,
-          wavPath,
+          path,
           language: L.isHebrew ? 'he' : 'auto',
         );
-        if (!mounted) return;
-        setState(() {
-          _liveTranscript = heard;
-          if (heard.isNotEmpty) _offerWordsAfterRecord = false;
-        });
-        if (heard.isNotEmpty) return;
+        if (heard.trim().isNotEmpty) return heard.trim();
       }
       final voskDir = p.join(support.path, 'vosk');
-      if (!VoskService.isInstalled(voskDir)) return;
-      final text = await VoskService.transcribeWav(voskDir, wavPath);
-      if (text.isEmpty || !mounted) return;
+      if (VoskService.isInstalled(voskDir)) {
+        final text = await VoskService.transcribeWav(voskDir, path);
+        if (text.trim().isNotEmpty) return text.trim();
+      }
+      if (SpeechPopup.isSupported) {
+        final settings = await IsarService.getSettings();
+        if (settings.sttEnabled) {
+          final words = await SpeechPopup.recognize(
+            locale: locale,
+            prompt: L.t('The words for this recording', 'המילים להקלטה הזאת'),
+          );
+          if (words != null && words.trim().isNotEmpty) return words.trim();
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  Future<void> _playTake(_Take take) async {
+    if (_isPlaying && _playingPath == take.path) {
+      await _audioPlayer.stop();
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _playingPath = null;
+        });
+      }
+      return;
+    }
+    await TtsService.stop();
+    await _audioPlayer.play(DeviceFileSource(take.path));
+    if (mounted) {
       setState(() {
-        _liveTranscript = text;
-        _offerWordsAfterRecord = false;
+        _isPlaying = true;
+        _playingPath = take.path;
       });
-    } catch (_) {
-      // The recording is already safe — words are a bonus, never a blocker.
     }
   }
 
-  /// After the voice note is kept, speak words into text + transcript.
-  /// Mic is free — never call this while recording.
-  Future<void> _toggleSpeakWords() async {
-    if (_dictatingWords) {
-      final text = await SttService.stop();
-      if (!mounted) return;
+  Future<void> _hearAloud() async {
+    final words = _textController.text.trim();
+    if (words.isEmpty) return;
+    await _audioPlayer.stop();
+    if (mounted) {
       setState(() {
-        _dictatingWords = false;
-        if (text.trim().isNotEmpty) {
-          _liveTranscript = text.trim();
-          if (_textController.text.trim().isEmpty) {
-            _textController.text = text.trim();
-          }
-          _offerWordsAfterRecord = false;
-        }
+        _isPlaying = false;
+        _playingPath = null;
       });
-      return;
     }
-
-    final settings = await IsarService.getSettings();
-    if (!settings.sttEnabled) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(L.t(
-              'Voice typing is turned off in Settings. Typing works as always.',
-              'הקלדה קולית כבויה בהגדרות. הקלדה רגילה עובדת כמו תמיד.')),
-        ));
-      }
-      return;
-    }
-
-    final mic = await Permission.microphone.request();
-    if (mic != PermissionStatus.granted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(L.t(
-              'Voice typing needs the microphone. Typing works as always.',
-              'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.')),
-        ));
-      }
-      return;
-    }
-
-    final baseText = _textController.text;
-
-    // THE WAZE DOOR FIRST for Hebrew — the embedded engine refuses Hebrew
-    // on this phone; the system popup hears it perfectly (same door Waze
-    // uses). One tap, one utterance, words land in the note AND the
-    // transcript that travels in the .bns.
-    final chosen = settings.sttLocale.trim().toLowerCase();
-    final wantHebrew = chosen.isEmpty
-        ? L.isHebrew
-        : (chosen.startsWith('he') || chosen.startsWith('iw'));
-    if (wantHebrew && SpeechPopup.isSupported) {
-      setState(() => _dictatingWords = true);
-      final words = await SpeechPopup.recognize(
-        locale: settings.sttLocale.trim().isEmpty
-            ? 'he-IL'
-            : settings.sttLocale.trim().replaceAll('_', '-'),
-        prompt: L.t('Speak now', 'אפשר לדבר עכשיו'),
-      );
-      if (!mounted) return;
-      setState(() => _dictatingWords = false);
-      if (words != null) {
-        final text = words.trim();
-        if (text.isNotEmpty) {
-          final sep = baseText.isEmpty || baseText.endsWith(' ') ? '' : ' ';
-          setState(() {
-            _textController.text = '$baseText$sep$text';
-            _textController.selection = TextSelection.collapsed(
-                offset: _textController.text.length);
-            _liveTranscript = text;
-            _offerWordsAfterRecord = false;
-          });
-        }
-        return;
-      }
-    }
-
-    final started = await SttService.start(
-      localeId: settings.sttLocale,
-      onText: (text) {
-        if (!mounted) return;
-        final sep =
-            baseText.isEmpty || baseText.endsWith(' ') || text.isEmpty
-                ? ''
-                : ' ';
-        final full = '$baseText$sep$text';
-        _textController.text = full;
-        _textController.selection =
-            TextSelection.collapsed(offset: full.length);
-        setState(() => _liveTranscript = text.trim().isNotEmpty
-            ? text.trim()
-            : _liveTranscript);
-      },
-      onState: (s) {
-        if (!mounted) return;
-        if (s == SttState.unavailable || s == SttState.idle) {
-          setState(() => _dictatingWords = false);
-        }
-        if (s == SttState.unavailable) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(L.t(
-                'Voice typing is not available right now. Typing works as always.',
-                'הקלדה קולית לא זמינה כרגע. הקלדה רגילה עובדת כמו תמיד.')),
-          ));
-        }
-      },
-    );
-
-    if (!mounted) return;
-    setState(() => _dictatingWords = started);
-    if (!started) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(L.t(
-            'Voice typing is not available on this device. Typing works as always.',
-            'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.')),
-      ));
-    }
-  }
-
-  Future<void> _playPauseAudio() async {
-    if (_audioPath == null) return;
-
-    if (_isPlaying) {
-      await _audioPlayer.pause();
-      setState(() => _isPlaying = false);
-    } else {
-      await _audioPlayer.play(DeviceFileSource(_audioPath!));
-      setState(() => _isPlaying = true);
-    }
+    await TtsService.speak(words);
   }
 
   Future<void> _saveCapture() async {
-    var text = _textController.text.trim();
-    var transcript = _liveTranscript.trim();
-    if (text.isEmpty && _audioPath == null && transcript.isEmpty) {
-      Navigator.pop(context);
+    final text = _textController.text.trim();
+    if (text.isEmpty && _takes.isEmpty) {
+      _leaveWithoutSaving();
       return;
-    }
-
-    // WORDS OR IT NEVER HAPPENED (owner's phone, 2026-07-26: "it just says
-    // saved and nothing is saved"). A voice note with no words saved a
-    // BLANK-looking memory — the explanation existed only as audio nobody
-    // could read, search, or show a caregiver. Before a wordless recording
-    // leaves, offer the door that works (Hebrew included) to put words on
-    // it. Declining is always allowed — the voice is already safe.
-    if (text.isEmpty && transcript.isEmpty && _audioPath != null) {
-      // Each platform is offered the door that actually opens for it:
-      // phones re-speak into the live engine; desktops have the recording
-      // read back by whisper — no second performance required.
-      final canReSpeak = SttService.isSupportedPlatform;
-      final addWords = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(L.t('Put words to it?', 'לשים על זה מילים?')),
-          content: Text(canReSpeak
-              ? L.t(
-                  'Your voice is kept. Words let it be read, found later, and '
-                  'shown to someone who can help — say it once more and it '
-                  'becomes text.',
-                  'הקול שלך שמור. מילים מאפשרות לקרוא את זה, למצוא את זה אחר כך '
-                  'ולהראות למי שיכול לעזור — עוד פעם אחת בקול, וזה הופך לטקסט.')
-              : L.t(
-                  'Your voice is kept. This computer can read the recording '
-                  'and write the words itself — no need to say it again.',
-                  'הקול שלך שמור. המחשב הזה יכול להאזין להקלטה ולכתוב את '
-                  'המילים בעצמו — אין צורך להגיד שוב.')),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(L.t('Voice only', 'רק הקול'))),
-            FilledButton.icon(
-                onPressed: () => Navigator.pop(c, true),
-                icon: Icon(canReSpeak ? Icons.mic : Icons.hearing),
-                label: Text(canReSpeak
-                    ? L.t('Say it in words', 'להגיד את זה במילים')
-                    : L.t('Read the recording', 'להאזין להקלטה'))),
-          ],
-        ),
-      );
-      if (addWords == true) {
-        if (canReSpeak) {
-          await _toggleSpeakWords();
-        } else {
-          await _transcribeWithVosk(_audioPath!);
-        }
-        if (!mounted) return;
-        text = _textController.text.trim();
-        transcript = _liveTranscript.trim();
-        // Whisper's words stand in as the note's text when nothing was typed.
-        if (text.isEmpty && transcript.isNotEmpty) {
-          _textController.text = transcript;
-          text = transcript;
-        }
-      }
     }
 
     final tags = ['quick-thought'];
@@ -461,11 +313,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       at: DateTime.now(),
       // A voice-only thought still saves readable words: the transcript
       // stands in as the text when nothing was typed.
-      text: text.isNotEmpty
-          ? text
-          : (transcript.isNotEmpty ? transcript : null),
-      audioPath: _audioPath,
-      transcript: transcript.isEmpty ? null : transcript,
+      text: text.isNotEmpty ? text : null,
+      audioPath: _takes.isEmpty ? null : _takes.last.path,
+      transcript: text.isEmpty ? null : text,
       linkedRoutineId: widget.linkedRoutineId,
       linkedEventId: widget.linkedEventId,
       tags: tags,
@@ -495,9 +345,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                   : L.t('Saved. Thank you for capturing that.',
                       'נשמר. תודה שתיעדת את זה.');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
       );
-      Navigator.pop(context, true); // return true to indicate saved
+      // Land on the list so the person SEES what they just kept.
+      // (Pop-only left them staring at an empty Memories screen.)
+      context.go('/memories');
+    }
+  }
+
+  void _leaveWithoutSaving() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.pop(context);
+    } else {
+      context.go('/');
     }
   }
 
@@ -509,11 +369,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasAudio = _audioPath != null;
-
     return Scaffold(
       appBar: BnsAppBar(
-        title: L.t('Quick thought', 'מחשבה מהירה'),
+        title: L.t('Keep this', 'לשמור את זה'),
         actions: [
           TextButton(
             onPressed: _saveCapture,
@@ -535,26 +393,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             Text(
               _selectedTags.contains('mad-vent')
                   ? L.t(
-                      'Let it out. Curse everyone and everything — only you can see this, and it burns out on its own within about 2 days.',
-                      'להוציא הכול. אפשר לקלל את כולם ואת הכול — רק העיניים שלך רואות את זה, וזה נמחק מעצמו תוך יומיים בערך.')
-                  : _memoryLevel == MemoryLevel.memorize
-                      ? L.t(
-                          'Capture this permanently. The day and what happened will be remembered.',
-                          'לשמור את זה לתמיד. היום ומה שקרה בו יישמרו בזיכרון.')
-                      : _memoryLevel == MemoryLevel.remember
-                          ? L.t(
-                              'Remember this moment. Note what happened in the routine or day for later recall.',
-                              'לזכור את הרגע הזה. אפשר לרשום מה קרה בשגרה או ביום — לשליפה אחר כך.')
-                          : L.t('Say or write anything. No judgment, just capture.',
-                              'אפשר להגיד או לכתוב כל דבר. בלי שיפוט, רק לתעד.'),
-              style: const TextStyle(fontSize: 16),
+                      'Let it out. Only you can see this. It burns out on its own.',
+                      'להוציא הכול. רק אתם רואים את זה. זה נמחק מעצמו.')
+                  : L.t(
+                      'Speak. We keep your voice and write the words. Hear them read, edit them, add more.',
+                      'מדברים. שומרים את הקול וכותבים את המילים. אפשר להקריא, לערוך, ולהוסיף עוד.'),
+              style: const TextStyle(fontSize: 18, height: 1.35),
             ),
             const SizedBox(height: 24),
 
-            // Big friendly record button
+            // ONE mic. Records the voice, then writes the words.
             Center(
               child: GestureDetector(
-                onTap: _toggleRecording,
+                onTap: _isRecording || !_hearingWords ? _toggleRecording : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: 140,
@@ -567,7 +418,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                     boxShadow: _isRecording
                         ? [
                             BoxShadow(
-                                color: Colors.red.withOpacity(0.4),
+                                color: Colors.red.withValues(alpha: 0.4),
                                 blurRadius: 24,
                                 spreadRadius: 4)
                           ]
@@ -589,281 +440,129 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 _isRecording
                     ? L.t(
                         'Recording… ${_formatDuration(_recordDuration)} — tap to stop',
-                        'מקליט… ${_formatDuration(_recordDuration)} — הקשה לעצירה')
-                    : (hasAudio
-                        ? L.t('Tap mic to record again',
-                            'הקשה על המיקרופון להקלטה נוספת')
-                        : L.t('Tap to start recording',
-                            'הקשה כדי להתחיל להקליט')),
+                        'מקליטים… ${_formatDuration(_recordDuration)} — הקשה לעצירה')
+                    : _hearingWords
+                        ? L.t('Writing the words…', 'כותבים את המילים…')
+                        : (_takes.isEmpty
+                            ? L.t(
+                                'Tap to speak. We write the words.',
+                                'הקשה כדי לדבר. נכתוב את המילים.')
+                            : L.t(
+                                'Tap for another recording — a new line.',
+                                'הקשה להקלטה נוספת — שורה חדשה.')),
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 16,
                 ),
               ),
             ),
 
-            // While recording, the mic belongs to the recording — honestly.
-            // (Live transcription fought the recorder for the mic and the
-            // recording lost. Never again.)
-            if (_isRecording) ...[
-              const SizedBox(height: 12),
-              Card(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.graphic_eq,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          L.t(
-                              'Your voice is being kept. After you stop, words '
-                              'can be typed — or spoken into text with the '
-                              'little mic by the text box.',
-                              'הקול שלך נשמר. אחרי העצירה אפשר להקליד מילים — '
-                              'או לדבר אותן לתוך הטקסט עם המיקרופון הקטן '
-                              'שליד תיבת הטקסט.'),
-                          style: const TextStyle(fontStyle: FontStyle.italic),
-                        ),
+            if (_takes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final take in _takes)
+                    FilledButton.tonalIcon(
+                      onPressed: () => _playTake(take),
+                      icon: Icon(
+                        _isPlaying && _playingPath == take.path
+                            ? Icons.stop_rounded
+                            : Icons.play_arrow_rounded,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-
-            // Playback (+ what the device engine understood, editable-adjacent:
-            // the transcript is also placed in the text flow on save)
-            if (hasAudio) ...[
-              Card(
-                child: ListTile(
-                  leading: IconButton(
-                    iconSize: 36,
-                    icon: Icon(_isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_filled),
-                    onPressed: _playPauseAudio,
-                  ),
-                  title: Text(L.t('Voice note', 'הקלטה קולית')),
-                  // The words WRAP — a transcript carries meaning, so it is
-                  // never cut off with an ellipsis. No words at all is said
-                  // honestly, never a raw file name.
-                  subtitle: Text(
-                    _liveTranscript.trim().isNotEmpty
-                        ? '“${_liveTranscript.trim()}”'
-                        : L.t('A voice-only moment (no words yet)',
-                            'רגע קולי בלבד (עדיין בלי מילים)'),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // The app reads the transcript back — hear your own
-                      // words, relaxed, before saving.
-                      if (_liveTranscript.trim().isNotEmpty)
-                        IconButton(
-                          tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.volume_up),
-                          onPressed: () =>
-                              TtsService.speak(_liveTranscript.trim()),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          if (_dictatingWords) SttService.stop();
-                          setState(() {
-                            // Transcript belongs to the recording — goes
-                            // with it.
-                            _audioPath = null;
-                            _liveTranscript = '';
-                            _isPlaying = false;
-                            _offerWordsAfterRecord = false;
-                            _dictatingWords = false;
-                          });
-                          _audioPlayer.stop();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Wave 12: after the voice is kept, one calm path to words.
-              // Never concurrent with recording (Android mic fight).
-              // Stay visible while dictating even after partial words land.
-              if (_offerWordsAfterRecord) ...[
-                const SizedBox(height: 12),
-                Card(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          L.t(
-                              'Your voice is kept. Want words too? They help '
-                              'search and the people who care — optional.',
-                              'הקול שלך נשמר. רוצים גם מילים? זה עוזר לחיפוש '
-                              'ולאנשים שדואגים — לא חובה.'),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton.tonalIcon(
-                          onPressed: _toggleSpeakWords,
-                          icon: Icon(_dictatingWords
-                              ? Icons.stop_rounded
-                              : Icons.mic_none_rounded),
-                          label: Text(_dictatingWords
-                              ? L.t('Stop speaking', 'לעצור דיבור')
-                              : L.t('Speak words for this note',
-                                  'לדבר מילים להקלטה')),
-                        ),
-                        if (!_dictatingWords)
-                          TextButton(
-                            onPressed: () => setState(
-                                () => _offerWordsAfterRecord = false),
-                            child: Text(L.t(
-                                'Not now — voice only is fine',
-                                'לא עכשיו — רק קול זה בסדר')),
-                          ),
-                      ],
+                      label: Text(recordingLabel(take.number, hebrew: L.isHebrew)),
                     ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-            ],
-
-            // Memory level selector - "remember this" vs "memorize this" vs quick
-            const SizedBox(height: 16),
-            Text(L.t('How important is this memory?', 'כמה חשוב הזיכרון הזה?'),
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            SegmentedButton<MemoryLevel>(
-              segments: [
-                ButtonSegment(
-                    value: MemoryLevel.quick,
-                    label: Text(L.t('Quick note', 'פתק מהיר')),
-                    icon: const Icon(Icons.note)),
-                ButtonSegment(
-                    value: MemoryLevel.remember,
-                    label: Text(L.t('Remember this', 'לזכור את זה')),
-                    icon: const Icon(Icons.bookmark)),
-                ButtonSegment(
-                    value: MemoryLevel.memorize,
-                    label: Text(L.t('Memorize permanently', 'לשמור לתמיד')),
-                    icon: const Icon(Icons.stars)),
-              ],
-              selected: {_memoryLevel},
-              onSelectionChanged: (newSelection) {
-                setState(() => _memoryLevel = newSelection.first);
-              },
-            ),
-
-            // Tags for search, crisis, garden organization (good, felt safe, crisis etc.)
-            // 'family' is special: tagged items enter the family share file —
-            // sharing a moment is always the person's own choice, one tap.
-            const SizedBox(height: 12),
-            Text(
-                L.t(
-                    'Tags (search by routine/crisis, visual garden, share with doctors; '
-                    '"family" puts this moment into the family file):',
-                    'תגיות (חיפוש לפי שגרה/משבר, גינה חזותית, שיתוף עם רופאים; '
-                    '"family" מכניסה את הרגע הזה לקובץ המשפחתי):'),
-                style: const TextStyle(fontSize: 12)),
-            Wrap(
-              spacing: 4,
-              children: {
-                'crisis',
-                'good',
-                'felt safe',
-                'felt confused',
-                'felt out of bound',
-                'drama',
-                'wonderings',
-                'routine',
-                'family',
-                ..._selectedTags
-              }.map((tag) {
-                final selected = _selectedTags.contains(tag);
-                return FilterChip(
-                  label: Text(tag),
-                  selected: selected,
-                  onSelected: (s) {
-                    setState(() {
-                      if (s)
-                        _selectedTags.add(tag);
-                      else
-                        _selectedTags.remove(tag);
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-
-            // Context note for remember/memorize - "what happened / why the crisis"
-            if (_memoryLevel != MemoryLevel.quick) ...[
-              const SizedBox(height: 16),
-              TextField(
-                controller: _contextController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: L.t(
-                      'What happened? Why? (context for this day/routine)',
-                      'מה קרה? למה? (הקשר ליום/לשגרה)'),
-                  hintText: L.t(
-                      'e.g. Felt overwhelmed after the call, routine triggered anxiety',
-                      'למשל: הצפה אחרי השיחה, השגרה עוררה חרדה'),
-                  border: const OutlineInputBorder(),
-                  helperText: L.t(
-                      'This helps memorize the "why" and the day itself',
-                      'זה עוזר לזכור את ה"למה" ואת היום עצמו'),
-                  suffixIcon:
-                      DictationMicButton(controller: _contextController),
-                ),
+                ],
               ),
             ],
 
-            // Text
             const SizedBox(height: 16),
             TextField(
               controller: _textController,
-              maxLines: 4,
-              minLines: 2,
+              maxLines: 8,
+              minLines: 4,
+              textInputAction: TextInputAction.newline,
               decoration: InputDecoration(
-                hintText: _memoryLevel == MemoryLevel.quick
-                    ? L.t(
-                        'Or type a quick note here… (tap the small mic to speak it)',
-                        'או להקליד כאן פתק מהיר… (הקשה על המיקרופון הקטן כדי לדבר)')
-                    : L.t('Additional thoughts...', 'מחשבות נוספות...'),
+                hintText: L.t(
+                    'The words appear here. You can edit them, or write more.',
+                    'המילים מופיעות כאן. אפשר לערוך, או לכתוב עוד.'),
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
-                suffixIcon: DictationMicButton(controller: _textController),
               ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.tonalIcon(
+              onPressed: _hearAloud,
+              icon: const Icon(Icons.volume_up_rounded, size: 26),
+              label: Text(L.t('Hear the words', 'להקריא את המילים')),
             ),
 
             const SizedBox(height: 24),
 
-            // Save + cancel
             FilledButton.icon(
               onPressed: _saveCapture,
-              icon: const Icon(Icons.check),
-              label: Text(L.t('Save this thought', 'לשמור את המחשבה הזאת')),
+              icon: const Icon(Icons.check, size: 28),
+              label: Text(L.t('Save — I will see it', 'שמירה — אני אראה את זה')),
             ),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(L.t('Cancel (nothing saved)', 'ביטול (שום דבר לא נשמר)')),
+              onPressed: _leaveWithoutSaving,
+              child: Text(L.t('Not now', 'לא עכשיו')),
             ),
+
+            // Extra choices stay closed. Asking "how important?" on the
+            // main path made people lose the thought — and hid it after.
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => setState(() => _showMore = !_showMore),
+              child: Text(_showMore
+                  ? L.t('Less', 'פחות')
+                  : L.t('A little more', 'עוד קצת')),
+            ),
+            if (_showMore) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(L.t('Keep this one always', 'לשמור את זה תמיד')),
+                value: _memoryLevel == MemoryLevel.memorize,
+                onChanged: (v) => setState(() {
+                  _memoryLevel = v ? MemoryLevel.memorize : defaultKeptLevel;
+                }),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(L.t('Family can know this one',
+                    'המשפחה יכולה לדעת על זה')),
+                value: _selectedTags.contains('family'),
+                onChanged: (v) => setState(() {
+                  if (v) {
+                    _selectedTags.add('family');
+                  } else {
+                    _selectedTags.remove('family');
+                  }
+                }),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _contextController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: L.t('A little more about it', 'עוד קצת על זה'),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _Take {
+  final int number;
+  final String path;
+  const _Take(this.number, this.path);
 }

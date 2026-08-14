@@ -17,6 +17,8 @@ import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/plan_tile.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
+import 'package:bns/ui/widgets/kept_memories_strip.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
@@ -583,6 +585,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Map<String, List<QuickCapture>> _keptByRoutine = const {};
   // Today's storms: the mad-vents of this day, kept and revisitable.
   List<QuickCapture> _madToday = const [];
+  // Last kept thoughts — so a recording is waiting on Today, not lost.
+  List<QuickCapture> _recentKept = const [];
   // Today's PLANS — one-time things (a doctor appointment, an errand) that
   // stand in the day with the weight of a step (owner, 2026-08-09).
   List<CalendarEvent> _todayPlans = const [];
@@ -636,17 +640,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final todayPlans = await IsarService.getEventsForDate(todayStr);
-    // The kept "why"s: need-help notes from the last few days, latest one
-    // per routine. They ride the tiles so the reason is met, not searched.
+    // TODAY only. Other days live in the day diary and in Memories —
+    // pinning last week's "why" on today's tile mixed the days (and
+    // felt like the app was holding the past against the person).
     final captures = await IsarService.getAllCaptures();
-    final noteFloor = DateTime.now().subtract(const Duration(days: 4));
     final noteText = <String, String>{};
     final noteWhen = <String, String>{};
     final latestAt = <String, DateTime>{};
     for (final c in captures) {
+      if (!belongsToLogicalDay(c.at, todayStr, _rolloverHour)) continue;
       final rid = c.linkedRoutineId;
       if (rid == null || !c.tags.contains('need-help')) continue;
-      if (c.at.isBefore(noteFloor)) continue;
       final words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
       if (words.isEmpty) continue;
       final prev = latestAt[rid];
@@ -655,7 +659,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       noteText[rid] = words;
       noteWhen[rid] = _whenLabel(c.at);
     }
-    // The skip record carries its own why now — the most reliable copy.
+    // The skip record carries its own why — already today's logs only.
     for (final l in logs) {
       if (l.status != CompletionStatus.skipped) continue;
       final words = (l.reason ?? '').trim();
@@ -666,23 +670,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       noteText[l.routineId] = words;
       noteWhen[l.routineId] = _whenLabel(l.at);
     }
-    // Everything told about each routine, and today's storms. captures come
-    // newest-first from the store, so the lists stay in telling order.
     final kept = <String, List<QuickCapture>>{};
     final mad = <QuickCapture>[];
-    final now = DateTime.now();
     for (final c in captures) {
+      if (!belongsToLogicalDay(c.at, todayStr, _rolloverHour)) continue;
       final rid = c.linkedRoutineId;
       if (rid != null) (kept[rid] ??= []).add(c);
-      if (c.tags.contains('mad-vent') &&
-          c.at.year == now.year &&
-          c.at.month == now.month &&
-          c.at.day == now.day) {
-        mad.add(c);
-      }
+      if (c.tags.contains('mad-vent')) mad.add(c);
     }
+    final recentKept = visibleMemories(captures).take(3).toList();
     if (!mounted) return;
     setState(() {
+      _recentKept = recentKept;
       _doneTodayIds = logs
           .where((l) => l.status == CompletionStatus.done)
           .map((l) => l.routineId)
@@ -1489,6 +1488,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await IsarService.addCapture(capture);
     _diaryController.clear();
     ref.invalidate(routinesProvider);
+    await _refreshDoneToday();
     AndroidBnsWidget.updateWidget();
 
     if (mounted) {
@@ -1903,6 +1903,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     const SizedBox(height: 24),
                   ],
 
+                  if (_recentKept.isNotEmpty && !_guidedMode) ...[
+                    KeptMemoriesStrip(memories: _recentKept),
+                    const SizedBox(height: 24),
+                  ],
+
                   // The diary: one calm box, no presets, no double-asking.
                   // (Copy is for the person, never for the developer.)
                   // Guided mode (level 4): no building, no diary box —
@@ -1987,11 +1992,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
-                      onPressed: () => context.push('/memories'),
+                      onPressed: () => context.go('/memories'),
                       icon: const Icon(Icons.psychology),
-                      label: Text(L.t(
-                          'Memory section: Remember & Memorize what happened',
-                          'אזור הזיכרון: לזכור ולשנן את מה שקרה')),
+                      label: Text(L.t('Your memories', 'הזיכרונות שלך')),
                     ),
                   ],
 

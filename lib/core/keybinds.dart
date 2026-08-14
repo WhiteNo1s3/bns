@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show SingleActivator;
 
+import 'package:bns/core/i18n/l.dart';
+
 /// Central registry for the PC keybinds (set & forget).
 ///
 /// One source of truth used by:
@@ -12,26 +14,32 @@ import 'package:flutter/widgets.dart' show SingleActivator;
 /// inside AppSettings.keybinds, so they travel in the shared .bns file.
 class KeybindAction {
   final String id;
-  final String label;
+  final String _en;
+  final String _he;
 
-  const KeybindAction(this.id, this.label);
+  const KeybindAction(this.id, this._en, this._he);
+
+  /// Resolved when READ, never when constructed — that keeps [Keybinds.actions]
+  /// a `const` list while still following the person's chosen language.
+  String get label => L.t(_en, _he);
 }
 
 class Keybinds {
   /// Every action the app can bind, in the order shown to the user.
   static const List<KeybindAction> actions = [
-    KeybindAction('open_today', 'Go to Today'),
-    KeybindAction('mark_done', 'Mark next unfinished step done'),
-    KeybindAction(
-        'focus_routines', 'Jump to today\'s steps (then ↑↓, Enter, S)'),
-    KeybindAction('focus_diary', 'Jump to the diary field'),
-    KeybindAction('save_diary', 'Save the diary entry'),
-    KeybindAction('quick_capture', 'Open quick capture'),
-    KeybindAction('open_routines', 'Open routines manager'),
-    KeybindAction('open_day', 'Open day diary thread'),
-    KeybindAction('open_calendar', 'Open calendar'),
-    KeybindAction('open_memories', 'Open memories / garden'),
-    KeybindAction('open_sync', 'Open Sync & PC settings'),
+    KeybindAction('open_today', 'Go to Today', 'מעבר להיום'),
+    KeybindAction('mark_done', 'Mark next unfinished step done',
+        'סימון הצעד הבא שטרם הושלם'),
+    KeybindAction('focus_routines', 'Jump to today\'s steps (then ↑↓, Enter, S)',
+        'קפיצה לצעדים של היום (ואז ↑↓, Enter, S)'),
+    KeybindAction('focus_diary', 'Jump to the diary field', 'קפיצה לשדה היומן'),
+    KeybindAction('save_diary', 'Save the diary entry', 'שמירת רשומת היומן'),
+    KeybindAction('quick_capture', 'Open quick capture', 'פתיחת לכידה מהירה'),
+    KeybindAction('open_routines', 'Open routines manager', 'פתיחת ניהול שגרות'),
+    KeybindAction('open_day', 'Open day diary thread', 'פתיחת פתיל היום'),
+    KeybindAction('open_calendar', 'Open calendar', 'פתיחת לוח השנה'),
+    KeybindAction('open_memories', 'Open memories / garden', 'פתיחת זיכרונות / הגן'),
+    KeybindAction('open_sync', 'Open Sync & PC settings', 'פתיחת סנכרון והגדרות מחשב'),
   ];
 
   static const Map<String, String> defaults = {

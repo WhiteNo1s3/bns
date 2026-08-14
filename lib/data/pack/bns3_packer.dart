@@ -25,6 +25,8 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
+import 'package:bns/core/i18n/l.dart';
+
 import 'bns_packer.dart';
 import 'bns_wire.dart';
 
@@ -132,8 +134,10 @@ class Bns3Packer implements BnsPacker {
   @override
   BnsUnpacked unpack(List<int> bytes) {
     if (!canHandle(bytes)) {
-      throw const FormatException(
-          'Not a BNS backup — only real .bns files can be imported.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — only real .bns files can be imported.',
+          'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי .bns אמיתיים.'));
     }
     final raw = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
     final view = ByteData.sublistView(raw);
@@ -167,14 +171,19 @@ class Bns3Packer implements BnsPacker {
     } on FormatException {
       rethrow;
     } catch (_) {
-      throw const FormatException(
-          'Not a BNS backup — missing manifest or data inside the file.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — missing manifest or data inside the file.',
+          'זה לא קובץ גיבוי של BNS — חסרים בתוכו נתונים או רשימת תוכן.'));
     }
 
     if (offset >= raw.length) {
-      throw const FormatException(
+      throw FormatException(
+          L.t(
           'This .bns file is damaged (failed the container check). '
-          'Try another copy — your device data is untouched.');
+          'Try another copy — your device data is untouched.',
+          'הקובץ הזה פגום (בדיקת המבנה נכשלה). '
+          'נסה עותק אחר — המידע שבמכשיר שלך לא נפגע.'));
     }
     final codec = raw[offset++];
     final dataBytes = take(u32());
@@ -230,9 +239,12 @@ class Bns3Packer implements BnsPacker {
     } on FormatException {
       rethrow;
     } catch (_) {
-      throw const FormatException(
+      throw FormatException(
+          L.t(
           'This .bns file is damaged (data would not open). '
-          'Nothing was imported.');
+          'Nothing was imported.',
+          'הקובץ הזה פגום (המידע לא נפתח). '
+          'שום דבר לא יובא.'));
     }
 
     return (manifest: manifest, data: data, audioFiles: audioFiles);

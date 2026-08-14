@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/pack/bns_zip_packer.dart';
 
 /// One audio blob referenced by PATH (never loaded whole into memory).
@@ -297,9 +298,12 @@ class BnsFileImager {
       archive = ZipDecoder().decodeBuffer(input);
     } catch (_) {
       input.closeSync();
-      throw const FormatException(
+      throw FormatException(
+          L.t(
           'This .bns file is damaged (failed the container check). '
-          'Try another copy — your device data is untouched.');
+          'Try another copy — your device data is untouched.',
+          'הקובץ הזה פגום (בדיקת המבנה נכשלה). '
+          'נסה עותק אחר — המידע שבמכשיר שלך לא נפגע.'));
     }
 
     Map<String, dynamic> manifest = {};
@@ -346,14 +350,17 @@ class BnsFileImager {
     } on FormatException {
       rethrow;
     } catch (_) {
-      await cleanupAndThrow(const FormatException(
+      await cleanupAndThrow(FormatException(L.t(
           'This .bns file is damaged (failed the container check). '
-          'Try another copy — your device data is untouched.'));
+              'Try another copy — your device data is untouched.',
+          'הקובץ הזה פגום (בדיקת המבנה נכשלה). '
+              'נסה עותק אחר — המידע שבמכשיר שלך לא נפגע.')));
     }
 
     if (manifest.isEmpty || dataGz == null) {
-      await cleanupAndThrow(const FormatException(
-          'Not a BNS backup — missing manifest or data inside the file.'));
+      await cleanupAndThrow(FormatException(L.t(
+          'Not a BNS backup — missing manifest or data inside the file.',
+          'זה לא קובץ גיבוי של BNS — חסרים בתוכו נתונים או רשימת תוכן.')));
     }
 
     // Integrity verification (v2+); legacy v1 has no seal — structural

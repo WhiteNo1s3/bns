@@ -42,6 +42,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- LAN sync is the ONLY network this app does. macOS 15+ gates the local
+	     network behind user consent exactly like iOS does; without this key the
+	     system denies the UDP discovery broadcast (port 42424) SILENTLY and the
+	     phone and the Mac never see each other. iOS has carried this key from the
+	     start — macOS was the one that was missing it. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>BNS finds your own devices on your Wi-Fi to sync privately. No cloud, no internet.</string>
 	<!-- BNS file type association for .bns (full data delivery via app) - clean native macOS, not iOS-on-Mac -->
 	<key>CFBundleDocumentTypes</key>
 	<array>

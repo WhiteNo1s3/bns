@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
+import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/pack/bns_file_imager.dart';
@@ -22,8 +23,9 @@ class BnsImporter {
   /// Throws a friendly [FormatException] for anything no packer claims.
   static void validateBnsBytes(List<int> bytes) {
     if (BnsPackers.detect(bytes) == null) {
-      throw const FormatException(
-          'Not a BNS backup — only real .bns files can be imported.');
+      throw FormatException(L.t(
+          'Not a BNS backup — only real .bns files can be imported.',
+          'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי ‎.bns‎ אמיתיים.'));
     }
   }
 
@@ -60,8 +62,9 @@ class BnsImporter {
       head.addAll(chunk);
     }
     if (head.length < 4) {
-      throw const FormatException(
-          'Not a BNS backup — only real .bns files can be imported.');
+      throw FormatException(L.t(
+          'Not a BNS backup — only real .bns files can be imported.',
+          'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי ‎.bns‎ אמיתיים.'));
     }
 
     final tempDir = await getTemporaryDirectory();
@@ -91,8 +94,9 @@ class BnsImporter {
       final bytes = await bnsFile.readAsBytes();
       final packer = BnsPackers.detect(bytes);
       if (packer == null) {
-        throw const FormatException(
-            'Not a BNS backup — only real .bns files can be imported.');
+        throw FormatException(L.t(
+            'Not a BNS backup — only real .bns files can be imported.',
+            'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי ‎.bns‎ אמיתיים.'));
       }
       // Unpack + verify (structure, CRCs, SHA-256 integrity) in the packer.
       final unpacked = packer.unpack(bytes);

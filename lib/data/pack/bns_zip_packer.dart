@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
+import 'package:bns/core/i18n/l.dart';
+
 import 'bns_packer.dart';
 
 /// The ZIP container packer — writes format v2, reads v2 and legacy v1.
@@ -92,8 +94,10 @@ class BnsZipPacker implements BnsPacker {
   @override
   BnsUnpacked unpack(List<int> bytes) {
     if (!canHandle(bytes)) {
-      throw const FormatException(
-          'Not a BNS backup — only real .bns files can be imported.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — only real .bns files can be imported.',
+          'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי .bns אמיתיים.'));
     }
 
     // verify: true checks each entry's CRC32 — catches truncation/bit rot.
@@ -101,9 +105,12 @@ class BnsZipPacker implements BnsPacker {
     try {
       archive = ZipDecoder().decodeBytes(bytes, verify: true);
     } catch (_) {
-      throw const FormatException(
+      throw FormatException(
+          L.t(
           'This .bns file is damaged (failed the container check). '
-          'Try another copy — your device data is untouched.');
+          'Try another copy — your device data is untouched.',
+          'הקובץ הזה פגום (בדיקת המבנה נכשלה). '
+          'נסה עותק אחר — המידע שבמכשיר שלך לא נפגע.'));
     }
 
     Map<String, dynamic> manifest = {};
@@ -128,8 +135,10 @@ class BnsZipPacker implements BnsPacker {
     }
 
     if (manifest.isEmpty || dataGz == null) {
-      throw const FormatException(
-          'Not a BNS backup — missing manifest or data inside the file.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — missing manifest or data inside the file.',
+          'זה לא קובץ גיבוי של BNS — חסרים בתוכו נתונים או רשימת תוכן.'));
     }
 
     // Integrity verification (v2+). Legacy v1 files carry no seal — accepted,

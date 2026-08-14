@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 
+import 'package:bns/core/i18n/l.dart';
+
 import 'bns_packer.dart';
 
 /// BNS2 — the custom length-prefixed binary container (format `bns2-v1`).
@@ -93,8 +95,10 @@ class BnsBinaryPacker implements BnsPacker {
   @override
   BnsUnpacked unpack(List<int> bytes) {
     if (!canHandle(bytes)) {
-      throw const FormatException(
-          'Not a BNS backup — only real .bns files can be imported.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — only real .bns files can be imported.',
+          'זה לא קובץ גיבוי של BNS — אפשר לייבא רק קובצי .bns אמיתיים.'));
     }
     final raw = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
     final view = ByteData.sublistView(raw);
@@ -128,8 +132,10 @@ class BnsBinaryPacker implements BnsPacker {
     } on FormatException {
       rethrow;
     } catch (_) {
-      throw const FormatException(
-          'Not a BNS backup — missing manifest or data inside the file.');
+      throw FormatException(
+          L.t(
+          'Not a BNS backup — missing manifest or data inside the file.',
+          'זה לא קובץ גיבוי של BNS — חסרים בתוכו נתונים או רשימת תוכן.'));
     }
     final gz = take(u32());
     final audioCount = u32();

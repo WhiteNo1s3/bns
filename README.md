@@ -62,11 +62,16 @@ and the satellite's JS) — any future app on any stack can speak it. Full
 decision record in `docs/roadmap-and-brainstorm.md`.
 
 ## Working from multiple computers (GitHub)
-The source of truth is the private repo `github.com/benshaltiel/bns`.
-On any machine (including the Kubuntu laptop):
+The silk iteration lives here — this is what the other Grok on Windows should open:
+
+**https://github.com/WhiteNo1s3/grokBNS**
+
+Same code is also on `https://github.com/WhiteNo1s3/bns` (`main`, commit `c61b11e` and later).
+
+On any machine (Mac, Windows, Linux):
 ```bash
-git clone https://github.com/benshaltiel/bns.git
-cd bns
+git clone https://github.com/WhiteNo1s3/grokBNS.git
+cd grokBNS
 flutter pub get
 flutter test          # 18 tests incl. container benchmark + tamper checks
 flutter build linux   # on the Kubuntu laptop (needs: clang cmake ninja-build \

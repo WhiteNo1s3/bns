@@ -12,6 +12,7 @@ import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/data/export/bns_exporter.dart';
+import 'package:bns/data/export/bns_save_out.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/sync/lan_sync_service.dart'
     show BnsPeer, LanSyncService;
@@ -909,12 +910,45 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _manualExport() async {
     final f = await _service.manualExport();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(L.t(
-              'Saved: ${f.path.split(Platform.pathSeparator).last}',
-              'נשמר: ${f.path.split(Platform.pathSeparator).last}'))),
+    if (!mounted) return;
+    // A backup the person cannot find is not a backup: the phone gets the
+    // system save sheet so the file lands in a real folder they chose
+    // (owner QA, 2026-08-15 — it "saved" into app-private storage, which
+    // no file manager can open and an uninstall erases).
+    final out = await BnsSaveOut.saveCopy(
+      f,
+      dialogTitle: L.t('Where should the backup go?', 'לאן לשמור את הגיבוי?'),
     );
+    if (!mounted) return;
+    _tellWhereItWent(out, f);
+  }
+
+  /// Say plainly where a .bns ended up — folder and all. "Saved: name.bns"
+  /// told the person nothing they could act on.
+  void _tellWhereItWent(SavedOut out, File internal) {
+    final String msg;
+    if (out.cancelled) {
+      msg = L.t(
+          'Not saved out. The backup is still kept inside BNS — you can '
+              'export it again any time.',
+          'לא נשמר החוצה. הגיבוי עדיין שמור בתוך BNS — אפשר לייצא שוב מתי שרוצים.');
+    } else if (out.reachable && BnsSaveOut.needsSystemSheet) {
+      msg = L.t('Backup saved where you chose. ✓',
+          'הגיבוי נשמר איפה שבחרת. ✓');
+    } else if (out.reachable) {
+      msg = L.t('Backup saved in: ${BnsSaveOut.folderOf(out.path!)}',
+          'הגיבוי נשמר בתיקייה: ${BnsSaveOut.folderOf(out.path!)}');
+    } else {
+      msg = L.t(
+          'The backup is kept inside BNS, but this device would not let it '
+              'be saved out. Sync to another device to keep a copy safe.',
+          'הגיבוי שמור בתוך BNS, אבל המכשיר הזה לא אפשר לשמור אותו החוצה. '
+              'אפשר לסנכרן למכשיר אחר כדי לשמור עותק בטוח.');
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      duration: const Duration(seconds: 6),
+    ));
   }
 
   Future<void> _manualImport() async {
@@ -934,19 +968,34 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _exportFamilyShare() async {
     final f = await BnsExporter.exportFamilyShare();
     if (!mounted) return;
+    // This file exists to be HANDED to someone — it has to be able to
+    // leave the phone, or the family sharing spectrum stops at level 1.
+    final out = await BnsSaveOut.saveCopy(
+      f,
+      dialogTitle:
+          L.t('Where should the family file go?', 'לאן לשמור את קובץ המשפחה?'),
+    );
+    if (!mounted) return;
+    if (out.cancelled) {
+      _tellWhereItWent(out, f);
+      return;
+    }
+    final where = out.reachable && !BnsSaveOut.needsSystemSheet
+        ? L.t(' — in: ${BnsSaveOut.folderOf(out.path!)}',
+            ' — בתיקייה: ${BnsSaveOut.folderOf(out.path!)}')
+        : '';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+          duration: const Duration(seconds: 6),
           content: Text(_fullCareMode
               ? L.t(
-                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
-                      'full care: everything is inside, for the people who care.',
-                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
-                      'טיפול מלא: הכול בפנים, בשביל האנשים שאכפת להם.')
+                  'Family file saved$where — full care: everything is inside, '
+                      'for the people who care.',
+                  'קובץ המשפחה נשמר$where — טיפול מלא: הכול בפנים, '
+                      'בשביל האנשים שאכפת להם.')
               : L.t(
-                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
-                      'only what you marked, nothing else.',
-                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
-                      'רק מה שסימנת, שום דבר מעבר.'))),
+                  'Family file saved$where — only what you marked, nothing else.',
+                  'קובץ המשפחה נשמר$where — רק מה שסימנת, שום דבר מעבר.'))),
     );
   }
 

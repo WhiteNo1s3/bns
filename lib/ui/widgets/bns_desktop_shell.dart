@@ -1,4 +1,4 @@
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
+import 'package:bns/data/export/bns_save_out.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/layout.dart';
@@ -163,10 +164,13 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     try {
       final f = await BnsExporter.exportFullSnapshot();
       if (!mounted) return;
+      // Name the FOLDER, not just the file — "saved: something.bns" leaves
+      // a person hunting their own disk for their own backup.
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
           content: Text(L.t(
-              'Backup saved: ${f.path.split(Platform.pathSeparator).last}',
-              'הגיבוי נשמר: ${f.path.split(Platform.pathSeparator).last}'))));
+              'Backup saved in: ${BnsSaveOut.folderOf(f.path)}',
+              'הגיבוי נשמר בתיקייה: ${BnsSaveOut.folderOf(f.path)}'))));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

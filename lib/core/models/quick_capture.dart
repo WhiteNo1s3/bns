@@ -11,6 +11,13 @@ class QuickCapture {
   final String? text;
   final String?
       audioPath; // relative inside .bns or absolute in app docs after import
+
+  /// The OTHER recordings of this same moment. One visit to the capture
+  /// screen can hold several takes ("הקלטה 1", "הקלטה 2") — the words of
+  /// all of them land in [text], and every voice is kept here so none is
+  /// silently orphaned (a recording the person made must never disappear).
+  /// Empty for the ordinary one-recording memory.
+  final List<String> extraAudioPaths;
   final String?
       transcript; // what the device speech engine understood from the audio
   final String? linkedRoutineId;
@@ -27,6 +34,7 @@ class QuickCapture {
     required this.at,
     this.text,
     this.audioPath,
+    this.extraAudioPaths = const [],
     this.transcript,
     this.linkedRoutineId,
     this.linkedEventId,
@@ -42,6 +50,7 @@ class QuickCapture {
     DateTime? at,
     Object? text = _unset,
     Object? audioPath = _unset,
+    List<String>? extraAudioPaths,
     Object? transcript = _unset,
     Object? linkedRoutineId = _unset,
     Object? linkedEventId = _unset,
@@ -56,6 +65,7 @@ class QuickCapture {
       at: at ?? this.at,
       text: text == _unset ? this.text : text as String?,
       audioPath: audioPath == _unset ? this.audioPath : audioPath as String?,
+      extraAudioPaths: extraAudioPaths ?? this.extraAudioPaths,
       transcript:
           transcript == _unset ? this.transcript : transcript as String?,
       linkedRoutineId: linkedRoutineId == _unset
@@ -73,11 +83,16 @@ class QuickCapture {
     );
   }
 
+  /// Every voice of this memory, in the order they were recorded.
+  List<String> get allAudioPaths =>
+      [if (audioPath != null && audioPath!.isNotEmpty) audioPath!, ...extraAudioPaths];
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'at': at.toIso8601String(),
         'text': text,
         'audioPath': audioPath,
+        if (extraAudioPaths.isNotEmpty) 'extraAudioPaths': extraAudioPaths,
         'transcript': transcript,
         'linkedRoutineId': linkedRoutineId,
         'linkedEventId': linkedEventId,
@@ -93,6 +108,8 @@ class QuickCapture {
         at: DateTime.tryParse(json['at'] as String? ?? '') ?? DateTime.now(),
         text: json['text'] as String?,
         audioPath: json['audioPath'] as String?,
+        extraAudioPaths:
+            (json['extraAudioPaths'] as List? ?? const []).cast<String>(),
         transcript: json['transcript'] as String?,
         linkedRoutineId: json['linkedRoutineId'] as String?,
         linkedEventId: json['linkedEventId'] as String?,

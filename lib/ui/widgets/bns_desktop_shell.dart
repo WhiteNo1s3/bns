@@ -538,54 +538,79 @@ class _DesktopNavItem extends StatelessWidget {
   }
 }
 
-/// Phone home: three doors, always in the same place.
-/// Capture keeps the whole screen — one job, no extra taps to miss.
+/// Phone home: the doors of the app, always in the same place, always
+/// with their names written on them.
+///
+/// A phone used to navigate by three unlabeled icons in the top bar —
+/// a person had to already know what a "psychology" glyph meant, and
+/// tooltips only exist for someone who knows to press and hold. Owner
+/// QA, 2026-08-14: "all buttons are useless". A door with a word on it
+/// is not a button you have to decode.
+///
+/// Laws honored here:
+///   - STATIC: the selection indicator does not slide (animationDuration
+///     zero). Vestibular sensitivity is common after TBI, and the app
+///     never moves content to look clever.
+///   - The bar never lies: standing on the calendar highlights the
+///     calendar. A door that claims you are elsewhere is worse than no
+///     door at all for someone rebuilding their sense of place.
+///   - Capture keeps the whole screen — one job, no bar to miss-tap
+///     while talking.
 class _PhoneDoors extends StatelessWidget {
   final Widget child;
   final String currentPath;
 
   const _PhoneDoors({required this.child, required this.currentPath});
 
-  int get _index {
-    if (currentPath.startsWith('/memories')) return 1;
-    if (currentPath.startsWith('/capture')) return 2;
-    return 0;
+  static const _routes = ['/', '/capture', '/memories', '/calendar'];
+
+  /// Which door is standing open — or null when the person is somewhere
+  /// with no door of its own (routines, sync, a single day), where NO
+  /// door is marked rather than a wrong one.
+  int? get _index {
+    for (var i = 0; i < _routes.length; i++) {
+      if (i == 0 ? currentPath == '/' : currentPath.startsWith(_routes[i])) {
+        return i;
+      }
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     if (currentPath.startsWith('/capture')) return child;
+    final here = _index;
 
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index > 2 ? 0 : _index,
-        height: 72,
-        onDestinationSelected: (i) {
-          switch (i) {
-            case 1:
-              context.go('/memories');
-            case 2:
-              context.go('/capture');
-            default:
-              context.go('/');
-          }
-        },
+        // NavigationBar insists on a selected index; when the person is
+        // off-map we mark Today and dim nothing — see labelBehavior.
+        selectedIndex: here ?? 0,
+        height: 76,
+        animationDuration: Duration.zero, // static: nothing slides
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (i) => context.go(_routes[i]),
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.today_outlined),
-            selectedIcon: const Icon(Icons.today),
+            icon: const Icon(Icons.today_outlined, size: 28),
+            selectedIcon: const Icon(Icons.today, size: 28),
             label: L.t('Today', 'היום'),
           ),
           NavigationDestination(
-            icon: const Icon(Icons.menu_book_outlined),
-            selectedIcon: const Icon(Icons.menu_book),
+            icon: const Icon(Icons.mic_none, size: 28),
+            selectedIcon: const Icon(Icons.mic, size: 28),
+            label: L.t('Keep this', 'לשמור'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.menu_book_outlined, size: 28),
+            selectedIcon: const Icon(Icons.menu_book, size: 28),
             label: L.t('Memories', 'זיכרונות'),
           ),
           NavigationDestination(
-            icon: const Icon(Icons.mic_none),
-            selectedIcon: const Icon(Icons.mic),
-            label: L.t('Keep this', 'לשמור'),
+            icon: const Icon(Icons.calendar_month_outlined, size: 28),
+            selectedIcon: const Icon(Icons.calendar_month, size: 28),
+            label: L.t('Calendar', 'לוח שנה'),
           ),
         ],
       ),

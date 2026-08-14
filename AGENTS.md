@@ -3,9 +3,11 @@
 This is a sensitive, high-empathy project for people with neurological challenges (memory loss, executive dysfunction, TBI, etc.).
 
 ## Silk memories law (grokBNS, 2026-08-14)
-If the person recorded it, they see it. `quick` / `remember` / `memorize` is retention, never a hide filter. Mad-vents stay hidden. Save lands on Your memories. Today shows What you kept.
+If the person recorded it, they see it. `quick` / `remember` / `memorize` is retention, never a hide filter. Mad-vents stay hidden. Today shows What you kept. (Amended in the merge, same day: Save hands its answer back to whoever opened capture — a routine's "didn't happen" is *waiting* for those words to write into its skip record, and replacing the stack meant the skip was silently never logged. The "What you kept" strip on Today does the seeing; a capture with nowhere to return to still lands on the list.) One law, one file: `lib/core/kept_memory.dart`.
 
 ## Non-negotiables
+- **A button wears its name.** On a phone the app is navigated by labeled doors (Today / Keep this / Memories / Calendar), never by a row of unlabeled glyphs — a tooltip only exists for someone who already knows to press and hold (owner QA, 2026-08-14: "all buttons are useless"). Touch targets are **48dp minimum**, everywhere, with no exceptions for "small" icons.
+- **Every take is kept.** One visit to capture can hold several recordings; the words of all of them land in one note and so do the voices (`QuickCapture.extraAudioPaths`). A recording the person made is never left orphaned on disk because only the last one was referenced.
 - **Never** introduce language, stats, or UI that punishes, shames, or creates pressure ("you missed", streak counters that feel bad, red X on incomplete, etc.).
 - On skip or incomplete → always offer kind invitation to log why (voice preferred). Treat the log itself as a win. A **deliberate** skip is a decision, and deciding counts as a win — say so.
 - **"I am mad" mode is sacred**: rage is common in this community and gets first-class, judgment-free space. While active, the app validates anger and invites venting (cursing fully allowed *by the user, in their vents*). Vents tagged `mad-vent` burn out (auto-delete) within ~2 days and the mode expires after ~24h. Never quote a vent back to the user, never surface old vents, never let mad content into summaries or the memory garden unless the user explicitly promoted it to Memorize.

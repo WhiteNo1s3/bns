@@ -5,8 +5,10 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/reminder_plan.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/platform/android_widget.dart';
 import 'package:bns/ui/theme.dart';
 
 /// Polite, gentle notification service.
@@ -56,7 +58,8 @@ class NotificationsService {
 
     await _plugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: (resp) => _handleTap(resp.payload),
+      onDidReceiveNotificationResponse: (resp) =>
+          _handleResponse(resp.payload, resp.actionId),
     );
 
     // Request permissions on Android 13+
@@ -72,13 +75,68 @@ class NotificationsService {
     try {
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp == true) {
-        _handleTap(launch!.notificationResponse?.payload);
+        _handleResponse(launch!.notificationResponse?.payload,
+            launch.notificationResponse?.actionId);
       }
     } catch (_) {}
   }
 
-  static void _handleTap(String? payload) {
+  /// A reminder was touched. The two shade buttons answer RIGHT THERE —
+  /// "waking up to a pile I cannot press I-did-them on ruins the flow"
+  /// (owner QA, 2026-08-14). Both open the app (same isolate — the store
+  /// stays single-writer); a plain tap just lands where the reminder points.
+  static Future<void> _handleResponse(String? payload, String? actionId) async {
+    if (actionId == 'bns_done') {
+      await _answerFromShade(payload, done: true);
+      onOpen?.call(routeForReminderPayload(payload));
+      return;
+    }
+    if (actionId == 'bns_why') {
+      // Saying "didn't happen" is a decision — a win. The skip is logged
+      // and the kind door opens for the why (voice first), exactly like
+      // the in-app sheet. Closing without a word is always allowed.
+      await _answerFromShade(payload, done: false);
+      onOpen?.call(whyRouteForReminderPayload(payload));
+      return;
+    }
     onOpen?.call(routeForReminderPayload(payload));
+  }
+
+  /// Apply a shade answer to the store (done, or a deliberate "didn't
+  /// happen"). Failures fall through quietly — the app is opening anyway,
+  /// and the same answer is one tap away inside.
+  static Future<void> _answerFromShade(String? payload,
+      {required bool done}) async {
+    try {
+      if (payload == null) return;
+      final parts = payload.split(':');
+      if (parts.length >= 2 && parts[0] == 'routine') {
+        final settings = await IsarService.getSettings();
+        await IsarService.logCompletion(
+          routineId: parts[1],
+          date: logicalDayKey(DateTime.now(), settings.dayRolloverHour),
+          status: done ? CompletionStatus.done : CompletionStatus.skipped,
+        );
+      } else if (parts.length >= 2 && parts[0] == 'event') {
+        await IsarService.answerEvent(parts[1], done ? 'done' : 'skipped');
+      }
+      AndroidBnsWidget.updateWidget();
+    } catch (_) {}
+  }
+
+  static DateTime _lastShadeSweep = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// The app is in front — the day on screen carries the plan now, so
+  /// reminders that already fired leave the shade and everything still
+  /// coming is re-registered fresh. This is what turns "waking up to
+  /// 1000000 things" into opening the app and simply seeing today.
+  /// Throttled: front-flips are frequent, alarm re-registration isn't free.
+  static Future<void> onAppInFront() async {
+    if (!_initialized) return;
+    final now = DateTime.now();
+    if (now.difference(_lastShadeSweep) < const Duration(minutes: 3)) return;
+    _lastShadeSweep = now;
+    await rescheduleAll(force: true);
   }
 
   /// Cancel all (used for settings toggle)
@@ -200,6 +258,21 @@ class NotificationsService {
       styleInformation: BigTextStyleInformation(
         '${p.body}\n${L.t('Take your time. This is just a gentle nudge.', 'אין לחץ, בקצב שלך. זו רק תזכורת עדינה.')}',
       ),
+      // A reminder nobody touched bows out by itself after a while (the
+      // person chooses how long) — waking hours later must not mean a
+      // pile of stale nudges (owner QA, 2026-08-14). 0 = stays until seen.
+      timeoutAfter: settings.reminderTimeoutMinutes > 0
+          ? Duration(minutes: settings.reminderTimeoutMinutes).inMilliseconds
+          : null,
+      // Answers live ON the reminder: the quiet ✓, and the kind door for
+      // "didn't happen". Both open the app (single writer, no isolates).
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction('bns_done', L.t('Done ✓', 'נעשה ✓'),
+            showsUserInterface: true),
+        AndroidNotificationAction(
+            'bns_why', L.t('Didn\'t happen — tell why', 'לא קרה — לספר למה'),
+            showsUserInterface: true),
+      ],
     );
 
     final darwin = DarwinNotificationDetails(

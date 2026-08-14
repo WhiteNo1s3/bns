@@ -71,10 +71,14 @@ class BnsExporter {
     // (full care mode ships EVERY recording — that can be a lot of audio).
     final audioEntries = <BnsAudioFileRef>[];
     for (final cap in captures) {
-      final resolved = await IsarService.resolveAudioPath(cap.audioPath);
-      if (resolved == null) continue;
-      final f = File(resolved);
-      audioEntries.add((name: f.uri.pathSegments.last, path: f.path));
+      // EVERY take travels, not just the first — a moment can hold more
+      // than one recording and none of them may be left behind.
+      for (final stored in cap.allAudioPaths) {
+        final resolved = await IsarService.resolveAudioPath(stored);
+        if (resolved == null) continue;
+        final f = File(resolved);
+        audioEntries.add((name: f.uri.pathSegments.last, path: f.path));
+      }
     }
 
     final manifest = {
@@ -138,8 +142,11 @@ class BnsExporter {
     // by falling back to the same filename in the current audio folder.
     final audioPaths = <String>[];
     for (final cap in snapshot.captures) {
-      final resolved = await IsarService.resolveAudioPath(cap.audioPath);
-      if (resolved != null) audioPaths.add(resolved);
+      // Every take of every moment — a second recording is not a lesser one.
+      for (final stored in cap.allAudioPaths) {
+        final resolved = await IsarService.resolveAudioPath(stored);
+        if (resolved != null) audioPaths.add(resolved);
+      }
     }
 
     final manifest = {

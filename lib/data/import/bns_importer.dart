@@ -153,32 +153,46 @@ class BnsImporter {
     final audioDir = await IsarService.getAudioDir();
     final updated = <QuickCapture>[];
 
-    for (final cap in captures) {
-      if (cap.audioPath == null) {
-        updated.add(cap);
-        continue;
-      }
-
+    /// Land one arriving recording in the audio folder; null when the file
+    /// didn't travel with this .bns (then the old path is left untouched).
+    Future<String?> land(String stored) async {
       // Paths cross machines (Windows \ and phone /) — split on both, or a
       // file recorded on one platform never matches on the other.
-      final originalName = cap.audioPath!.split(RegExp(r'[\\/]')).last;
+      final originalName = stored.split(RegExp(r'[\\/]')).last;
       final matching = audioFiles.firstWhere(
         (f) => f.path.endsWith(originalName),
         orElse: () => File(''),
       );
-
-      if (await matching.exists()) {
-        final destPath = '${audioDir.path}/$originalName';
-        try {
-          if (await File(destPath).exists()) await File(destPath).delete();
-          await matching.rename(destPath);
-        } on FileSystemException {
-          await matching.copy(destPath);
-        }
-        updated.add(cap.copyWith(audioPath: destPath));
-      } else {
-        updated.add(cap);
+      if (!await matching.exists()) return null;
+      final destPath = '${audioDir.path}/$originalName';
+      try {
+        if (await File(destPath).exists()) await File(destPath).delete();
+        await matching.rename(destPath);
+      } on FileSystemException {
+        await matching.copy(destPath);
       }
+      return destPath;
+    }
+
+    for (final cap in captures) {
+      if (cap.audioPath == null && cap.extraAudioPaths.isEmpty) {
+        updated.add(cap);
+        continue;
+      }
+
+      final mainPath =
+          cap.audioPath == null ? null : await land(cap.audioPath!);
+      // Extra takes land too — every voice of the moment arrives, or keeps
+      // its old path so a later import can still heal it.
+      final extras = <String>[];
+      for (final stored in cap.extraAudioPaths) {
+        extras.add(await land(stored) ?? stored);
+      }
+
+      updated.add(cap.copyWith(
+        audioPath: mainPath ?? cap.audioPath,
+        extraAudioPaths: extras,
+      ));
     }
     return updated;
   }

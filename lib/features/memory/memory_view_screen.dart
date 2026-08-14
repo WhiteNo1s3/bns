@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/recording_text.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
@@ -15,9 +16,7 @@ class MemoryViewScreen extends StatelessWidget {
 
   const MemoryViewScreen({super.key, required this.memory});
 
-  Future<void> _play(BuildContext context) async {
-    final path = memory.audioPath;
-    if (path == null) return;
+  Future<void> _play(BuildContext context, String path) async {
     try {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
@@ -115,12 +114,16 @@ class MemoryViewScreen extends StatelessWidget {
                 icon: const Icon(Icons.volume_up, size: 28),
                 label: Text(L.t('Read it to me', 'להקריא לי')),
               ),
-            if (memory.audioPath != null) ...[
+            // Every voice of this moment gets its own button — a second
+            // recording is not a lesser one, and none of them hides.
+            for (final (i, path) in memory.allAudioPaths.indexed) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: () => _play(context),
+                onPressed: () => _play(context, path),
                 icon: const Icon(Icons.play_arrow_rounded, size: 32),
-                label: Text(L.t('Play my voice', 'לנגן את הקול שלי')),
+                label: Text(memory.allAudioPaths.length == 1
+                    ? L.t('Play my voice', 'לנגן את הקול שלי')
+                    : recordingLabel(i + 1, hebrew: L.isHebrew)),
               ),
             ],
             const SizedBox(height: 32),

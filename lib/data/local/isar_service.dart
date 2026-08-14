@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:flutter/foundation.dart' show ValueNotifier, visibleForTesting;
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
@@ -22,7 +23,23 @@ class IsarService {
   static const _fileName = 'bns_data.json';
 
   static _Data? _data;
-  static Future<void> _writeChain = Future.value();
+
+  // ---- Resilient write pipeline (the "void" fix, owner QA 2026-08-14) ----
+  // One failed disk write used to reject the old future-chain: every later
+  // save silently died until restart while the screen kept saying "saved" —
+  // text and voices fell into the void. Now the newest snapshot waits in
+  // [_pendingSnapshot] (bursts coalesce into one write) and a single drain
+  // loop writes it, absorbs failures, retries on a timer, and tells the UI
+  // honestly through [saveTrouble]. Memory is always the live truth.
+  static String? _pendingSnapshot;
+  static bool _draining = false;
+  static Completer<void>? _drainDone;
+  static Timer? _saveRetryTimer;
+  static const Duration _saveRetryDelay = Duration(seconds: 20);
+
+  /// Non-null while disk writes are failing: one short, kind, human sentence
+  /// for a quiet banner. Cleared by the first write that lands.
+  static final ValueNotifier<String?> saveTrouble = ValueNotifier<String?>(null);
 
   /// Bumped on every persisted change. Lets the lifecycle guard skip
   /// re-imaging a .bns when nothing actually changed.
@@ -40,9 +57,17 @@ class IsarService {
   /// restart".
   static final ValueNotifier<int> dataRevision = ValueNotifier<int>(0);
 
-  /// Await all pending disk writes (used on app pause/exit — belt and
-  /// suspenders on top of the per-change atomic writes).
-  static Future<void> flush() => _writeChain;
+  /// Await the pending disk write (used on app pause/exit — belt and
+  /// suspenders on top of the per-change writes). Completes when the current
+  /// attempt finishes — even a failed one — so a goodbye can never hang;
+  /// on failure the snapshot stays pending and the retry timer keeps at it.
+  static Future<void> flush() {
+    if (!_draining && _pendingSnapshot == null) return Future.value();
+    _drainDone ??= Completer<void>();
+    final done = _drainDone!.future;
+    _kickDrain();
+    return done;
+  }
 
   /// True if the previous session ended without a graceful goodbye (crash,
   /// force-kill, battery death). Because every change is persisted instantly,
@@ -56,6 +81,7 @@ class IsarService {
     if (!d.cleanExit) {
       d.cleanExit = true;
       await _persist();
+      await flush(); // the goodbye must actually reach the disk
     }
   }
 
@@ -75,22 +101,20 @@ class IsarService {
     if (_data != null) return _data!;
 
     final file = await _storeFile();
-    _Data loaded;
-    if (await file.exists()) {
-      try {
-        final json =
-            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-        loaded = _Data.fromJson(json);
-      } catch (_) {
-        // Corrupt file — keep a copy for recovery, start fresh. Never crash.
-        try {
-          await file.copy('${file.path}.corrupt');
-        } catch (_) {}
-        loaded = _Data.empty();
+    var loaded = await _readStore(file);
+    if (loaded == null) {
+      // The main file is missing or unreadable. Before starting fresh, look
+      // for the write that almost made it (.tmp) and the last known good
+      // copy (.bak) — a person's memories deserve every rescue attempt.
+      for (final rescue in [
+        File('${file.path}.tmp'),
+        File('${file.path}.bak'),
+      ]) {
+        loaded = await _readStore(rescue);
+        if (loaded != null) break;
       }
-    } else {
-      loaded = _Data.empty();
     }
+    loaded ??= _Data.empty();
 
     // Session bookkeeping: remember how the LAST session ended, then mark
     // this one "open" until markCleanExit() says goodbye properly.
@@ -103,6 +127,22 @@ class IsarService {
     return _data!;
   }
 
+  /// Parse one store file; null when missing or unreadable. A corrupt file
+  /// is kept aside as `.corrupt` for recovery — never silently discarded.
+  static Future<_Data?> _readStore(File file) async {
+    try {
+      if (!await file.exists()) return null;
+      final json =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      return _Data.fromJson(json);
+    } catch (_) {
+      try {
+        await file.copy('${file.path}.corrupt');
+      } catch (_) {}
+      return null;
+    }
+  }
+
   static Future<File> _storeFile() async {
     // Not hardcoded to documents anymore: the person chooses where BNS
     // lives (owner, 2026-08-09); BnsHome holds the answer.
@@ -110,8 +150,10 @@ class IsarService {
     return File('${dir.path}/$_fileName');
   }
 
-  /// Atomic persist: write to a temp file, then rename over the real one.
-  /// Writes are chained so they never interleave.
+  /// Persist the in-memory state: instant for the caller, safe on disk right
+  /// behind. The UI never waits on storage (owner QA, 2026-08-14: posting a
+  /// note felt sluggish, and a stuck disk froze every save after it) — the
+  /// returned future completes immediately; [flush] is for the goodbye path.
   static Future<void> _persist() {
     _revision++;
     // Screens listen to this so data arriving BEHIND the UI — a LAN sync,
@@ -122,15 +164,69 @@ class IsarService {
     try {
       onDataChanged?.call();
     } catch (_) {}
-    final snapshotJson = jsonEncode(_data!.toJson());
-    _writeChain = _writeChain.then((_) async {
-      final file = await _storeFile();
-      final tmp = File('${file.path}.tmp');
-      await tmp.writeAsString(snapshotJson, flush: true);
-      if (await file.exists()) await file.delete();
-      await tmp.rename(file.path);
+    _pendingSnapshot = jsonEncode(_data!.toJson());
+    _kickDrain();
+    return Future.value();
+  }
+
+  /// The one writer: keeps writing the newest pending snapshot until none is
+  /// left. A failure never kills the pipeline — the snapshot stays pending,
+  /// a timer retries, every next change retries, and [saveTrouble] says so.
+  static void _kickDrain() {
+    if (_draining) return;
+    _draining = true;
+    _saveRetryTimer?.cancel();
+    Future(() async {
+      while (true) {
+        final snap = _pendingSnapshot;
+        if (snap == null) break;
+        try {
+          await _writeSnapshotToDisk(snap);
+          // A newer snapshot may have arrived while writing — loop again.
+          if (identical(_pendingSnapshot, snap)) _pendingSnapshot = null;
+          if (saveTrouble.value != null) saveTrouble.value = null;
+        } catch (_) {
+          // Storage said no (full disk, revoked folder, a lock). The words
+          // are safe in memory and stay pending — never say "saved" quietly
+          // while it isn't. Kind words; no tech dump at the person.
+          saveTrouble.value = L.t(
+              'Everything you add is held safely in memory, but the storage '
+                  'folder is not accepting writes right now. BNS keeps trying '
+                  'by itself.',
+              'כל מה שהוספת שמור בזיכרון, אבל תיקיית האחסון לא מקבלת כתיבה '
+                  'כרגע. BNS ממשיך לנסות לבד.');
+          _saveRetryTimer?.cancel();
+          _saveRetryTimer = Timer(_saveRetryDelay, _kickDrain);
+          break;
+        }
+      }
+      _draining = false;
+      _drainDone?.complete();
+      _drainDone = null;
     });
-    return _writeChain;
+  }
+
+  /// One snapshot to disk with a last-known-good net: new → `.tmp`, current
+  /// → `.bak`, `.tmp` → real. Never delete-then-hope — if the swap dies
+  /// midway, [_load] still finds `.tmp` (a finished write) or `.bak`.
+  static Future<void> _writeSnapshotToDisk(String json) async {
+    final file = await _storeFile();
+    final tmp = File('${file.path}.tmp');
+    final bak = File('${file.path}.bak');
+    await tmp.writeAsString(json, flush: true);
+    if (await file.exists()) {
+      try {
+        if (await bak.exists()) await bak.delete();
+        await file.rename(bak.path);
+      } catch (_) {
+        // Couldn't set the old copy aside (odd filesystems) — the new truth
+        // is already whole in .tmp; clear the way for the rename instead.
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    }
+    await tmp.rename(file.path);
   }
 
   static Future<void> _ensureDefaults() async {
@@ -718,6 +814,17 @@ class IsarService {
     return null;
   }
 
+  /// Tests only: forget the in-memory state so the next call re-loads from
+  /// disk — a pretend app restart. Never called by the app itself.
+  @visibleForTesting
+  static Future<void> debugResetForTest() async {
+    await flush();
+    _saveRetryTimer?.cancel();
+    _data = null;
+    _pendingSnapshot = null;
+    saveTrouble.value = null;
+  }
+
   // ---- The home itself ----
 
   /// Move the whole BNS home (data file, audio/, exports/) to [newPath]
@@ -730,7 +837,7 @@ class IsarService {
     if (old.path == target.path) return target.path;
 
     // Let any in-flight write finish in the old home first.
-    await _writeChain;
+    await flush();
 
     for (final sub in ['audio', 'exports']) {
       final src = Directory('${old.path}/$sub');

@@ -2,8 +2,11 @@
 /// A plan (a one-time thing: a doctor appointment, something for today)
 /// stands IN the day with the same weight as a gentle step (owner,
 /// 2026-08-09), under the exact same laws:
-///   - answered things sink (a ✓ or a said "didn't happen" both count);
-///   - the clock orders what's open (morning→night, or "what's next" when
+///   - THE DAY STAYS STEADY (owner, 2026-08-14: "the day should remain
+///     steady, not the past actions"): answering never moves a tile. The
+///     old "answered sinks" reshuffled the list under the person's finger —
+///     a ✓ is a state shown in place, not a move;
+///   - the clock orders the day (morning→night, or "what's next" when
 ///     the person chose that);
 ///   - timeless things close the list.
 library;
@@ -35,24 +38,17 @@ List<Object> weaveDayList({
         int.tryParse(p[0]) ?? 0, int.tryParse(p[1]) ?? 0, rolloverHour);
   }
 
-  bool answered(Object item) {
-    if (item is Routine) {
-      return doneRoutineIds.contains(item.id) ||
-          skippedRoutineIds.contains(item.id);
-    }
-    return (item as CalendarEvent).isAnswered;
-  }
-
+  // NOTE: doneRoutineIds / skippedRoutineIds no longer move anything —
+  // they stay in the signature because answering is still part of the
+  // day's story (tiles read them) and callers already gather them.
   final nowMin = owlNowMinutes(now, rolloverHour);
   final list = <Object>[...routines, ...plans];
   list.sort((a, b) {
-    final aDone = answered(a);
-    final bDone = answered(b);
-    if (aDone != bDone) return aDone ? 1 : -1; // handled sinks
     final am = minutesOf(a), bm = minutesOf(b);
     if (!nextFirst) return am.compareTo(bm);
     // "What's next": upcoming (>= now) first by nearness, then the
-    // earlier-today ones, then timeless.
+    // earlier-today ones, then timeless. Answered tiles hold their spot —
+    // steady beats sorted (owner, 2026-08-14).
     int rank(int m) => m >= 24 * 60 ? 2 : (m >= nowMin ? 0 : 1);
     final ra = rank(am), rb = rank(bm);
     if (ra != rb) return ra.compareTo(rb);

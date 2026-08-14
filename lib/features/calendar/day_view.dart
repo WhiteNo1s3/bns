@@ -701,10 +701,10 @@ class _SpeakButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
-      visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      iconSize: 18,
+      // 48 is the floor: a target smaller than a fingertip is not a button.
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      iconSize: 24,
       icon: Icon(Icons.volume_up,
           color: Theme.of(context).colorScheme.onSurfaceVariant),
       onPressed: () => TtsService.speak(words),

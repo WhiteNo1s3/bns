@@ -69,6 +69,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # Tests point the store at a temp folder by faking the platform docs dir.
+  path_provider_platform_interface: ^2.1.2
   flutter_launcher_icons: ^0.13.1
 
 flutter:

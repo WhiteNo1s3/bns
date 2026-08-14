@@ -465,3 +465,137 @@ owlMinutesOf, actualMomentOf.
   list (and tomorrow starts clean)?"
 - "Does the 02:00 reminder arrive on the right night, not at dawn of
   the wrong day?"
+
+---
+
+## Wave 15 — the void closed, the flood tamed (owner beta QA, 2026-08-14: "I give text and voices to the void… waking up to 1000000 things I didn't do… it ruins the flow")
+
+### What the owner felt (the bug report that is really a design law)
+
+- Posting a note/voice note felt SLUGGISH — and sometimes the memory
+  never survived a restart ("the void"). Cause found: one failed disk
+  write killed the whole write chain silently; everything after it
+  looked saved and evaporated with the process.
+- Waking at 15:30 to a shade full of stale morning reminders with no
+  way to answer them from there.
+- The day list reshuffled when things were answered ("the day should
+  remain steady, not the past actions").
+
+### Shipped
+
+- ✅ **The void is closed** (`lib/data/local/isar_service.dart`): writes
+  coalesce into one newest-snapshot drain loop; a failure never kills
+  later saves, retries itself (20s + on every next change), and the
+  next landed write carries EVERYTHING said during the outage. Swap is
+  `.tmp` → `.bak` → real; load rescues from `.tmp`/`.bak` instead of
+  starting empty. Tested: `test/store_resilience_test.dart`.
+- ✅ **Honesty about storage**: while writes fail, Today shows ONE quiet
+  card ("your words are held safely in memory… BNS keeps trying by
+  itself") with "Try again now" — never a cheerful "saved" over a void.
+- ✅ **Posting is instant**: the UI never waits for the disk (memory is
+  the truth, the snapshot lands right behind); declining "words for
+  this note" once is remembered — Save doesn't re-ask in a dialog.
+- ✅ **Reminders answer from the shade** (Android): every reminder
+  carries "Done ✓" and "Didn't happen — tell why". Done logs the quiet
+  ✓ (owl-time date); the why door opens capture pre-linked. Both open
+  the app — the store stays single-writer.
+- ✅ **Stale reminders bow out**: `reminderTimeoutMinutes` (Sync screen:
+  half hour / two hours / six hours / stays until seen; default 2h) —
+  waking late no longer means an accusing pile.
+- ✅ **Opening BNS tidies the shade**: on launch/resume (throttled 3
+  min) delivered reminders clear and upcoming ones re-register — the
+  day on screen is the plan.
+- ✅ **THE DAY STAYS STEADY** (`lib/core/day_items.dart`): answering
+  never moves a tile — a ✓ is a state shown in place, not a move. (The
+  old "answered sinks" law from 2026-08-09 is superseded by the owner's
+  2026-08-14 words.)
+- ✅ **Late wake-ups are welcomed**: with ≥2 timed things still open
+  from earlier (30 min grace), Today opens with one warm line — "the
+  day waited for you… done late is fully done" — orientation, never a
+  scoreboard.
+
+### Parked (don't lose)
+
+- iOS/macOS shade actions need Darwin notification categories — Android
+  first (flagship), Darwin still opens the app on tap.
+- A "walk me through the open ones" guided catch-up flow (one at a
+  time, big buttons) — candidate for guided mode later.
+- The catch-up card could offer its own long-press voice door directly.
+
+### Live test questions
+
+- "Post a voice note, force-kill the app immediately — is it there
+  after reopen?"
+- "Fill the disk / make the folder read-only, add notes, fix the disk —
+  did every note survive? Did the app SAY something kind meanwhile?"
+- "Wake up hours late: how many reminders are in the shade? Can you
+  answer right from one? Does opening the app leave a clean shade?"
+- "Tick things on Today — does anything jump around?"
+
+---
+
+## Wave 16 — the grokBNS merge: what was kept, what was fixed (2026-08-14)
+
+Owner brought a parallel pass (`/dev/grokBNS`, same base commit) and asked
+to compare and use judgment. Both passes had found the same complaint from
+opposite ends, and each had half the answer.
+
+### The void had TWO causes — both are now closed
+
+1. **Storage** (wave 15, this repo): a failed disk write killed the write
+   chain, so later saves silently never landed.
+2. **Visibility** (grokBNS): `MemoriesScreen`, `DayView` and the Android
+   widget all filtered out `MemoryLevel.quick` — while the capture screen
+   *defaulted* every new note to `quick`. The save worked perfectly and
+   the thought appeared nowhere. This is the one that happened EVERY time.
+   Now: `lib/core/kept_memory.dart` holds one visibility law, new thoughts
+   default to `remember`, and Today shows **"What you kept"**.
+
+### Taken from grokBNS (better than what was here)
+
+- **One mic.** Record → the words appear in an editable box under
+  "הקלטה 1", "הקלטה 2" → Save. No "Put words to it?" dialog, no second
+  mic, no memory-level quiz on the main path ("A little more" holds it).
+- **Memory view screen** — tap a kept thought: the words, the voice, TTS
+  read-aloud, Close. No quiz.
+- **Phone doors** (bottom navigation) instead of icon hunting.
+- **`belongsToLogicalDay`** — today's tiles carry only today's notes.
+- **Recorder-owned mic permission** — `permission_handler` has no macOS
+  plugin, so calling it killed the tap and macOS never asked.
+- **Apple on-device file transcription** (`bns/apple_stt` channel, Mac +
+  iPhone) and Hebrew TTS language selection.
+
+### Fixed in the merge (regressions found in the grok pass)
+
+- **Android had no ear at all.** The new `_hearWords` tries Apple (Mac/iOS
+  only) then Whisper/Vosk (desktop only) — on Android it returned empty,
+  so every voice note on the FLAGSHIP platform saved with no words. The
+  Waze door (`SpeechPopup`) still existed but was called from nowhere.
+  Restored as a plain, skippable **"להגיד את זה במילים"** card after the
+  voice is kept.
+- **Only the last take's voice was saved.** Earlier recordings were
+  orphaned on disk, referenced by nothing. `QuickCapture.extraAudioPaths`
+  now carries every take through JSON, `.bns` export/import and the
+  memory view (one play button per recording). Tested in
+  `test/multi_take_audio_test.dart`.
+- **`context.go('/memories')` after Save broke the skip flow.** `DayView`
+  awaits a `true` result to write the "didn't happen" reason into the
+  skip record — replacing the stack meant the skip was **never logged**.
+  Save now hands the answer back when something is waiting; Today's
+  "What you kept" strip does the seeing.
+- **The nav bar slid and lied.** `NavigationBar` animates its indicator
+  (motion is banned — vestibular sensitivity) and marked "Today" while
+  standing on the calendar. Now `animationDuration: zero`, four labeled
+  doors, and it never claims the wrong place.
+- **48dp floor** on the read-aloud buttons in tiles and the day view
+  (were 32dp with 18px icons).
+- The save-failure guard from wave 15 was re-applied to the new screen.
+
+### Live test questions
+
+- "Record a voice note on the phone. Do words appear — or at least a
+  clear way to add them? Is it in 'What you kept' the second you're back?"
+- "Record twice in one note. Are BOTH voices playable afterwards?"
+- "From the calendar, mark something 'didn't happen' and say why — is the
+  reason actually on the skip afterwards?"
+- "Can you get everywhere with the bottom doors, without reading icons?"

@@ -168,13 +168,16 @@ class RoutineTile extends StatelessWidget {
                           // The app can read the kept words back — default
                           // manner, relaxed (owner: "always transcript...
                           // reading out loud the complaints").
+                          // A 32px target is a target for a steady hand.
+                          // Hands here are not always steady — 48 is the
+                          // floor everywhere in this app (owner QA,
+                          // 2026-08-14: the buttons could not be used).
                           IconButton(
                             tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
-                            visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
-                                minWidth: 32, minHeight: 32),
-                            iconSize: big ? 22 : 18,
+                                minWidth: 48, minHeight: 48),
+                            iconSize: big ? 28 : 24,
                             icon: Icon(Icons.volume_up,
                                 color: colorScheme.onSurfaceVariant),
                             onPressed: () => TtsService.speak(recentNote!),

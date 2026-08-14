@@ -78,7 +78,9 @@ Future<void> _startupChores(List<String> args) async {
       LanSyncService.instance.noteLocalDataChanged();
     };
     await NotificationsService.init();
-    await NotificationsService.rescheduleAll();
+    // First sweep also clears anything stale left in the shade from before
+    // this launch — opening BNS means the day on screen takes over.
+    await NotificationsService.onAppInFront();
   } catch (_) {
     // Reminders are a courtesy — the app runs fine without them today.
   }
@@ -175,10 +177,19 @@ final _router = GoRouter(
       path: '/capture',
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>? ?? {};
+        // Query params carry the same keys for string-only doors (a shade
+        // action's deep link has no `extra` to ride on); extra wins.
+        final q = state.uri.queryParameters;
+        final qTags = (q['tags'] ?? '')
+            .split(',')
+            .where((t) => t.trim().isNotEmpty)
+            .toList();
         final screen = QuickCaptureScreen(
-          linkedRoutineId: extra['linkedRoutineId'] as String?,
+          linkedRoutineId:
+              extra['linkedRoutineId'] as String? ?? q['linkedRoutineId'],
           initialText: extra['initialText'] as String?,
-          initialTags: (extra['tags'] as List?)?.cast<String>(),
+          initialTags: (extra['tags'] as List?)?.cast<String>() ??
+              (qTags.isEmpty ? null : qTags),
           autoRecord: extra['autoRecord'] == true,
         );
         return _wrapForDesktop(context, screen, state.uri.toString());
@@ -262,6 +273,9 @@ class _BnsAppState extends ConsumerState<BnsApp> {
         } else if (state == AppLifecycleState.resumed) {
           // Session is live again — a crash from here on counts as unclean.
           IsarService.markSessionOpen();
+          // The day on screen carries the plan now: stale reminders leave
+          // the shade, upcoming ones re-register fresh (throttled inside).
+          NotificationsService.onAppInFront();
         }
       },
       onExitRequested: () async {
@@ -585,7 +599,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Map<String, List<QuickCapture>> _keptByRoutine = const {};
   // Today's storms: the mad-vents of this day, kept and revisitable.
   List<QuickCapture> _madToday = const [];
-  // Last kept thoughts — so a recording is waiting on Today, not lost.
+  // The last few kept thoughts — so a recording waits on Today, visible,
+  // instead of feeling like it went nowhere.
   List<QuickCapture> _recentKept = const [];
   // Today's PLANS — one-time things (a doctor appointment, an errand) that
   // stand in the day with the weight of a step (owner, 2026-08-09).
@@ -640,14 +655,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final todayPlans = await IsarService.getEventsForDate(todayStr);
-    // TODAY only. Other days live in the day diary and in Memories —
-    // pinning last week's "why" on today's tile mixed the days (and
-    // felt like the app was holding the past against the person).
+    // The kept "why"s: need-help notes from the last few days, latest one
+    // per routine. They ride the tiles so the reason is met, not searched.
     final captures = await IsarService.getAllCaptures();
     final noteText = <String, String>{};
     final noteWhen = <String, String>{};
     final latestAt = <String, DateTime>{};
     for (final c in captures) {
+      // TODAY only. Last week's "why" pinned to today's tile mixed the
+      // days together and read like the app holding the past against the
+      // person — older notes live in the day diary and in Memories.
       if (!belongsToLogicalDay(c.at, todayStr, _rolloverHour)) continue;
       final rid = c.linkedRoutineId;
       if (rid == null || !c.tags.contains('need-help')) continue;
@@ -659,7 +676,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       noteText[rid] = words;
       noteWhen[rid] = _whenLabel(c.at);
     }
-    // The skip record carries its own why — already today's logs only.
+    // The skip record carries its own why now — the most reliable copy.
     for (final l in logs) {
       if (l.status != CompletionStatus.skipped) continue;
       final words = (l.reason ?? '').trim();
@@ -670,6 +687,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       noteText[l.routineId] = words;
       noteWhen[l.routineId] = _whenLabel(l.at);
     }
+    // Everything told about each routine, and today's storms. captures come
+    // newest-first from the store, so the lists stay in telling order.
     final kept = <String, List<QuickCapture>>{};
     final mad = <QuickCapture>[];
     for (final c in captures) {
@@ -678,6 +697,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       if (rid != null) (kept[rid] ??= []).add(c);
       if (c.tags.contains('mad-vent')) mad.add(c);
     }
+    // The newest kept thoughts, for the strip that proves nothing vanished.
     final recentKept = visibleMemories(captures).take(3).toList();
     if (!mounted) return;
     setState(() {
@@ -1488,6 +1508,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await IsarService.addCapture(capture);
     _diaryController.clear();
     ref.invalidate(routinesProvider);
+    // The diary line joins "What you kept" immediately — written, then
+    // seen, with nothing in between.
     await _refreshDoneToday();
     AndroidBnsWidget.updateWidget();
 
@@ -1523,23 +1545,36 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         centerTitle: false,
         hideOnDesktopWide:
             true, // modern PC sidebar handles navigation chrome + marked selection
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month),
-            tooltip: L.t('Calendar', 'לוח שנה'),
-            onPressed: () => context.push('/calendar'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.sync_alt),
-            tooltip: L.t('Sync your devices', 'סנכרון בין המכשירים'),
-            onPressed: () => context.push('/sync'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.psychology),
-            tooltip: L.t('Memories', 'זיכרונות'),
-            onPressed: () => context.push('/memories'),
-          ),
-        ],
+        // ON A PHONE, ICONS ARE NOT WORDS (owner QA, 2026-08-14: "all
+        // buttons are useless"). Calendar, Memories and Keep-this now live
+        // in the labeled doors at the bottom, so the top bar keeps ONE
+        // thing — settings — and says so in a word instead of a glyph
+        // nobody can decode without a long press.
+        actions: hasSidebar
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: L.t('Calendar', 'לוח שנה'),
+                  onPressed: () => context.push('/calendar'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.sync_alt),
+                  tooltip: L.t('Sync your devices', 'סנכרון בין המכשירים'),
+                  onPressed: () => context.push('/sync'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.psychology),
+                  tooltip: L.t('Memories', 'זיכרונות'),
+                  onPressed: () => context.push('/memories'),
+                ),
+              ]
+            : [
+                TextButton.icon(
+                  onPressed: () => context.push('/sync'),
+                  icon: const Icon(Icons.settings_outlined, size: 22),
+                  label: Text(L.t('Settings', 'הגדרות')),
+                ),
+              ],
       ),
       body: Stack(
         children: [
@@ -1550,6 +1585,58 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  // HONEST STORAGE (the "void" fix, owner QA 2026-08-14):
+                  // if the disk is refusing writes, the person hears it here
+                  // — calmly, with a hand to hold — instead of losing words
+                  // to a silent failure. Gone the moment a write lands.
+                  ValueListenableBuilder<String?>(
+                    valueListenable: IsarService.saveTrouble,
+                    builder: (context, trouble, _) {
+                      if (trouble == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Card(
+                          color:
+                              Theme.of(context).colorScheme.tertiaryContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(trouble,
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        height: 1.35,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onTertiaryContainer)),
+                                const SizedBox(height: 4),
+                                Text(
+                                    L.t(
+                                        'If this keeps up, a new home for BNS '
+                                            'can be chosen on the Sync screen.',
+                                        'אם זה נמשך, אפשר לבחור ל־BNS בית חדש '
+                                            'במסך הסנכרון.'),
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onTertiaryContainer)),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: TextButton(
+                                    onPressed: IsarService.flush,
+                                    child: Text(L.t('Try again now',
+                                        'לנסות שוב עכשיו')),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1679,8 +1766,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           .where((r) => r.appliesOn(today) && r.isActive)
                           .toList();
                       // One day, one list: routines and plans woven by the
-                      // same clock laws (answered sinks, order preference
-                      // honored). A doctor appointment stands IN the day.
+                      // same clock laws. THE DAY STAYS STEADY (owner,
+                      // 2026-08-14): a ✓ or a "didn't happen" shows in
+                      // place — tiles never jump. A doctor appointment
+                      // stands IN the day.
                       final dayList = weaveDayList(
                         routines: todaysRoutines,
                         plans: _todayPlans,
@@ -1690,6 +1779,33 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         now: DateTime.now(),
                         rolloverHour: _rolloverHour,
                       );
+                      // LATE WAKE-UPS ARE WELCOME (owner QA, 2026-08-14:
+                      // "I woke up today at 15:30... I had no clue what to
+                      // do"). Count timed things from earlier that are
+                      // still open — the card below meets the person with
+                      // orientation, never with a scoreboard of misses.
+                      final nowMinutes =
+                          owlNowMinutes(DateTime.now(), _rolloverHour);
+                      var openFromEarlier = 0;
+                      for (final item in dayList) {
+                        String? t;
+                        if (item is Routine) {
+                          if (_doneTodayIds.contains(item.id) ||
+                              _skippedTodayIds.contains(item.id)) {
+                            continue;
+                          }
+                          t = item.time;
+                        } else if (item is CalendarEvent) {
+                          if (item.isAnswered || item.isAllDay) continue;
+                          t = item.time;
+                        }
+                        if (t == null || !t.contains(':')) continue;
+                        final hp = t.split(':');
+                        final m = owlMinutesOf(int.tryParse(hp[0]) ?? 0,
+                            int.tryParse(hp[1]) ?? 0, _rolloverHour);
+                        // Half an hour of grace: "just now" isn't "earlier".
+                        if (m + 30 < nowMinutes) openFromEarlier++;
+                      }
                       _todayRoutines = dayList
                           .whereType<Routine>()
                           .toList(); // for the keyboard handler
@@ -1754,6 +1870,39 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // Waking mid-day: one warm line of orientation.
+                          // Earlier things are OPEN, not missed — late is
+                          // fully fine, and saying "didn't happen" counts.
+                          if (openFromEarlier >= 2) ...[
+                            Card(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer,
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Text(
+                                  L.t(
+                                      'Welcome back — the day waited for you. '
+                                          'A few earlier things are still open '
+                                          'below: done late is fully done, and '
+                                          '"didn\'t happen" with a word about '
+                                          'why counts too. Start anywhere.',
+                                      'ברוכים השבים — היום חיכה לך. כמה דברים '
+                                          'מוקדמים עדיין פתוחים למטה: לסיים '
+                                          'באיחור זה לגמרי לסיים, וגם ״לא קרה״ '
+                                          'עם מילה על למה — נחשב. אפשר להתחיל '
+                                          'מכל מקום.'),
+                                  style: TextStyle(
+                                      fontSize: 14 * _textScale,
+                                      height: 1.35,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSecondaryContainer),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           // —— NEXT HERO (clean, big, one job) ——
                           if (hero != null)
                             NextHeroCard(
@@ -1903,6 +2052,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     const SizedBox(height: 24),
                   ],
 
+                  // WHAT YOU KEPT — the proof that a recording went
+                  // somewhere. A thought saved and then invisible is the
+                  // same as a thought lost (owner QA, 2026-08-14: "I give
+                  // text and voices to the void").
                   if (_recentKept.isNotEmpty && !_guidedMode) ...[
                     KeptMemoriesStrip(memories: _recentKept),
                     const SizedBox(height: 24),
@@ -1992,8 +2145,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
-                      onPressed: () => context.go('/memories'),
+                      onPressed: () => context.push('/memories'),
                       icon: const Icon(Icons.psychology),
+                      // A button says where it goes, not what the feature
+                      // is called in the spec.
                       label: Text(L.t('Your memories', 'הזיכרונות שלך')),
                     ),
                   ],

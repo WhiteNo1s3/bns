@@ -56,6 +56,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _reminderStyle = 'gentle';
   String _notificationColor = 'auto';
   int _eventReminderMinutes = 30;
+  // How long an untouched reminder waits in the shade (0 = until seen).
+  int _reminderTimeoutMinutes = 120;
   // Owl time: the hour the person's day ends (0 = midnight).
   int _dayRolloverHour = 0;
   bool _sttEnabled = true;
@@ -99,6 +101,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _reminderStyle = settings.reminderStyle;
     _notificationColor = settings.notificationColor;
     _eventReminderMinutes = settings.eventReminderMinutes;
+    _reminderTimeoutMinutes = settings.reminderTimeoutMinutes;
     _dayRolloverHour = settings.dayRolloverHour;
     _sttEnabled = settings.sttEnabled;
     _autoImage = settings.autoImageEnabled;
@@ -153,6 +156,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _reminderStyle = s.reminderStyle;
         _notificationColor = s.notificationColor;
         _eventReminderMinutes = s.eventReminderMinutes;
+        _reminderTimeoutMinutes = s.reminderTimeoutMinutes;
         _dayRolloverHour = s.dayRolloverHour;
         _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
@@ -289,6 +293,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _setEventReminderMinutes(int v) async {
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(s.copyWith(eventReminderMinutes: v));
+    await NotificationsService.rescheduleAll(force: true);
+    await _loadRetention();
+  }
+
+  Future<void> _setReminderTimeoutMinutes(int v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(reminderTimeoutMinutes: v));
     await NotificationsService.rescheduleAll(force: true);
     await _loadRetention();
   }
@@ -1706,6 +1717,55 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    // Stale reminders bow out by themselves (owner QA,
+                    // 2026-08-14: waking at 15:30 to the whole morning
+                    // stacked in the shade "ruins the flow"). The person
+                    // decides how long a nudge politely waits.
+                    Text(
+                        L.t('A reminder nobody touched waits, then leaves quietly:',
+                            'תזכורת שלא נגעו בה מחכה, ואז יוצאת בשקט:'),
+                        style: const TextStyle(fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: Text(L.t('Half an hour', 'חצי שעה')),
+                          selected: _reminderTimeoutMinutes == 30,
+                          onSelected: (_) => _setReminderTimeoutMinutes(30),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Two hours', 'שעתיים')),
+                          selected: _reminderTimeoutMinutes == 120,
+                          onSelected: (_) => _setReminderTimeoutMinutes(120),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Six hours', 'שש שעות')),
+                          selected: _reminderTimeoutMinutes == 360,
+                          onSelected: (_) => _setReminderTimeoutMinutes(360),
+                        ),
+                        ChoiceChip(
+                          label: Text(L.t('Stays until I see it',
+                              'נשארת עד שאני רואה')),
+                          selected: _reminderTimeoutMinutes == 0,
+                          onSelected: (_) => _setReminderTimeoutMinutes(0),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                        L.t(
+                            'And opening BNS always tidies the shade — the day '
+                                'on the screen is the plan from there.',
+                            'ופתיחת BNS תמיד מסדרת את מגירת ההתראות — משם, '
+                                'היום שעל המסך הוא התוכנית.'),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant)),
                   ],
                   const Divider(height: 24),
                   // Hebrew first (owner, 2026-07-26): the first users are

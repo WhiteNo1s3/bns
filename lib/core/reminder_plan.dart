@@ -161,6 +161,22 @@ String routeForReminderPayload(String? payload) {
   return '/';
 }
 
+/// Where the shade's "didn't happen — tell why" action lands: a routine
+/// opens capture pre-linked (the why gets voice first, per the laws); a
+/// plan opens its own day, where its gentle answer sheet lives.
+String whyRouteForReminderPayload(String? payload) {
+  if (payload == null) return '/';
+  final parts = payload.split(':');
+  if (parts.length >= 3 && parts[0] == 'event') {
+    return '/day?date=${parts[2]}';
+  }
+  if (parts.length >= 2 && parts[0] == 'routine') {
+    return '/capture?linkedRoutineId=${Uri.encodeQueryComponent(parts[1])}'
+        '&tags=need-help,routine';
+  }
+  return '/';
+}
+
 /// A quick fingerprint of everything reminders depend on. When it hasn't
 /// changed, rescheduling is skipped — the data store persists on every tap
 /// and ✓, and re-registering dozens of alarms each time would be waste.
@@ -179,6 +195,7 @@ String reminderFingerprint({
     ..write('|${settings.notificationColor}')
     ..write('|${settings.relaxingPalette.name}')
     ..write('|${settings.eventReminderMinutes}')
+    ..write('|${settings.reminderTimeoutMinutes}')
     ..write('|${settings.dayRolloverHour}');
   for (final r in routines) {
     if (!r.isActive || r.time == null) continue;

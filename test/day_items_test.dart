@@ -43,9 +43,18 @@ void main() {
     expect(ids(woven), 'a,doc,c,t,allday');
   });
 
-  test('answered sinks — a plan\'s ✓ or "didn\'t happen" counts like a routine\'s',
-      () {
-    final woven = weaveDayList(
+  test(
+      'THE DAY STAYS STEADY (owner, 2026-08-14) — answering never moves a '
+      'tile: a ✓ shows in place, the clock order never reshuffles', () {
+    final before = weaveDayList(
+      routines: [r('a', '08:00'), r('b', '12:00')],
+      plans: [p('doc', '09:00'), p('err', '15:00')],
+      doneRoutineIds: const {},
+      skippedRoutineIds: const {},
+      nextFirst: false,
+      now: DateTime(2026, 8, 9, 10, 0),
+    );
+    final after = weaveDayList(
       routines: [r('a', '08:00'), r('b', '12:00')],
       plans: [p('doc', '09:00', answer: 'done'), p('err', '15:00')],
       doneRoutineIds: {'a'},
@@ -53,8 +62,9 @@ void main() {
       nextFirst: false,
       now: DateTime(2026, 8, 9, 10, 0),
     );
-    // open first (b 12:00, err 15:00), answered after (a, doc by clock)
-    expect(ids(woven), 'b,err,a,doc');
+    // Same clock order before and after answering — nothing jumped.
+    expect(ids(before), 'a,doc,b,err');
+    expect(ids(after), ids(before));
   });
 
   test('"what\'s next" ranks upcoming plans with upcoming routines', () {

@@ -38,6 +38,12 @@ class AppSettings {
   // enough time to get ready without living in the future.
   final int eventReminderMinutes;
 
+  // How long an untouched reminder stays in the shade before it quietly
+  // leaves (minutes; 0 = stays until seen). Waking at 15:30 to the whole
+  // morning stacked up "ruins the flow" (owner QA, 2026-08-14) — stale
+  // nudges bow out by themselves; the day inside the app carries the plan.
+  final int reminderTimeoutMinutes;
+
   // OWL TIME (owner, 2026-08-10: "my day isn't done in 00:00"): the hour
   // the person's day actually ends. 0 = midnight (the old world); an owl
   // picks e.g. 4 and everything until 04:00 still belongs to tonight —
@@ -162,6 +168,7 @@ class AppSettings {
     this.dayRolloverHour = 0,
     this.notificationColor = 'auto',
     this.eventReminderMinutes = 30,
+    this.reminderTimeoutMinutes = 120,
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
     // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
@@ -201,6 +208,7 @@ class AppSettings {
     int? dayRolloverHour,
     String? notificationColor,
     int? eventReminderMinutes,
+    int? reminderTimeoutMinutes,
     bool? hapticsEnabled,
     Object? lastFullSyncAt = _unset,
     int? retentionDays,
@@ -234,6 +242,8 @@ class AppSettings {
       dayRolloverHour: dayRolloverHour ?? this.dayRolloverHour,
       notificationColor: notificationColor ?? this.notificationColor,
       eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
+      reminderTimeoutMinutes:
+          reminderTimeoutMinutes ?? this.reminderTimeoutMinutes,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
       lastFullSyncAt: lastFullSyncAt == _unset
           ? this.lastFullSyncAt
@@ -274,6 +284,7 @@ class AppSettings {
         'dayRolloverHour': dayRolloverHour,
         'notificationColor': notificationColor,
         'eventReminderMinutes': eventReminderMinutes,
+        'reminderTimeoutMinutes': reminderTimeoutMinutes,
         'hapticsEnabled': hapticsEnabled,
         'lastFullSyncAt': lastFullSyncAt?.toIso8601String(),
         'retentionDays': retentionDays,
@@ -313,6 +324,8 @@ class AppSettings {
         notificationColor: json['notificationColor'] as String? ?? 'auto',
         eventReminderMinutes:
             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,
+        reminderTimeoutMinutes:
+            (json['reminderTimeoutMinutes'] as num?)?.toInt() ?? 120,
         hapticsEnabled: json['hapticsEnabled'] as bool? ?? true,
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null

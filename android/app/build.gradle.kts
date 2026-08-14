@@ -76,6 +76,18 @@ android {
             val noMinify = (project.findProperty("bnsNoMinify") as String?) == "true"
             isMinifyEnabled = !noMinify
             isShrinkResources = !noMinify
+            // SIDE-BY-SIDE TESTING (2026-08-14): a machine without the
+            // release keystore signs with debug keys, so its build can
+            // never update the real app — Android refuses on the signature,
+            // and the only way "through" would be uninstalling, which
+            // DELETES the person's routines, memories and voice notes.
+            // Set env ORG_GRADLE_PROJECT_bnsSideBySide=true to install the
+            // full AOT release as a SEPARATE app instead: real performance
+            // to judge, and the real app across the home screen untouched.
+            if ((project.findProperty("bnsSideBySide") as String?) == "true") {
+                applicationIdSuffix = ".next"
+                versionNameSuffix = "-next"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -212,7 +212,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     }
   }
 
-  /// Voice is already safe. Words land in the box under "הקלטה N".
+  /// Voice is already safe. Then the words — and ONLY real words: a take
+  /// the engines couldn't read writes NOTHING into the box (owner beta
+  /// report, 2026-08-15: an empty "הקלטה 1" header standing where his
+  /// words should be — "not close to my vision"). On Android, where no
+  /// engine can read the file, the system speech sheet opens BY ITSELF
+  /// right after the voice is kept: talk → sheet → words. One flow, not
+  /// a card asking to press again.
   Future<void> _keepTake(String path) async {
     final n = _takes.length + 1;
     setState(() {
@@ -225,16 +231,22 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     // the moment recording stopped — words only ever add to it).
     final i = _takes.indexWhere((t) => t.path == path);
     if (i != -1) _takes[i] = _Take(_takes[i].number, path, heard);
-    final label = recordingLabel(n, hebrew: L.isHebrew);
-    final next = appendRecordingBlock(
-      current: _textController.text,
-      label: label,
-      transcript: heard,
-    );
-    _textController.text = next;
-    _textController.selection =
-        TextSelection.collapsed(offset: next.length);
+    if (heard.trim().isNotEmpty) {
+      final next = appendSpokenWords(
+        current: _textController.text,
+        words: heard,
+      );
+      _textController.text = next;
+      _textController.selection =
+          TextSelection.collapsed(offset: next.length);
+    }
     setState(() => _hearingWords = false);
+    // No file ear on this platform — the Waze door opens on its own,
+    // while the moment is still warm. Declining costs nothing: the
+    // voice is kept, the box stays clean, typing always works.
+    if (heard.trim().isEmpty && SpeechPopup.isSupported && mounted) {
+      await _speakWordsForLastTake();
+    }
   }
 
   /// Hebrew first: Apple on-device ear, then Whisper (Windows), then Vosk.
@@ -308,8 +320,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (i >= 0) {
       _takes[i] = _Take(_takes[i].number, _takes[i].path, said);
     }
-    final cur = _textController.text.trimRight();
-    final next = cur.isEmpty ? '$said\n' : '$cur\n$said\n';
+    final next = appendSpokenWords(current: _textController.text, words: said);
     _textController.text = next;
     _textController.selection = TextSelection.collapsed(offset: next.length);
     setState(() {});
@@ -576,38 +587,18 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               ),
             ],
 
-            // Android: the voice is kept, the words still need a door.
+            // The words sheet already opened by itself after the take; this
+            // small door is only the second chance when it was declined.
+            // A quiet button, not a lecture.
             if (_canSpeakWords) ...[
-              const SizedBox(height: 16),
-              Card(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        L.t(
-                            'Your voice is kept. Words let you find it later '
-                                'and let someone read it — say it once more, '
-                                'or type it below. Both are fine.',
-                            'הקול שלך שמור. מילים עוזרות למצוא את זה אחר כך '
-                                'ולתת למישהו לקרוא — אפשר להגיד את זה עוד פעם, '
-                                'או להקליד למטה. שתי הדרכים בסדר.'),
-                        style: const TextStyle(fontSize: 15, height: 1.35),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: _speakWordsForLastTake,
-                        icon: const Icon(Icons.record_voice_over, size: 26),
-                        style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56)),
-                        label: Text(
-                            L.t('Say it in words', 'להגיד את זה במילים')),
-                      ),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _speakWordsForLastTake,
+                icon: const Icon(Icons.record_voice_over, size: 24),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                label: Text(L.t('Add words to this voice',
+                    'להוסיף מילים לקול הזה')),
               ),
             ],
 
@@ -646,14 +637,20 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               child: Text(L.t('Not now', 'לא עכשיו')),
             ),
 
-            // Extra choices stay closed. Asking "how important?" on the
-            // main path made people lose the thought — and hid it after.
+            // Extra choices stay closed — but behind a door that SAYS
+            // what is inside ("עוד קצת" said nothing; owner beta report,
+            // 2026-08-15). A word-labeled door, same as everywhere else.
             const SizedBox(height: 8),
-            TextButton(
+            TextButton.icon(
               onPressed: () => setState(() => _showMore = !_showMore),
-              child: Text(_showMore
-                  ? L.t('Less', 'פחות')
-                  : L.t('A little more', 'עוד קצת')),
+              icon: Icon(_showMore ? Icons.expand_less : Icons.expand_more,
+                  size: 22),
+              label: Text(
+                  _showMore
+                      ? L.t('Close the options', 'לסגור את האפשרויות')
+                      : L.t('Keep forever · family · context',
+                          'לשמור לתמיד · משפחה · הקשר'),
+                  style: const TextStyle(fontSize: 15)),
             ),
             if (_showMore) ...[
               SwitchListTile(
@@ -682,7 +679,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 controller: _contextController,
                 maxLines: 2,
                 decoration: InputDecoration(
-                  labelText: L.t('A little more about it', 'עוד קצת על זה'),
+                  labelText: L.t('What was around it? (context)',
+                      'מה היה מסביב? (הקשר)'),
                   border: const OutlineInputBorder(),
                 ),
               ),

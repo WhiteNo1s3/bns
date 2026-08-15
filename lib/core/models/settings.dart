@@ -137,6 +137,13 @@ class AppSettings {
   // truth for behavior and are kept coherent by the selector.
   final int careLevel;
 
+  // THE CAREGIVER'S KEY (owner decision, 2026-08-15): a salted hash of the
+  // password set together when raising to level 3–4. Lowering the level —
+  // and the caregiver door in guided mode — opens with it, so one confused
+  // tap cannot dissolve the arrangement that lets the caregiver NOT hover.
+  // Empty = no lock (every pre-lock device). Only the hash ever exists.
+  final String careLockHash;
+
   // CAREGIVER DEVICE — this copy belongs to the person who HELPS, not the
   // person being helped (owner, 2026-07-27). It changes what this device
   // is for: building the other person's day, seeing what they told, and
@@ -188,6 +195,7 @@ class AppSettings {
     this.guidedMode = false,
     this.fullCareMode = false,
     this.careLevel = 1,
+    this.careLockHash = '',
     this.caregiverDevice = false,
     this.serverUrl,
     this.serverToken,
@@ -227,6 +235,7 @@ class AppSettings {
     bool? guidedMode,
     bool? fullCareMode,
     int? careLevel,
+    String? careLockHash,
     bool? caregiverDevice,
     Object? serverUrl = _unset,
     Object? serverToken = _unset,
@@ -266,6 +275,7 @@ class AppSettings {
       guidedMode: guidedMode ?? this.guidedMode,
       fullCareMode: fullCareMode ?? this.fullCareMode,
       careLevel: careLevel ?? this.careLevel,
+      careLockHash: careLockHash ?? this.careLockHash,
       caregiverDevice: caregiverDevice ?? this.caregiverDevice,
       serverUrl: serverUrl == _unset ? this.serverUrl : serverUrl as String?,
       serverToken:
@@ -303,6 +313,7 @@ class AppSettings {
         'guidedMode': guidedMode,
         'fullCareMode': fullCareMode,
         'careLevel': careLevel,
+        'careLockHash': careLockHash,
         'caregiverDevice': caregiverDevice,
         'serverUrl': serverUrl,
         'serverToken': serverToken,
@@ -355,6 +366,7 @@ class AppSettings {
             (json['guidedMode'] == true
                 ? 4
                 : (json['fullCareMode'] == true ? 3 : 1)),
+        careLockHash: json['careLockHash'] as String? ?? '',
         caregiverDevice: json['caregiverDevice'] as bool? ?? false,
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,

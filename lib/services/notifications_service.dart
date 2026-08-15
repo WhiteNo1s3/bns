@@ -86,6 +86,18 @@ class NotificationsService {
   /// (owner QA, 2026-08-14). Both open the app (same isolate — the store
   /// stays single-writer); a plain tap just lands where the reminder points.
   static Future<void> _handleResponse(String? payload, String? actionId) async {
+    if (actionId == 'bns_later') {
+      // "Later, I said so" (owner, 2026-08-15): the task moves by the
+      // person's will — two hours, nothing marked, no judgment. The
+      // reminder simply keeps their word and knocks again.
+      if (payload != null) {
+        await IsarService.snoozeReminder(
+            payload, DateTime.now().add(const Duration(hours: 2)));
+        await rescheduleAll(force: true);
+      }
+      onOpen?.call('/');
+      return;
+    }
     if (actionId == 'bns_done') {
       await _answerFromShade(payload, done: true);
       onOpen?.call(routeForReminderPayload(payload));
@@ -164,14 +176,23 @@ class NotificationsService {
     final settings = await IsarService.getSettings();
     final routines = await IsarService.getAllRoutines();
     final events = await IsarService.getAllEvents();
+    final snoozes = await IsarService.getReminderSnoozes();
     final now = DateTime.now();
 
     final fingerprint = reminderFingerprint(
-        routines: routines, events: events, settings: settings, now: now);
+        routines: routines,
+        events: events,
+        settings: settings,
+        now: now,
+        snoozes: snoozes);
     if (!force && fingerprint == _lastFingerprint) return;
 
     final plan = planReminders(
-        routines: routines, events: events, settings: settings, now: now);
+        routines: routines,
+        events: events,
+        settings: settings,
+        now: now,
+        snoozes: snoozes);
 
     await _plugin.cancelAll();
     await _cleanupUnusedChannels(settings);
@@ -270,7 +291,10 @@ class NotificationsService {
         AndroidNotificationAction('bns_done', L.t('Done ✓', 'נעשה ✓'),
             showsUserInterface: true),
         AndroidNotificationAction(
-            'bns_why', L.t('Didn\'t happen — tell why', 'לא קרה — לספר למה'),
+            'bns_later', L.t('In 2 hours', 'בעוד שעתיים'),
+            showsUserInterface: true),
+        AndroidNotificationAction(
+            'bns_why', L.t('Didn\'t happen', 'לא קרה'),
             showsUserInterface: true),
       ],
     );

@@ -58,6 +58,7 @@ List<PlannedReminder> planReminders({
   required List<CalendarEvent> events,
   required AppSettings settings,
   required DateTime now,
+  Map<String, DateTime> snoozes = const {},
 }) {
   // A CAREGIVER IS NOT THE PATIENT (owner, 2026-07-27): the helper's device
   // carries the other person's day but must never buzz about it.
@@ -66,6 +67,33 @@ List<PlannedReminder> planReminders({
   }
 
   final planned = <PlannedReminder>[];
+
+  // ---- "Later, I said so": the reminders the person pushed away ----
+  // (owner, 2026-08-15: "move a task by will for a few hours"). Each
+  // snooze is its own one-shot knock at the chosen time — by name, so
+  // the return reads as keeping the person's word, not nagging.
+  final routineById = {for (final r in routines) r.id: r};
+  final eventById = {for (final e in events) e.id: e};
+  snoozes.forEach((payload, at) {
+    if (!at.isAfter(now)) return;
+    final parts = payload.split(':');
+    String? title;
+    if (parts.length >= 2 && parts[0] == 'routine') {
+      title = routineById[parts[1]]?.title;
+    } else if (parts.length >= 2 && parts[0] == 'event') {
+      title = eventById[parts[1]]?.title;
+    }
+    if (title == null) return; // the thing is gone — let the snooze go too
+    planned.add(PlannedReminder(
+      id: _stableId('z.$payload'),
+      title: L.t('As you asked', 'כמו שביקשת'),
+      body: L.t('$title — you asked to hear about it again now.',
+          '$title — ביקשת שנזכיר עכשיו.'),
+      firstAt: at,
+      repeat: PlannedRepeat.none,
+      payload: payload,
+    ));
+  });
 
   // ---- Routines: repeating, at their own time, on their own days ----
   for (final r in routines) {
@@ -185,8 +213,14 @@ String reminderFingerprint({
   required List<CalendarEvent> events,
   required AppSettings settings,
   required DateTime now,
+  Map<String, DateTime> snoozes = const {},
 }) {
-  final b = StringBuffer()
+  final b = StringBuffer();
+  // A new snooze must re-register even when nothing else moved.
+  for (final e in snoozes.entries) {
+    b.write('|z:${e.key}@${e.value.toIso8601String()}');
+  }
+  b
     ..write(L.lang)
     ..write('|${now.year}-${now.month}-${now.day}')
     ..write('|${settings.notificationsEnabled}')

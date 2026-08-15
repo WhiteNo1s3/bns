@@ -37,11 +37,18 @@ class BnsTheme {
   }) {
     final base = _seedForPalette(palette);
 
-    // Prefer dynamic (Android 12+/macOS) when available
-    final light = dynamicLight ??
-        ColorScheme.fromSeed(seedColor: base, brightness: Brightness.light);
-    final dark = dynamicDark ??
-        ColorScheme.fromSeed(seedColor: base, brightness: Brightness.dark);
+    // GOOD COLORS ARE PART OF THE CARE (owner, 2026-08-15: "its color is
+    // depressing… they are sick colors"). Material's default fromSeed
+    // washes every seed toward gray — in dark mode that meant near-black
+    // rooms with muted teal ghosts. Two changes give the app its life:
+    //   1. `fidelity` keeps the chroma of the chosen palette instead of
+    //      averaging it away;
+    //   2. surfaces get their own tone — dark rooms lift off pure black
+    //      into a soft palette-tinted deep, light rooms warm off the
+    //      sterile white. Same relaxing hues, actually visible.
+    // Dynamic color (the person's own Material You) stays untouched.
+    final light = dynamicLight ?? _lively(base, Brightness.light);
+    final dark = dynamicDark ?? _lively(base, Brightness.dark);
 
     final isDark = mode == ThemeModeSetting.dark ||
         (mode == ThemeModeSetting.system &&
@@ -81,16 +88,53 @@ class BnsTheme {
     );
   }
 
+  /// A scheme that keeps the palette's life, with rooms that are neither
+  /// black holes nor hospital white.
+  static ColorScheme _lively(Color seed, Brightness brightness) {
+    final s = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: brightness,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    );
+    if (brightness == Brightness.dark) {
+      // Lift off pure black into a soft deep tinted by the palette —
+      // the difference between a cave and an evening room.
+      Color lift(double a) =>
+          Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFF171D1B));
+      return s.copyWith(
+        surface: lift(0.045),
+        surfaceContainerLowest: lift(0.03),
+        surfaceContainerLow: lift(0.075),
+        surfaceContainer: lift(0.10),
+        surfaceContainerHigh: lift(0.13),
+        surfaceContainerHighest: lift(0.16),
+      );
+    }
+    // Light: warm the paper a touch so white stops feeling clinical.
+    Color warm(double a) =>
+        Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFFFBFAF7));
+    return s.copyWith(
+      surface: warm(0.015),
+      surfaceContainerLowest: const Color(0xFFFFFFFF),
+      surfaceContainerLow: warm(0.045),
+      surfaceContainer: warm(0.065),
+      surfaceContainerHigh: warm(0.09),
+      surfaceContainerHighest: warm(0.12),
+    );
+  }
+
   static Color _seedForPalette(RelaxingPalette p) {
     switch (p) {
       case RelaxingPalette.teal:
-        return const Color(0xFF14B8A6);
+        // A touch brighter than the old 0xFF14B8A6 — alive, still calm.
+        return const Color(0xFF17C3A8);
       case RelaxingPalette.lavender:
-        return const Color(0xFF8B5CF6);
+        return const Color(0xFF9B7BF7);
       case RelaxingPalette.sand:
-        return const Color(0xFFD97706);
+        return const Color(0xFFE8930C);
       case RelaxingPalette.deep:
-        return const Color(0xFF475569);
+        // Was a gray slate — a gloom, not a palette. Now a calm sea blue.
+        return const Color(0xFF4A7DE0);
     }
   }
 

@@ -609,6 +609,42 @@ class IsarService {
     await _persist();
   }
 
+  // ---- Reminder snoozes ("later, by my own will") ----
+
+  /// Push a reminder away until [until] (owner, 2026-08-15: "move a task
+  /// by will for a few hours"). Nothing is marked done or skipped — the
+  /// task simply knocks again later, because the person said when.
+  static Future<void> snoozeReminder(String payload, DateTime until) async {
+    final d = await _load();
+    d.reminderSnoozes[payload] = until.toIso8601String();
+    await _persist();
+  }
+
+  /// The still-future snoozes. Expired entries are dropped on read (and
+  /// persisted away on the next change) — old snoozes never haunt anyone.
+  static Future<Map<String, DateTime>> getReminderSnoozes() async {
+    final d = await _load();
+    final now = DateTime.now();
+    final out = <String, DateTime>{};
+    final dead = <String>[];
+    d.reminderSnoozes.forEach((k, v) {
+      final t = DateTime.tryParse(v);
+      if (t == null || !t.isAfter(now)) {
+        dead.add(k);
+      } else {
+        out[k] = t;
+      }
+    });
+    if (dead.isNotEmpty) {
+      for (final k in dead) {
+        d.reminderSnoozes.remove(k);
+      }
+      // Quiet cleanup — no need to wake every listener for it; the next
+      // real change persists the pruned map.
+    }
+    return out;
+  }
+
   // ---- Trusted Devices (for secure auto-sync) ----
 
   static Future<List<TrustedDevice>> getTrustedDevices() async {
@@ -909,6 +945,12 @@ class _Data {
   /// Device-local working state (the finished day travels via logs).
   final Map<String, int> stepProgress;
 
+  /// Reminders the person pushed away for a while (owner, 2026-08-15:
+  /// "move a task by will for a few hours"): reminder payload → ISO time
+  /// to knock again. Working state like [stepProgress]; past entries are
+  /// pruned as they expire.
+  final Map<String, String> reminderSnoozes;
+
   _Data({
     required this.routines,
     required this.events,
@@ -919,7 +961,9 @@ class _Data {
     required this.seeded,
     this.cleanExit = true,
     Map<String, int>? stepProgress,
-  }) : stepProgress = stepProgress ?? {};
+    Map<String, String>? reminderSnoozes,
+  })  : stepProgress = stepProgress ?? {},
+        reminderSnoozes = reminderSnoozes ?? {};
 
   factory _Data.empty() => _Data(
         routines: [],
@@ -942,6 +986,7 @@ class _Data {
         'logs': logs.map((e) => e.toJson()).toList(),
         'trusted': trusted.map((e) => e.toJson()).toList(),
         'stepProgress': stepProgress,
+        if (reminderSnoozes.isNotEmpty) 'reminderSnoozes': reminderSnoozes,
       };
 
   factory _Data.fromJson(Map<String, dynamic> json) => _Data(
@@ -967,5 +1012,7 @@ class _Data {
             .toList(),
         stepProgress: (json['stepProgress'] as Map? ?? const {})
             .map((k, v) => MapEntry(k.toString(), (v as num).toInt())),
+        reminderSnoozes: (json['reminderSnoozes'] as Map? ?? const {})
+            .map((k, v) => MapEntry(k.toString(), v.toString())),
       );
 }

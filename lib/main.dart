@@ -21,6 +21,7 @@ import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
 import 'package:bns/core/kept_memory.dart';
+import 'package:bns/core/care_lock.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
@@ -2230,8 +2231,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 'הכפתור הזה מיועד למלווה. '
                                     'לחיצה ארוכה — וההגדרות נפתחות.'))));
                       },
-                      onLongPress: () => context
-                          .push('/routines', extra: {'caregiver': true}),
+                      onLongPress: () async {
+                        // The caregiver's key guards the building side too
+                        // (owner, 2026-08-15) — the person's own answering
+                        // stays untouched by any lock, ever.
+                        if (!await showCareUnlockDialog(context)) return;
+                        if (!mounted) return;
+                        await context
+                            .push('/routines', extra: {'caregiver': true});
+                      },
                       icon: const Icon(Icons.volunteer_activism),
                       label: Text(L.t('Caregiver — hold to set up the day',
                           'מלווה — לחיצה ארוכה לסידור היום')),

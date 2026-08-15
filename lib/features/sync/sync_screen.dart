@@ -11,6 +11,7 @@ import 'package:bns/core/sync_policy.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:bns/providers/app_providers.dart';
+import 'package:bns/core/care_lock.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/export/bns_save_out.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -1176,11 +1177,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// stay the easy direction.
   Future<void> _setCareLevel(int level) async {
     if (level == _careLevel) return;
+
+    // THE CAREGIVER'S KEY (owner decision, 2026-08-15): lowering out of a
+    // locked 3–4 opens with the caregiver's password. The lock exists so
+    // the arrangement that lets the caregiver NOT hover cannot dissolve
+    // under one confused tap — the app holds the day, the person keeps
+    // their independence inside it.
+    if (level < _careLevel && _careLevel >= 3) {
+      final opened = await showCareUnlockDialog(context);
+      if (!opened) return; // the day continues as it was
+    }
+
     if (level >= 4) {
       // The heavy door: guided mode's own guarded flow (turns full care on).
       if (!_guidedMode) {
         final ok = await _setGuidedMode(true);
         if (!ok) return; // cancelled — level stays where it was
+      }
+      if (!await _ensureCareLock()) {
+        // No key chosen — the raise does not happen half-way.
+        await _setGuidedMode(false);
+        await _persistCareLevel(_deriveCareLevel());
+        return;
       }
     } else if (level == 3) {
       // Any cancellable step comes FIRST — a cancel must leave everything
@@ -1188,14 +1206,37 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       if (!_fullCareMode) {
         final ok = await _setFullCareMode(true); // typed confirmation
         if (!ok) return; // cancelled — nothing changed, level stays put
+        if (!await _ensureCareLock()) {
+          await _setFullCareMode(false);
+          await _persistCareLevel(_deriveCareLevel());
+          return;
+        }
       }
-      if (_guidedMode) await _setGuidedMode(false); // lowering: one tap
+      if (_guidedMode) await _setGuidedMode(false);
     } else {
-      // Levels 1–2: only chosen things ever leave this device.
+      // Levels 1–2: only chosen things ever leave this device. Leaving a
+      // locked arrangement was opened above; the key retires with it.
       if (_guidedMode) await _setGuidedMode(false);
       if (_fullCareMode) await _setFullCareMode(false);
+      final s = await IsarService.getSettings();
+      if (s.careLockHash.isNotEmpty) {
+        await IsarService.updateSettings(s.copyWith(careLockHash: ''));
+      }
     }
     await _persistCareLevel(level);
+  }
+
+  /// Level 3–4 is set up together: the caregiver chooses the key as part
+  /// of raising. Already-locked devices keep their existing key. False =
+  /// the caregiver cancelled — the raise must not complete.
+  Future<bool> _ensureCareLock() async {
+    final s = await IsarService.getSettings();
+    if (s.careLockHash.trim().isNotEmpty) return true;
+    if (!mounted) return false;
+    final hash = await showCareLockSetupDialog(context);
+    if (hash == null) return false;
+    await IsarService.updateSettings(s.copyWith(careLockHash: hash));
+    return true;
   }
 
   /// Save the chosen level and let the whole app re-read settings.
@@ -1219,13 +1260,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// The fine-grained switches below the card keep working — and after any
   /// switch change the card's level follows, so the story stays honest.
   Future<void> _onFullCareSwitch(bool v) async {
+    // Turning OFF a locked arrangement is the caregiver's door too —
+    // the fine-grained switch must not be a way around the key.
+    if (!v && !await showCareUnlockDialog(context)) return;
     final ok = await _setFullCareMode(v);
-    if (ok) await _persistCareLevel(_deriveCareLevel());
+    if (ok) {
+      if (v && !await _ensureCareLock()) {
+        await _setFullCareMode(false);
+      }
+      await _persistCareLevel(_deriveCareLevel());
+    }
   }
 
   Future<void> _onGuidedSwitch(bool v) async {
+    if (!v && !await showCareUnlockDialog(context)) return;
     final ok = await _setGuidedMode(v);
-    if (ok) await _persistCareLevel(_deriveCareLevel());
+    if (ok) {
+      if (v && !await _ensureCareLock()) {
+        await _setGuidedMode(false);
+      }
+      await _persistCareLevel(_deriveCareLevel());
+    }
   }
 
   /// One selectable row of the care-level card — a large, honest target.

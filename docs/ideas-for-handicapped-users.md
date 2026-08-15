@@ -746,3 +746,28 @@ A middle path worth designing when the time comes:
 - If a hard lock is ever truly needed (legal guardianship cases), it must
   be a separate, explicit, documented consent moment — decided together,
   in the open, like the level-4 enable is today.
+
+---
+
+## Wave 20 — the caregiver's key, "later by my will", living colors (2026-08-16)
+
+- **The caregiver's key** (owner decision after the argument was made both
+  ways — his words: level 3–4 users "have the app to help them pass the
+  day without the caregiver to sit on their head"; the lock is what lets
+  the caregiver NOT hover). Raising to 3–4 now includes choosing a
+  password together; lowering, the fine-grained switches, and the guided
+  caregiver door all open with it. Salted hash only (`careLockHash`),
+  never the password; pre-lock devices stay open; leaving to 1–2 retires
+  the key. The person's own answering is never behind any lock. Wrong
+  tries get warmth, not accusation: "הדלת הזאת נשארת אצל המלווה. הכול
+  בסדר — היום שלך ממשיך כרגיל."
+- **"בעוד שעתיים"** — a third button on every reminder: the task moves by
+  the person's will, nothing marked, no judgment. The snooze lives in the
+  data (survives shade sweeps and restarts) and returns BY NAME: "תרופות
+  הבוקר — ביקשת שנזכיר עכשיו." Expired snoozes prune themselves; a snooze
+  for a deleted thing stays silent.
+- **Living colors** (owner: "they are sick colors"): fromSeed's gray-wash
+  replaced with fidelity chroma; dark rooms lift off pure black into a
+  palette-tinted deep; light rooms warm off clinical white; the "deep"
+  palette stopped being slate gloom and became sea blue. Verified on the
+  phone — the difference is a different app.

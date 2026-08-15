@@ -325,3 +325,10 @@ implementation detail of the app, not a format change.
 - Desktop: file association in platform folders (set during packaging).
 
 This document is the source of truth. Update it when schema changes.
+
+## Need help (2026-08-15)
+
+- `CalendarEvent.needHelp` (bool, default false): the person opened Need help on this plan.
+- `Routine.tags` may include `need-help`.
+- `QuickCapture.tags` may include `asked-help` (the Level-1 share that travels) plus `need-help` and `family`. A skip note may have `need-help` without `asked-help` — that is NOT an ask and must not notify family.
+- Family-share `.bns` now respects `careLevel`: 1 = asks only; 2 = chosen family plans + family tags + asks; 3–4 = full.

@@ -674,3 +674,34 @@ own answer on it. Everything in the design follows from that:
 - "At level 4, can the person still answer every item — and is the ADD
   field correctly out of reach?"
 - "Does it ever say anything that sounds like 'you forgot'?"
+---
+
+## Wave 18 — Need help close circuit + palace words (grokBNS pass, 2026-08-15)
+
+Level-1 people can OPEN a **Need help** / **צריך עזרה** tag on a routine or a plan. That is the only thing that leaves toward family. Skip, late, mood, location, and silence do not notify anyone.
+
+- The ask is a capture tagged `asked-help` + `family`. Family LAN devices get a DISTINCT notification: "I asked for help on this."
+- Care levels: 1 asks only; 2 chosen plans + family tags + asks; 3–4 full care (monitor, not edit). Guided (4) still shows the person ONLY the list.
+- A family / father window (`caregiverDevice`) announces itself on hello so Level 1 does not send the whole day.
+- Memories follow `kept_memory.dart`: if they recorded it, they see it. First-run seeds real words (`מנורה בננה נהר`) so the palace and day's words are not empty "A voice moment".
+- Capture add AND remove takes both work (macOS included). One mic. No STT while recording.
+
+
+## Ideas for tomorrow (2026-08-15)
+
+Routines repeat. Plans are one-off (doctor, Haifa). A note written *tonight* for a *future* day must wait on that day — blackout tomorrow, the bag list is still there. `QuickCapture.forDate` + day view **רעיונות ליום הזה**.
+
+### How this sits with wave 17's gather list
+
+The two passes arrived at the same evening from different doors, and both
+are kept because they answer different needs:
+
+- **`gather` on a plan** (wave 17) is the STRUCTURED question — named
+  things, each answered "did we take this?", readable at a glance as
+  readiness. It exists so the person can ANSWER, including at level 4.
+- **`forDate` on a capture** (this wave) is the FREE note — whatever you
+  remember at 01:00, in your own words or your own voice, pinned to the
+  day it belongs to. No structure demanded at the moment of remembering.
+
+A thought lands as a free note; the parts of it worth asking about on the
+day become gather items. Neither replaces the other.

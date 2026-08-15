@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/data/local/bns_home.dart';
+import 'package:bns/core/day_ideas.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/keybinds.dart';
 
@@ -284,6 +286,28 @@ class IsarService {
       changed = true;
     }
 
+
+    // Palace + day's words need text. A voice-only empty note reads as
+    // "A voice moment" — seed real words so the list is a list.
+    final hasWords = d.captures.any((c) =>
+        c.deletedAt == null && memoryWords(c).isNotEmpty);
+    if (!hasWords) {
+      final now = DateTime.now();
+      d.captures.add(QuickCapture(
+        id: 'seed-words-1',
+        at: now,
+        text: L.t(
+            'Recording 1\nlamp banana river',
+            'הקלטה 1\nמנורה בננה נהר'),
+        transcript: L.t('lamp banana river', 'מנורה בננה נהר'),
+        tags: const ['quick-thought', 'remember-this'],
+        memoryLevel: defaultKeptLevel,
+        contextNote: L.t('A kept thought so the palace is not empty.',
+            'מחשבה שמורה כדי שהארמון לא יהיה ריק.'),
+      ));
+      changed = true;
+    }
+
     if (changed) await _persist();
   }
 
@@ -373,11 +397,8 @@ class IsarService {
 
   static Future<List<QuickCapture>> getCapturesForDate(DateTime date) async {
     final d = await _load();
-    final start = DateTime(date.year, date.month, date.day);
-    final end = start.add(const Duration(days: 1));
     final list = d.captures
-        .where((c) =>
-            c.deletedAt == null && !c.at.isBefore(start) && c.at.isBefore(end))
+        .where((c) => c.deletedAt == null && captureBelongsToDate(c, date))
         .toList();
     list.sort((a, b) => b.at.compareTo(a.at));
     return list;
@@ -568,12 +589,22 @@ class IsarService {
     // (server credentials never travel — see BnsExporter — so incoming
     // settings must never blank them out).
     final local = d.settings;
+    // A family-share file only carries shareName (empty deviceId). Applying
+    // that stub would reset the helper's care hat and language. Leave local
+    // settings; the person's name already lives on the trusted device card.
+    if (incomingSettings.deviceId.isEmpty) {
+      await _persist();
+      return;
+    }
     d.settings = incomingSettings.copyWith(
       deviceId: local.deviceId,
       deviceName: local.deviceName,
       retentionDays: local.retentionDays,
       serverUrl: local.serverUrl,
       serverToken: local.serverToken,
+      caregiverDevice: local.caregiverDevice,
+      keybinds: local.keybinds,
+      enabledKeybinds: local.enabledKeybinds,
     );
     await _persist();
   }

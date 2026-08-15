@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/need_help.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -64,10 +65,21 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     );
 
     if (result != null) {
+      Routine saved;
       if (existing != null) {
         await IsarService.updateRoutine(result);
+        saved = result;
       } else {
-        await IsarService.addRoutine(result);
+        saved = await IsarService.addRoutine(result);
+      }
+      if (saved.needsHelp && !(existing?.needsHelp ?? false)) {
+        await IsarService.addCapture(buildAskedHelpCapture(
+          id: '',
+          at: DateTime.now(),
+          aboutTitle: saved.title,
+          linkedRoutineId: saved.id,
+          hebrew: L.isHebrew,
+        ));
       }
       await _loadRoutines();
       if (mounted) {
@@ -267,6 +279,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
   String? _time;
   bool _firstStepOnly = false;
   bool _isActive = true;
+  bool _needHelp = false;
   // The parts of this routine — each its own entity, in order.
   final List<TextEditingController> _stepTitles = [];
   final List<TextEditingController> _stepNotes = [];
@@ -283,6 +296,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       _time = r.time;
       _firstStepOnly = r.firstStepOnlyDefault;
       _isActive = r.isActive;
+      _needHelp = r.needsHelp;
       for (final s in r.steps) {
         _stepTitles.add(TextEditingController(text: s.title));
         _stepNotes.add(TextEditingController(text: s.note ?? ''));
@@ -423,7 +437,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
       isActive: _isActive,
       firstStepOnlyDefault: _firstStepOnly,
       steps: steps,
-      tags: widget.existing?.tags ?? [],
+      tags: toggleNeedHelpTag(widget.existing?.tags ?? const [], on: _needHelp),
       createdAt: widget.existing?.createdAt ?? now,
       updatedAt: now,
     );
@@ -469,6 +483,16 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                     'תיאור (לא חובה – עוזר כשהזיכרון מעורפל)'),
                 border: const OutlineInputBorder(),
               ),
+            ),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(needHelpLabel(hebrew: L.isHebrew)),
+              subtitle: Text(L.t(
+                  'I asked for help on this. Family hears only this ask.',
+                  'ביקשתי עזרה בזה. המשפחה שומעת רק את הבקשה הזאת.')),
+              value: _needHelp,
+              onChanged: (v) => setState(() => _needHelp = v),
             ),
             const SizedBox(height: 16),
             // The parts of this routine — each part is its own thing, with

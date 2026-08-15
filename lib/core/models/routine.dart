@@ -39,6 +39,8 @@ class Routine {
   final String? time; // "HH:mm" local, optional — always on a quarter hour
   final bool isActive;
   final List<String> tags;
+  bool get needsHelp => tags.any(
+      (x) => x.toLowerCase().replaceAll('#', '').trim() == 'need-help');
   final bool firstStepOnlyDefault;
   // The ordered parts of this routine (empty = a single-part routine).
   final List<RoutineStep> steps;

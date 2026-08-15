@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:bns/core/day_feed.dart';
+import 'package:bns/core/need_help.dart';
+import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
@@ -45,6 +47,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   List<CompletionLog> _todayLogs = const [];
   String _personName = '';
   DateTime? _lastSync;
+  List<QuickCapture> _asks = const [];
 
   @override
   void initState() {
@@ -96,6 +99,8 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
           : trusted
               .map((d) => d.lastSyncedAt)
               .reduce((a, b) => a.isAfter(b) ? a : b);
+      _asks = captures.where(isAskedHelpCapture).toList()
+        ..sort((a, b) => b.at.compareTo(a.at));
       _loading = false;
     });
   }
@@ -213,6 +218,42 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                           fontSize: 20, fontWeight: FontWeight.w600),
                     ),
                   ),
+
+
+                  if (_asks.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      color: cs.tertiaryContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              L.t('They asked for help', 'הם ביקשו עזרה'),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 18),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              askedHelpShareLine(hebrew: L.isHebrew),
+                              style: TextStyle(color: cs.onTertiaryContainer),
+                            ),
+                            const SizedBox(height: 8),
+                            for (final a in _asks.take(6))
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  '• ${memoryWords(a).isEmpty ? (a.contextNote ?? '') : memoryWords(a)}',
+                                  style: const TextStyle(fontSize: 16, height: 1.3),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
                   // How the day is going — counted, never scored.
                   Padding(

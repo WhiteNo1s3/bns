@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:bns/core/day_feed.dart';
+import 'package:bns/core/day_ideas.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
@@ -59,10 +60,7 @@ class _DayViewState extends State<DayView> {
     // (Hiding "quick" made recorded memories vanish.)
     final allCaptures = await IsarService.getAllCaptures();
     _dayMemories = visibleMemories(allCaptures)
-        .where((c) =>
-            c.at.year == _date.year &&
-            c.at.month == _date.month &&
-            c.at.day == _date.day)
+        .where((c) => captureBelongsToDate(c, _date))
         .toList();
 
     if (mounted) setState(() => _loading = false);
@@ -460,7 +458,12 @@ class _DayViewState extends State<DayView> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(e.time ?? L.t('All day', 'כל היום')),
+                              // Time, and whatever was written about it.
+                              Text([
+                                e.time ?? L.t('All day', 'כל היום'),
+                                if ((e.notes ?? '').trim().isNotEmpty)
+                                  e.notes!.trim(),
+                              ].join(' · ')),
                               const SizedBox(height: 6),
                               // WHAT DO WE TAKE — built here, the night
                               // before, so the day itself only has to be
@@ -607,17 +610,16 @@ class _DayViewState extends State<DayView> {
                   // said nicely, to be met on the day itself.
                   Text(
                       _isFutureDay
-                          ? L.t('Thoughts for this day ahead',
-                              'מחשבות ליום שעוד יבוא')
+                          ? L.t('Ideas for this day', 'רעיונות ליום הזה')
                           : L.t('Memories for this day', 'זיכרונות מהיום הזה'),
                       style: Theme.of(context).textTheme.titleMedium),
                   Text(
                       _isFutureDay
                           ? L.t(
-                              'No one can see the future — but a worry or a hope '
-                              'can be written down now, and met gently when the day comes.',
-                              'אף אחד לא רואה את העתיד — אבל דאגה או תקווה אפשר '
-                              'לכתוב כבר עכשיו, ולפגוש אותן בעדינות כשהיום יגיע.')
+                              'Write what to take, what to remember. If tomorrow '
+                              'is a blackout, this list is still here.',
+                              'לכתוב מה לקחת, מה לזכור. אם מחר יש בלאקאאוט — '
+                              'הרשימה עדיין כאן.')
                           : L.t(
                               'Everything you kept this day lives here.',
                               'כל מה ששמרת ביום הזה חי כאן.'),
@@ -627,8 +629,8 @@ class _DayViewState extends State<DayView> {
                               Theme.of(context).colorScheme.onSurfaceVariant)),
                   if (_dayMemories.isEmpty)
                     Text(_isFutureDay
-                        ? L.t('Nothing written for this day ahead yet.',
-                            'עוד לא נכתב כלום ליום הזה.')
+                        ? L.t('No ideas for this day yet.',
+                            'עוד אין רעיונות ליום הזה.')
                         : L.t(
                             'Nothing kept for this day yet.',
                             'עוד לא נשמר כלום ליום הזה.'))
@@ -682,14 +684,16 @@ class _DayViewState extends State<DayView> {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const QuickCaptureScreen(),
+                                builder: (_) => QuickCaptureScreen(
+                                  forDate: DateFormat('yyyy-MM-dd').format(_date),
+                                ),
                               ),
                             );
                             await _loadData();
                           },
                           child: Text(_isFutureDay
-                              ? L.t('Write a worry or a hope for this day',
-                                  'לכתוב דאגה או תקווה ליום הזה')
+                              ? L.t('Add an idea for this day',
+                                  'להוסיף רעיון ליום הזה')
                               : L.t('Remember this day / what happened',
                                   'לזכור את היום הזה / מה שקרה')),
                         ),

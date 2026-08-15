@@ -27,6 +27,9 @@ class QuickCapture {
   final String?
       contextNote; // "what happened / why the crisis or event in the routine"
   final bool isDayMemory; // capture the day itself
+  /// The calendar day this idea is FOR. Written tonight, waiting tomorrow.
+  /// Empty = belongs to the day it was recorded ([at]).
+  final String? forDate; // YYYY-MM-DD
   final DateTime? deletedAt; // trash: null = active; auto-remove after 3 days
 
   const QuickCapture({
@@ -42,6 +45,7 @@ class QuickCapture {
     this.memoryLevel = MemoryLevel.quick,
     this.contextNote,
     this.isDayMemory = false,
+    this.forDate,
     this.deletedAt,
   });
 
@@ -58,6 +62,7 @@ class QuickCapture {
     MemoryLevel? memoryLevel,
     Object? contextNote = _unset,
     bool? isDayMemory,
+    Object? forDate = _unset,
     Object? deletedAt = _unset,
   }) {
     return QuickCapture(
@@ -79,6 +84,7 @@ class QuickCapture {
       contextNote:
           contextNote == _unset ? this.contextNote : contextNote as String?,
       isDayMemory: isDayMemory ?? this.isDayMemory,
+      forDate: forDate == _unset ? this.forDate : forDate as String?,
       deletedAt: deletedAt == _unset ? this.deletedAt : deletedAt as DateTime?,
     );
   }
@@ -100,6 +106,7 @@ class QuickCapture {
         'memoryLevel': memoryLevel.name,
         'contextNote': contextNote,
         'isDayMemory': isDayMemory,
+        'forDate': forDate,
         'deletedAt': deletedAt?.toIso8601String(),
       };
 
@@ -118,6 +125,7 @@ class QuickCapture {
             MemoryLevel.quick,
         contextNote: json['contextNote'] as String?,
         isDayMemory: json['isDayMemory'] as bool? ?? false,
+        forDate: json['forDate'] as String?,
         deletedAt: json['deletedAt'] == null
             ? null
             : DateTime.tryParse(json['deletedAt'] as String),

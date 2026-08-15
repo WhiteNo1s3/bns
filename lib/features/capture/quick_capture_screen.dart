@@ -32,6 +32,8 @@ class QuickCaptureScreen extends StatefulWidget {
   /// True when arriving from the home-widget 🎤 button: start recording
   /// immediately — one tap from home screen to talking.
   final bool autoRecord;
+  /// Calendar day this idea is for (YYYY-MM-DD). Tonight's bag for tomorrow.
+  final String? forDate;
 
   const QuickCaptureScreen({
     super.key,
@@ -40,6 +42,7 @@ class QuickCaptureScreen extends StatefulWidget {
     this.initialText,
     this.initialTags,
     this.autoRecord = false,
+    this.forDate,
   });
 
   @override
@@ -358,6 +361,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
     tags.addAll(
         _selectedTags); // include user chosen tags like crisis, good, felt safe etc.
+    if (widget.forDate != null && widget.forDate!.trim().isNotEmpty) {
+      tags.add('day-idea');
+    }
 
     // EVERY take is kept, not just the last one: a person who recorded
     // three times said three things, and a voice that was recorded must
@@ -386,6 +392,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       contextNote: _contextController.text.trim().isEmpty
           ? null
           : _contextController.text.trim(),
+      forDate: widget.forDate,
     );
 
     try {

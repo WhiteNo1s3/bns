@@ -72,6 +72,8 @@ class CalendarEvent {
   // the family-share export — the rest is none of their business (owner
   // decision, 2026-07-06).
   final bool shareWithFamily;
+  // Opened by the person — Level 1 close circuit. Not a tracker.
+  final bool needHelp;
 
   // A plan CARRIES WEIGHT (owner, 2026-08-09): a doctor appointment or a
   // one-time thing for today stands in the day like a gentle step — it can
@@ -99,6 +101,7 @@ class CalendarEvent {
     this.notes,
     this.isAllDay = false,
     this.shareWithFamily = false,
+    this.needHelp = false,
     this.answer,
     this.answerReason,
     this.answerAt,
@@ -129,6 +132,7 @@ class CalendarEvent {
     Object? notes = _unset,
     bool? isAllDay,
     bool? shareWithFamily,
+    bool? needHelp,
     Object? answer = _unset,
     Object? answerReason = _unset,
     Object? answerAt = _unset,
@@ -144,6 +148,7 @@ class CalendarEvent {
       notes: notes == _unset ? this.notes : notes as String?,
       isAllDay: isAllDay ?? this.isAllDay,
       shareWithFamily: shareWithFamily ?? this.shareWithFamily,
+      needHelp: needHelp ?? this.needHelp,
       answer: answer == _unset ? this.answer : answer as String?,
       answerReason:
           answerReason == _unset ? this.answerReason : answerReason as String?,
@@ -162,6 +167,7 @@ class CalendarEvent {
         'notes': notes,
         'isAllDay': isAllDay,
         'shareWithFamily': shareWithFamily,
+        'needHelp': needHelp,
         'answer': answer,
         'answerReason': answerReason,
         'answerAt': answerAt?.toIso8601String(),
@@ -179,6 +185,7 @@ class CalendarEvent {
         notes: json['notes'] as String?,
         isAllDay: json['isAllDay'] as bool? ?? false,
         shareWithFamily: json['shareWithFamily'] as bool? ?? false,
+        needHelp: json['needHelp'] as bool? ?? false,
         answer: json['answer'] as String?,
         answerReason: json['answerReason'] as String?,
         answerAt: json['answerAt'] == null

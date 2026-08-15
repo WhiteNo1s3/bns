@@ -11,6 +11,7 @@ import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/gather_sheet.dart';
 
 /// Day detail view.
 /// Shows:
@@ -295,6 +296,24 @@ class _DayViewState extends State<DayView> {
     return '${(total ~/ 60).toString().padLeft(2, '0')}:${(total % 60).toString().padLeft(2, '0')}';
   }
 
+  /// "What do we take?" — the list is BUILT here (tonight, calmly) and
+  /// answered on the day. In guided mode the helper builds it; answering
+  /// stays open to the person at every level, always.
+  Future<void> _openGather(CalendarEvent plan) async {
+    final settings = await IsarService.getSettings();
+    if (!mounted) return;
+    await showGatherSheet(
+      context: context,
+      plan: plan,
+      canEdit: !settings.guidedMode,
+      onChanged: (items) async {
+        await IsarService.addEvent(
+            plan.copyWith(gather: items, updatedAt: DateTime.now()));
+        await _loadData();
+      },
+    );
+  }
+
   /// Flip "family can know" on an existing event (upsert keeps the id).
   Future<void> _toggleFamilyShare(CalendarEvent e) async {
     final updated = e.copyWith(
@@ -438,7 +457,39 @@ class _DayViewState extends State<DayView> {
                     ..._events.map((e) => ListTile(
                           leading: const Icon(Icons.event_note),
                           title: Text(e.title),
-                          subtitle: Text(e.time ?? L.t('All day', 'כל היום')),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(e.time ?? L.t('All day', 'כל היום')),
+                              const SizedBox(height: 6),
+                              // WHAT DO WE TAKE — built here, the night
+                              // before, so the day itself only has to be
+                              // answered (owner, 2026-08-15).
+                              OutlinedButton.icon(
+                                onPressed: () => _openGather(e),
+                                style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(48)),
+                                icon: Icon(
+                                    e.gatherReady
+                                        ? Icons.check_circle_outline
+                                        : Icons.backpack_outlined,
+                                    size: 20),
+                                label: Text(
+                                  !e.hasGather
+                                      ? L.t('What do we take?',
+                                          'מה לוקחים?')
+                                      : e.gatherReady
+                                          ? L.t('Everything is with us 🌿',
+                                              'הכול איתנו 🌿')
+                                          : L.t(
+                                              'What do we take? ${e.gatherTaken} of ${e.gather.length}',
+                                              'מה לוקחים? ${e.gatherTaken} מתוך ${e.gather.length}'),
+                                  style: const TextStyle(fontSize: 13.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
                           trailing: IconButton(
                             icon: Icon(
                               e.shareWithFamily

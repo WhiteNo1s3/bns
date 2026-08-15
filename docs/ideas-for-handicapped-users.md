@@ -599,3 +599,78 @@ opposite ends, and each had half the answer.
 - "From the calendar, mark something 'didn't happen' and say why — is the
   reason actually on the skip afterwards?"
 - "Can you get everywhere with the bottom doors, without reading icons?"
+
+---
+
+## Wave 17 — tomorrow, set up tonight; and "what do we take?" (owner, 2026-08-15)
+
+### Where this came from
+
+Not a feature request — a thing the owner watched work, in rehabilitation
+at Shiba, said in his own words:
+
+> "even handicap on wheelchair that cannot gather the stuff, the caregiver
+> can assist and tell him, did we take X did we take Y to make his brain
+> tick and make him feel part of it and not a standby... the professional
+> around him treated **him** not his caregiver, and gave him the knowledge
+> and the ability to be a part of something. ריפוי בעיסוק, useless for
+> people with no ability to move — in Shiba hospital they don't think so
+> and they do many versions for anyone with disability. You make them feel
+> good about themselves instead of treating them like dolls."
+
+And the second half, from waking at 15:30 with no idea what the day held:
+
+> "planning tomorrow the night before so I wake into a ready day."
+
+### The law that came out of it
+
+**THE PERSON ANSWERS. Someone else may carry the bag.**
+
+A gather list is not a packing chore — it is a question with the person's
+own answer on it. Everything in the design follows from that:
+
+- **Answering works at EVERY care level, including level 4.** Only
+  *building* the list is locked to the helper in guided mode. Locking the
+  answering would remove the exact thing that makes someone a participant.
+- **The voice is WE** — "לקחנו את זה?" — never "did you remember". A
+  question in the plural cannot curdle into an accusation, and it is
+  honest: the helper really is doing it with them.
+- **Progress reads as readiness**, "2 of 4 are with us", never a count of
+  what is missing. The person who cannot fetch things must never be shown
+  a tally of their own inability.
+- **"Not yet" is a state, never a failure**, and an answer can always be
+  taken back — same law as the ✓ everywhere else in BNS.
+
+### Shipped
+
+- ✅ `GatherItem` on a plan (`CalendarEvent.gather`) — an answer is a
+  MOMENT (`takenAt`), not a bare flag, so the day can show when it was
+  answered. Round-trips through JSON, `.bns` and sync; a plan written
+  before today still opens, and an empty list adds nothing to the file.
+- ✅ **The gather sheet**: big row-sized targets, a buzz on each answer,
+  dictation on the add field, remove behind an edit-only ✕.
+- ✅ **On the day itself**: a plan on Today carries "מה לוקחים? 2 מתוך 4
+  כבר איתנו", turning to "הכול איתנו 🌿" when ready.
+- ✅ **Tomorrow, tonight**: "לסדר את מחר, כשרגוע" on Today opens tomorrow,
+  where plans and their gather lists are built in advance — so waking
+  means opening a day that is already laid out, not facing a blank one.
+
+### Parked (don't lose)
+
+- The caregiver's own device should be able to build tomorrow's gather
+  list remotely and have it arrive by LAN sync — the plumbing exists
+  (auto-sync to trusted devices), it just needs the caregiver-side screen.
+- A gather list on a ROUTINE (not only a one-time plan) — "what do I take
+  every time I leave the house".
+- Reading the list aloud item by item, so the question can be *heard*
+  rather than read — closest thing to the caregiver's voice asking.
+- A "we did this together" line kept with the answer, for the person who
+  wants to remember who helped.
+
+### Live test questions
+
+- "Set up tomorrow tonight with a doctor appointment and four things to
+  take. In the morning, is it all sitting there waiting?"
+- "At level 4, can the person still answer every item — and is the ADD
+  field correctly out of reach?"
+- "Does it ever say anything that sounds like 'you forgot'?"

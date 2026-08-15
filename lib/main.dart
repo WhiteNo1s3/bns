@@ -15,6 +15,7 @@ import 'package:bns/core/day_items.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/plan_tile.dart';
+import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
@@ -24,6 +25,7 @@ import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
+import 'package:bns/features/calendar/day_view.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/features/memory/memories_screen.dart';
@@ -902,6 +904,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             big: _guidedMode,
             onToggle: () => _togglePlanDone(item),
             onSkip: () => _openPlanDidntHappenSheet(item),
+            onGather: () => _openGather(item),
           ),
         ));
       }
@@ -1411,6 +1414,40 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ),
       ),
     );
+  }
+
+  /// "What do we take?" — opened from a plan on the day.
+  ///
+  /// ANSWERING IS OPEN TO EVERYONE, including level 4 (owner, 2026-08-15,
+  /// from Shiba: the person who cannot gather a thing is still asked, and
+  /// the asking is what keeps them a participant instead of a bystander).
+  /// Only BUILDING the list is the helper's, in guided mode.
+  Future<void> _openGather(CalendarEvent plan) async {
+    await showGatherSheet(
+      context: context,
+      plan: plan,
+      canEdit: !_guidedMode,
+      onChanged: (items) async {
+        await IsarService.addEvent(
+            plan.copyWith(gather: items, updatedAt: DateTime.now()));
+        await _refreshDoneToday();
+        AndroidBnsWidget.updateWidget();
+      },
+    );
+  }
+
+  /// TOMORROW, SET UP TONIGHT (owner, 2026-08-15: "planning tomorrow the
+  /// night before so I wake into a ready day"). Waking with no idea what
+  /// the day holds is the thing that costs a whole morning — and the
+  /// evening is when there is calm to decide. This opens tomorrow itself,
+  /// where plans and their gather lists are built in advance.
+  Future<void> _planTomorrow() async {
+    final tomorrow = _logicalToday.add(const Duration(days: 1));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DayView(date: tomorrow)),
+    );
+    await _refreshDoneToday();
   }
 
   /// A one-time thing lands in today without touching routines (owner,
@@ -2019,6 +2056,28 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 // Routines AND plans, woven by one clock
                                 // (a plan carries the weight of a step).
                                 ..._dayTiles(dayList),
+
+                                // TOMORROW IS DECIDED TONIGHT. Waking with
+                                // no idea what the day holds costs the
+                                // whole morning (owner, 2026-08-15: "I woke
+                                // up today at 15:30... I had no clue what to
+                                // do"). The evening is when there is calm to
+                                // choose — and what gets set up here is
+                                // waiting, already answered-for, on waking.
+                                if (!_guidedMode) ...[
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: _planTomorrow,
+                                    icon: const Icon(Icons.bedtime_outlined,
+                                        size: 20),
+                                    style: OutlinedButton.styleFrom(
+                                        minimumSize:
+                                            const Size.fromHeight(52)),
+                                    label: Text(L.t(
+                                        'Set up tomorrow, while it\'s calm',
+                                        'לסדר את מחר, כשרגוע')),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

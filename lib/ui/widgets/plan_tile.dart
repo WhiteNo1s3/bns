@@ -14,12 +14,17 @@ class PlanTile extends StatelessWidget {
   final VoidCallback onSkip;
   final bool big;
 
+  /// Opens "what do we take". Present at every care level — answering the
+  /// list is the person's part even when building it is not.
+  final VoidCallback? onGather;
+
   const PlanTile({
     super.key,
     required this.plan,
     required this.onToggle,
     required this.onSkip,
     this.big = false,
+    this.onGather,
   });
 
   @override
@@ -106,6 +111,36 @@ class PlanTile extends StatelessWidget {
                           fontSize: big ? 15 : 12.5,
                           fontStyle: FontStyle.italic,
                           color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    // WHAT WE TAKE, right on the day. Said as readiness,
+                    // never as a score of what is missing — "2 of 4 are
+                    // with us" invites the next answer; "2 missing" is an
+                    // accusation aimed at the person who cannot fetch them.
+                    if (plan.hasGather && !plan.isAnswered) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onGather,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: Size.fromHeight(big ? 56 : 48),
+                          foregroundColor: plan.gatherReady
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        icon: Icon(
+                            plan.gatherReady
+                                ? Icons.check_circle_outline
+                                : Icons.backpack_outlined,
+                            size: big ? 24 : 20),
+                        label: Text(
+                          plan.gatherReady
+                              ? L.t('Everything is with us 🌿',
+                                  'הכול איתנו 🌿')
+                              : L.t(
+                                  'What do we take? ${plan.gatherTaken} of ${plan.gather.length} are with us',
+                                  'מה לוקחים? ${plan.gatherTaken} מתוך ${plan.gather.length} כבר איתנו'),
+                          style: TextStyle(fontSize: big ? 16 : 13.5),
                         ),
                       ),
                     ],

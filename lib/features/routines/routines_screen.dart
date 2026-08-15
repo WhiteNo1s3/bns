@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bns/core/care_lock.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/need_help.dart';
 import 'package:bns/core/models/models.dart';
@@ -51,8 +52,13 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       setState(() {
         _routines = routines;
         // The caregiver's long-hold opens the same screen with hands:
-        // guided view-only melts away, changes save straight to this device.
-        _guided = settings.guidedMode && !widget.caregiverUnlock;
+        // guided view-only melts away, changes save straight to this
+        // device. The flag alone is not enough — the caregiver's key must
+        // have been opened this sitting (level-4 tester, 2026-08-16,
+        // reached Add/Edit/Trash through a door that only checked the
+        // flag). No key session → the hands stay off, whoever asks.
+        _guided = settings.guidedMode &&
+            !(widget.caregiverUnlock && CareState.caregiverUnlocked);
         _loading = false;
       });
     }

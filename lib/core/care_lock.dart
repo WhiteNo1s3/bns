@@ -31,6 +31,37 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 
+/// THE CONTAINMENT STATE — one truth the whole app can ask synchronously.
+///
+/// A level-4 tester walked out of the list through every side door
+/// (2026-08-16 report: the menu, the bottom doors, keyboard shortcuts,
+/// the caregiver screen itself). Scattered `if (_guided)` checks each
+/// screen remembered on its own is how those doors were left open — so
+/// the state lives HERE, fed by main on every settings change, and the
+/// router, the app bar, the keybinds and the screens all ask the same
+/// object.
+class CareState {
+  CareState._();
+
+  /// Live guided-mode flag (level 4). Fed by main at startup and on every
+  /// persisted change; readable synchronously anywhere (router redirects
+  /// cannot await).
+  static final ValueNotifier<bool> guided = ValueNotifier<bool>(false);
+
+  static DateTime? _unlockedUntil;
+
+  /// The caregiver opened their door moments ago — routes that belong to
+  /// them (routines building, settings) stay open for a short window, so
+  /// one password covers one sitting, not one tap.
+  static bool get caregiverUnlocked =>
+      _unlockedUntil != null && DateTime.now().isBefore(_unlockedUntil!);
+
+  static void noteUnlocked() =>
+      _unlockedUntil = DateTime.now().add(const Duration(minutes: 5));
+
+  static void relock() => _unlockedUntil = null;
+}
+
 /// 'salt:hash' for [password]. A fresh random salt per set.
 String makeCareLockHash(String password, {String? salt}) {
   final s = salt ??
@@ -59,10 +90,25 @@ Future<bool> careLockIsSet() async =>
 ///
 /// The person seeing this dialog may be at level 3–4: the words stay
 /// warm, the day goes on, and nothing about a wrong try is held anywhere.
-Future<bool> showCareUnlockDialog(BuildContext context) async {
+Future<bool> showCareUnlockDialog(
+  BuildContext context, {
+  bool offerSetupIfMissing = false,
+}) async {
   final settings = await IsarService.getSettings();
   final stored = settings.careLockHash.trim();
-  if (stored.isEmpty) return true;
+  if (stored.isEmpty) {
+    // A guided device with no key yet must not swing open (level-4 tester,
+    // 2026-08-16: "no caregiver lock... I cannot lock it myself") — the
+    // first caregiver through this door SETS the key, right here.
+    if (!offerSetupIfMissing) return true;
+    if (!context.mounted) return false;
+    final hash = await showCareLockSetupDialog(context);
+    if (hash == null) return false;
+    await IsarService.updateSettings(
+        (await IsarService.getSettings()).copyWith(careLockHash: hash));
+    CareState.noteUnlocked();
+    return true;
+  }
   if (!context.mounted) return false;
 
   final ctrl = TextEditingController();
@@ -108,6 +154,7 @@ Future<bool> showCareUnlockDialog(BuildContext context) async {
       false;
 
   final opened = ok && verifyCareLock(stored, ctrl.text);
+  if (opened) CareState.noteUnlocked();
   ctrl.dispose();
   if (ok && !opened && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(

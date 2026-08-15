@@ -84,9 +84,15 @@ Future<void> _startupChores(List<String> args) async {
       // Turning haptics off in Settings takes effect on the very next
       // touch, not the next launch.
       BnsHaptics.refresh();
+      // The containment state follows the settings, always — the router
+      // asks it synchronously on every navigation.
+      IsarService.getSettings().then((s) {
+        CareState.guided.value = s.guidedMode;
+      }).catchError((Object _) {});
     };
     // The hand gets its answer from the first gesture onward.
     await BnsHaptics.init();
+    CareState.guided.value = (await IsarService.getSettings()).guidedMode;
     await NotificationsService.init();
     // First sweep also clears anything stale left in the shade from before
     // this launch — opening BNS means the day on screen takes over.
@@ -168,6 +174,19 @@ Widget _wrapForDesktop(BuildContext context, Widget child, String currentPath) {
 }
 
 final _router = GoRouter(
+  // LEVEL 4 IS CONTAINED AT THE DOOR FRAME, not by hiding doorknobs
+  // (level-4 tester, 2026-08-16, walked out through the menu, the bottom
+  // doors, keyboard shortcuts and the caregiver screen). Whatever opens a
+  // route — a button someone forgot to hide, a keybind, a deep link — it
+  // passes through here, and here there is one rule: a guided device
+  // shows the day and the telling door; the caregiver's rooms open inside
+  // their unlocked sitting; everything else goes home.
+  redirect: (context, state) {
+    if (!CareState.guided.value) return null;
+    if (CareState.caregiverUnlocked) return null;
+    const open = {'/', '/capture'};
+    return open.contains(state.uri.path) ? null : '/';
+  },
   routes: [
     GoRoute(
       path: '/',
@@ -419,9 +438,17 @@ class _BnsAppState extends ConsumerState<BnsApp> {
         : Keybinds.defaults;
     final enabled = settings?.enabledKeybinds ?? Keybinds.defaultEnabled;
 
+    // LEVEL 4 ON A PC: the keyboard was a corridor out of the list
+    // (level-4 tester, 2026-08-16: "all keyboard shortcuts are still
+    // on — sync, routines, memories"). In guided mode only the day's own
+    // keys survive: mark the next one, go home, tell something.
+    const guidedKeys = {'mark_done', 'open_today', 'quick_capture'};
+    final guided = settings?.guidedMode ?? false;
+
     final shortcuts = <ShortcutActivator, Intent>{};
     binds.forEach((id, combo) {
       if (enabled[id] == false) return;
+      if (guided && !guidedKeys.contains(id)) return;
       final activator = Keybinds.parse(combo);
       if (activator != null) shortcuts[activator] = _KeybindIntent(id);
     });
@@ -1621,7 +1648,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ]
             : [
                 TextButton.icon(
-                  onPressed: () => context.push('/sync'),
+                  // At level 4 settings are the caregiver's room: the same
+                  // key opens it, and a device with no key yet offers the
+                  // caregiver the setup instead of swinging open.
+                  onPressed: () async {
+                    if (_guidedMode) {
+                      final ok = await showCareUnlockDialog(context,
+                          offerSetupIfMissing: true);
+                      if (!ok || !mounted) return;
+                    }
+                    if (mounted) context.push('/sync');
+                  },
                   icon: const Icon(Icons.settings_outlined, size: 22),
                   label: Text(L.t('Settings', 'הגדרות')),
                 ),
@@ -1707,7 +1744,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                   fontSize: 22 * _textScale),
                         ),
                       ),
-                      if (!_madActive)
+                      // Level 4 gets the list, not a control panel
+                      // (tester, 2026-08-16: "Today is not only a list.
+                      // Many words. 'I am angry.' Extra buttons"). Rage
+                      // still has its door — the long-press telling flow —
+                      // without a standing button to decode.
+                      if (!_madActive && !_guidedMode)
                         TextButton.icon(
                           onPressed: _toggleMad,
                           icon: const Icon(Icons.whatshot_outlined, size: 18),
@@ -1791,7 +1833,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
                   // Gentle awareness of sync status (helps memory).
                   // Cached in state — rebuilds must stay synchronous.
-                  if (_lastSyncLine != null)
+                  // Level 4: fewer words — the machinery line stays out.
+                  if (_lastSyncLine != null && !_guidedMode)
                     Padding(
                       padding: const EdgeInsets.only(top: 4, bottom: 12),
                       child: Text(
@@ -2223,35 +2266,38 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   if (_guidedMode) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
+                      // The old tap-hint TAUGHT the way in ("hold it a
+                      // moment and the setup opens" — the level-4 tester
+                      // followed it straight to Trash/Add/Edit). A tap now
+                      // says only whose door this is; the caregiver knows
+                      // their own hold, and the key does the guarding —
+                      // with the setup offered when no key exists yet.
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(L.t(
-                                'This button is for the caregiver. '
-                                    'Hold it a moment and the setup opens.',
-                                'הכפתור הזה מיועד למלווה. '
-                                    'לחיצה ארוכה — וההגדרות נפתחות.'))));
+                                'This door belongs to the caregiver. '
+                                    'Your day is all here. 💚',
+                                'הדלת הזאת של המלווה. '
+                                    'היום שלך נמצא כולו כאן. 💚'))));
                       },
                       onLongPress: () async {
-                        // The caregiver's key guards the building side too
-                        // (owner, 2026-08-15) — the person's own answering
-                        // stays untouched by any lock, ever.
-                        if (!await showCareUnlockDialog(context)) return;
+                        if (!await showCareUnlockDialog(context,
+                            offerSetupIfMissing: true)) return;
                         if (!mounted) return;
                         await context
                             .push('/routines', extra: {'caregiver': true});
                       },
                       icon: const Icon(Icons.volunteer_activism),
-                      label: Text(L.t('Caregiver — hold to set up the day',
-                          'מלווה — לחיצה ארוכה לסידור היום')),
+                      label: Text(L.t('For the caregiver', 'למלווה')),
                     ),
                   ],
 
-                  // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26):
-                  // the floating ✓ button used to sit ON the last button
-                  // (Memory section) — unreadable, untappable. The list now
-                  // ends with clear air taller than the button, so every
-                  // last control scrolls fully past it.
-                  const SizedBox(height: 100),
+                  // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26;
+                  // again from the level-4 tester, 2026-08-16: "a list
+                  // opened over the Save button — hard to press"). The
+                  // list ends with clear air TALLER than the floating
+                  // button, so every last control scrolls fully past it.
+                  const SizedBox(height: 148),
                 ],
               ),
             ),

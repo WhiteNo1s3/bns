@@ -771,3 +771,44 @@ A middle path worth designing when the time comes:
   palette-tinted deep; light rooms warm off clinical white; the "deep"
   palette stopped being slate gloom and became sea blue. Verified on the
   phone — the difference is a different app.
+
+---
+
+## Wave 21 — the level-4 containment audit (first level-4 tester report, 2026-08-16)
+
+The tester walked out of the list through seven doors, in their words:
+extra buttons and "many words" on Today; bottom doors they should not
+have; the Companion button that "tells me how to break out"; Add/Edit/
+Trash reached and a write landing in their file; keyboard shortcuts all
+live; guidedMode flipped off in the data file with no lock. "I could
+tick things. That part is ok. I need the caregiver to lock this."
+
+### The lesson, made law
+
+Containment lives at the DOOR FRAME, not on scattered doorknobs. One
+synchronous state (`CareState` in care_lock.dart) is fed by main on every
+settings change, and the router, the app bar, the keybinds, the shell and
+the screens all ask it:
+
+- **Router redirect**: at level 4, every route but Today and the telling
+  door (capture) goes home unless the caregiver's key opened a sitting
+  (5-minute window). Buttons someone forgot to hide, keybinds, deep
+  links — all caught at one gate.
+- **Keybinds**: guided keeps only mark-next / go-home / tell-something.
+- **Menu, doors, mad button, sync line**: gone at level 4; the shell
+  listens live, so no stale flag shows doors that shouldn't exist.
+- **The Companion door stopped teaching the escape**: tap says only whose
+  door it is; the hold opens with the key — and a device with NO key yet
+  offers the caregiver the setup instead of swinging open ("I need the
+  caregiver to lock this").
+- **Routines screen hardened in depth**: the caregiver flag alone no
+  longer grants hands — only the flag PLUS an open key sitting.
+- FAB clearance raised again ("a list opened over the Save button").
+
+### Known limit, stated honestly (tester's #7)
+
+`bns_data.json` is plain JSON on the person's own device; editing
+`guidedMode` there survives. True tamper-proofing needs a secret outside
+the file (platform keystore–backed sealing of the care fields). The
+actual level-4 population does not edit JSON — this is recorded as a
+future hardening, not silently claimed as solved.

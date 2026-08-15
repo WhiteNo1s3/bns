@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:bns/core/care_lock.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
@@ -108,7 +109,24 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
   void initState() {
     super.initState();
     _updateSelectedFromPath();
+    // LIVE, not loaded-once: the tester's device still showed the doors
+    // after guided mode was set, because this flag was read a single time
+    // at startup (2026-08-16). The containment state pushes changes here.
+    _guided = CareState.guided.value;
+    CareState.guided.addListener(_onGuidedChanged);
     _loadGuided();
+  }
+
+  void _onGuidedChanged() {
+    if (mounted && CareState.guided.value != _guided) {
+      setState(() => _guided = CareState.guided.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    CareState.guided.removeListener(_onGuidedChanged);
+    super.dispose();
   }
 
   Future<void> _loadGuided() async {

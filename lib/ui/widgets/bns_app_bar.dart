@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:io' show Platform;
 import 'package:go_router/go_router.dart';
+import 'package:bns/core/care_lock.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/ui/layout.dart';
 
@@ -53,7 +54,9 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
     // need a side menu... this ain't jail"). Never on top of a back
     // arrow, never on wide screens (the sidebar already names everything).
     final canPop = Navigator.of(context).canPop();
-    final phone = !BnsLayout.isWide(context);
+    // Level 4: no menu — the whole map is exactly what the person must
+    // not be handed (tester, 2026-08-16, left the list through it).
+    final phone = !BnsLayout.isWide(context) && !CareState.guided.value;
     // Lazy + guarded: screens pushed outside the router have no
     // GoRouterState, and the bar must never crash a screen over a menu.
     bool onMenu = false;

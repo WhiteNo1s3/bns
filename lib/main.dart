@@ -2128,34 +2128,23 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         'Today\'s words — everything said and done',
                         'מילות היום — כל מה שנאמר ונעשה')),
                   ),
-                  // When the sidebar is on screen (PC or a wide tablet) it
-                  // covers navigation — these stay for phones.
-                  // Guided mode: the calendar stays (visual, read-mostly);
-                  // managing routines is the inspector's job, not shown here.
-                  if (!hasSidebar) ...[
+                  // ONE DOOR PER PLACE (found by using it, 2026-08-15).
+                  // The bottom of Today had grown to six full-width buttons
+                  // stacked in a column — and once the labeled doors arrived
+                  // at the bottom of the phone, three of them (calendar,
+                  // memories, keep-this) were second doors to rooms that
+                  // already had one. Two ways to the same place is not twice
+                  // the help; it is one more thing to read and rule out.
+                  // What stays here is only what the doors do NOT cover:
+                  // managing the routines themselves. The sidebar covers it
+                  // on PC and wide tablets; guided mode never manages.
+                  if (!hasSidebar && !_guidedMode) ...[
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => context.push('/calendar'),
-                      icon: const Icon(Icons.event_note),
-                      label: Text(L.t(
-                          'Open calendar for appointments & day notes',
-                          'לפתוח לוח שנה — תורים והערות ליום')),
-                    ),
-                    const SizedBox(height: 8),
-                    if (!_guidedMode)
                     OutlinedButton.icon(
                       onPressed: () => context.push('/routines'),
                       icon: const Icon(Icons.list_alt),
                       label: Text(L.t('Manage all routines (add, edit, delete)',
                           'ניהול כל השגרות (הוספה, עריכה, מחיקה)')),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () => context.push('/memories'),
-                      icon: const Icon(Icons.psychology),
-                      // A button says where it goes, not what the feature
-                      // is called in the spec.
-                      label: Text(L.t('Your memories', 'הזיכרונות שלך')),
                     ),
                   ],
 

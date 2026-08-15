@@ -79,8 +79,11 @@ class RoutineTile extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(20),
         child: Padding(
+          // Phone-first sizes (owner beta report, 2026-08-15: "all buttons
+          // tiny"): taller rows, a bigger box, bigger words — the tile is
+          // the thing a thumb meets a dozen times a day.
           padding: EdgeInsets.symmetric(
-              horizontal: 16, vertical: big ? 20 : 14),
+              horizontal: 16, vertical: big ? 20 : 16),
           child: Row(
             children: [
               // A real checkbox — the most recognizable "done" object there
@@ -88,7 +91,7 @@ class RoutineTile extends StatelessWidget {
               // box mirrors the row so both behave identically.
               IgnorePointer(
                 child: Transform.scale(
-                  scale: big ? 1.4 : 1.0,
+                  scale: big ? 1.4 : 1.15,
                   child: Checkbox(
                     value: isDone,
                     onChanged: (_) {},
@@ -103,7 +106,7 @@ class RoutineTile extends StatelessWidget {
                     Text(
                       routine.title,
                       style: TextStyle(
-                        fontSize: big ? 22 : 17,
+                        fontSize: big ? 22 : 18.5,
                         decoration: isDone ? TextDecoration.lineThrough : null,
                         color: isDone
                             ? colorScheme.outline

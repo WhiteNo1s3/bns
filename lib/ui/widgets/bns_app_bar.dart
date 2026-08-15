@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:io' show Platform;
+import 'package:go_router/go_router.dart';
+import 'package:bns/core/i18n/l.dart';
+import 'package:bns/ui/layout.dart';
 
 /// Adaptive AppBar for clean native feel on iOS and macOS.
 ///
@@ -44,8 +47,33 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
     // getting stuck in the memory garden with "no return to routine"). When
     // there is somewhere to return TO, the back arrow wins over any
     // decorative leading — null here lets the platform add its own back.
-    final effectiveLeading =
-        Navigator.of(context).canPop() ? null : leading;
+    //
+    // On a phone's TOP-LEVEL screens the leading spot becomes תפריט — a
+    // real word, opening the whole app by name (owner, 2026-08-15: "we
+    // need a side menu... this ain't jail"). Never on top of a back
+    // arrow, never on wide screens (the sidebar already names everything).
+    final canPop = Navigator.of(context).canPop();
+    final phone = !BnsLayout.isWide(context);
+    // Lazy + guarded: screens pushed outside the router have no
+    // GoRouterState, and the bar must never crash a screen over a menu.
+    bool onMenu = false;
+    if (!canPop && phone) {
+      try {
+        onMenu = GoRouterState.of(context).uri.path == '/menu';
+      } catch (_) {}
+    }
+    final Widget? effectiveLeading = canPop
+        ? null
+        : (phone && !onMenu
+            ? IconButton(
+                onPressed: () => context.push('/menu'),
+                tooltip: L.t('Menu', 'תפריט'),
+                iconSize: 30,
+                constraints:
+                    const BoxConstraints(minWidth: 56, minHeight: 48),
+                icon: const Icon(Icons.menu),
+              )
+            : leading);
 
     if (Platform.isIOS) {
       // Clean native iOS feel with Cupertino.

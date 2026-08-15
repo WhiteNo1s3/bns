@@ -16,6 +16,7 @@ import 'package:bns/core/owl_time.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/plan_tile.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
+import 'package:bns/ui/widgets/bns_menu_screen.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
@@ -234,6 +235,12 @@ final _router = GoRouter(
             DayThreadScreen(initialDate: date),
             state.uri.toString());
       },
+    ),
+    GoRoute(
+      path: '/menu',
+      // The phone's whole map, in words — pops in place (static law).
+      builder: (context, state) =>
+          _wrapForDesktop(context, const BnsMenuScreen(), state.uri.toString()),
     ),
   ],
 );

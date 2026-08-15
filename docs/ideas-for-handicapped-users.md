@@ -705,3 +705,44 @@ are kept because they answer different needs:
 
 A thought lands as a free note; the parts of it worth asking about on the
 day become gather items. Neither replaces the other.
+
+---
+
+## Wave 19 — first beta reports: the phone gets a menu with words (2026-08-15)
+
+Owner, after the first real reports: "I don't think its mobile first…
+only understandable at large screen, all buttons tiny, we need a side
+menu to pop instead of the bullshit icons — this ain't jail."
+
+### Shipped
+
+- ✅ **תפריט** — a labeled menu button on every top-level phone screen,
+  opening a full page that lists EVERY room by name with a one-line hint
+  under each (היום / לשמור את זה / הזיכרונות שלך / לוח שנה / מילות היום /
+  השגרות שלי / הגדרות וסנכרון). It POPS in place — a sliding drawer is
+  motion, and motion is banned by the static law — 68dp rows, 20sp words.
+  Guided mode hides the managing rooms it would only refuse inside.
+- ✅ **Bigger everything on phones**: door labels 14.5sp semibold, bar
+  84dp; routine/plan tiles 18.5sp titles, taller rows, bigger checkboxes.
+
+### PARKED — needs a calm decision, not a rushed one: locking levels 3–4
+
+Owner idea, same day: once a caregiver sets level 3/4, the person cannot
+undo it; a caregiver-set password guards it. Owner himself: "too early".
+
+The honest tension with the standing laws, so it never gets built
+thoughtlessly: **"turning it off is always one tap" is written into the
+full-care law on purpose** — sharing is always the PERSON's side of the
+wall, and a lock the person cannot open inverts that power toward the
+caregiver. "This ain't jail" cuts both ways.
+
+A middle path worth designing when the time comes:
+- Lock the EDITING side at level 4 (day-building already belongs to the
+  inspector — a password there guards against confused un-configuring).
+- Never lock the person's exit from BEING WATCHED (levels 3+). Exiting
+  full care can notify the caregiver ("the sharing was turned off") so a
+  confused tap gets noticed and talked about — visibility instead of a
+  cage.
+- If a hard lock is ever truly needed (legal guardianship cases), it must
+  be a separate, explicit, documented consent moment — decided together,
+  in the open, like the level-4 enable is today.

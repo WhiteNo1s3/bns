@@ -42,13 +42,14 @@ class PlanTile extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(20),
         child: Padding(
+          // Same phone-first sizes as RoutineTile — one hand, one scale.
           padding:
-              EdgeInsets.symmetric(horizontal: 16, vertical: big ? 20 : 14),
+              EdgeInsets.symmetric(horizontal: 16, vertical: big ? 20 : 16),
           child: Row(
             children: [
               IgnorePointer(
                 child: Transform.scale(
-                  scale: big ? 1.4 : 1.0,
+                  scale: big ? 1.4 : 1.15,
                   child: Checkbox(value: isDone, onChanged: (_) {}),
                 ),
               ),
@@ -60,7 +61,7 @@ class PlanTile extends StatelessWidget {
                     Text(
                       plan.title,
                       style: TextStyle(
-                        fontSize: big ? 22 : 17,
+                        fontSize: big ? 22 : 18.5,
                         decoration:
                             isDone ? TextDecoration.lineThrough : null,
                         color: isDone

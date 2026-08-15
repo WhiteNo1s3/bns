@@ -587,14 +587,25 @@ class _PhoneDoors extends StatelessWidget {
 
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        // NavigationBar insists on a selected index; when the person is
-        // off-map we mark Today and dim nothing — see labelBehavior.
-        selectedIndex: here ?? 0,
-        height: 76,
-        animationDuration: Duration.zero, // static: nothing slides
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        onDestinationSelected: (i) => context.go(_routes[i]),
+      // Bigger words, bigger icons (owner beta report, 2026-08-15: "all
+      // buttons tiny... only understandable at large screen"). The doors
+      // are the phone's main hands — they get phone-first sizes.
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          labelTextStyle: WidgetStatePropertyAll(TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface,
+          )),
+        ),
+        child: NavigationBar(
+          // NavigationBar insists on a selected index; when the person is
+          // off-map we mark Today and dim nothing — see labelBehavior.
+          selectedIndex: here ?? 0,
+          height: 84,
+          animationDuration: Duration.zero, // static: nothing slides
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) => context.go(_routes[i]),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.today_outlined, size: 28),
@@ -617,6 +628,7 @@ class _PhoneDoors extends StatelessWidget {
             label: L.t('Calendar', 'לוח שנה'),
           ),
         ],
+        ),
       ),
     );
   }

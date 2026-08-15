@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
+import 'package:bns/services/haptics.dart';
 import 'package:bns/services/tts_service.dart';
 
 /// Reusable tile for routines — a CHECKBOX row (owner, 2026-07-08: "V is
@@ -69,7 +70,13 @@ class RoutineTile extends StatelessWidget {
           : null,
       child: InkWell(
         onTap: onToggle,
-        onLongPress: onSkip,
+        // The buzz IS the responsiveness: it lands the instant the press
+        // registers, so the finger knows it was heard instead of waiting
+        // on a sheet to appear (owner QA, 2026-08-15).
+        onLongPress: () {
+          BnsHaptics.longPress();
+          onSkip();
+        },
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: EdgeInsets.symmetric(

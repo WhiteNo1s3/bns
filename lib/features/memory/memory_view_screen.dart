@@ -4,6 +4,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/recording_text.dart';
+import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
@@ -86,6 +87,12 @@ class MemoryViewScreen extends StatelessWidget {
               dateStr,
               style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
             ),
+            // What this moment was marked as — visible at last. A tag the
+            // person chose used to vanish the moment it was saved.
+            if (memory.tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              TagFlairRow(tags: memory.tags),
+            ],
             const SizedBox(height: 16),
             Text(
               words.isEmpty

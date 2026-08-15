@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/calendar_event.dart';
+import 'package:bns/services/haptics.dart';
 
 /// A PLAN standing in the day (owner, 2026-08-09): a doctor appointment, a
 /// one-time thing — not a routine, but today it carries the same weight as
@@ -29,7 +30,11 @@ class PlanTile extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: onToggle,
-        onLongPress: onSkip,
+        // Same hand, same answer: a plan's long-press buzzes too.
+        onLongPress: () {
+          BnsHaptics.longPress();
+          onSkip();
+        },
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding:

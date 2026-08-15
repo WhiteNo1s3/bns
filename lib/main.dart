@@ -40,6 +40,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/desktop_reminder_service.dart';
+import 'package:bns/services/haptics.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/file_handler.dart';
@@ -76,7 +77,12 @@ Future<void> _startupChores(List<String> args) async {
     IsarService.onDataChanged = () {
       NotificationsService.maybeRescheduleSoon();
       LanSyncService.instance.noteLocalDataChanged();
+      // Turning haptics off in Settings takes effect on the very next
+      // touch, not the next launch.
+      BnsHaptics.refresh();
     };
+    // The hand gets its answer from the first gesture onward.
+    await BnsHaptics.init();
     await NotificationsService.init();
     // First sweep also clears anything stale left in the shade from before
     // this launch — opening BNS means the day on screen takes over.

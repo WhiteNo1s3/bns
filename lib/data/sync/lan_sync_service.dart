@@ -207,8 +207,20 @@ class LanSyncService {
 
     await refreshTrustPolicy();
 
-    _udpSocket =
-        await RawDatagramSocket.bind(InternetAddress.anyIPv4, discoveryPort);
+    // TWO EARS ON ONE MACHINE (caregiver report, 2026-08-16: "after Person
+    // takes both LAN ports on this Mac, Care goes deaf"). On POSIX,
+    // reusePort lets a second instance keep listening for hellos instead
+    // of losing the port to the first — exactly the alpha setup of Person
+    // + Care side by side. Windows has no reusePort; there we fall back,
+    // and a lost bind is at worst the old behavior.
+    try {
+      _udpSocket = await RawDatagramSocket.bind(
+          InternetAddress.anyIPv4, discoveryPort,
+          reusePort: Platform.isMacOS || Platform.isLinux || Platform.isAndroid);
+    } on SocketException {
+      _udpSocket =
+          await RawDatagramSocket.bind(InternetAddress.anyIPv4, discoveryPort);
+    }
     _udpSocket!.broadcastEnabled = true;
 
     _udpSocket!.listen((event) {

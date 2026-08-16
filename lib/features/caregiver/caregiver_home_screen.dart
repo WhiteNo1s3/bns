@@ -122,7 +122,26 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         ),
       );
     }
+    // PAIRED IS A FACT, PRESENCE IS A MOOD (caregiver report, 2026-08-16:
+    // the red bar said "never connected" when the truth was "paired with
+    // Ben, just not hearing a hello right now"). The banner names the
+    // person and the durable state; quiet-right-now is said as quiet,
+    // never as "no device was ever connected".
+    final who = _personName.trim().isEmpty
+        ? L.t('their device', 'המכשיר שלהם')
+        : _personName.trim();
     final age = DateTime.now().difference(_lastSync!);
+    if (age > const Duration(days: 3650)) {
+      // Paired, but a real sync never completed yet — say that, not
+      // "the picture is from 55 years ago".
+      return _banner(
+        cs.secondaryContainer,
+        cs.onSecondaryContainer,
+        Icons.link,
+        L.t('Paired with $who — no sync has completed yet.',
+            'מחוברים ל־$who — עוד לא הושלם סנכרון.'),
+      );
+    }
     final stale = age > const Duration(hours: 12);
     final when = age.inMinutes < 60
         ? L.t('${age.inMinutes} minutes ago', 'לפני ${age.inMinutes} דקות')
@@ -134,11 +153,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
       stale ? cs.onErrorContainer : cs.onSecondaryContainer,
       stale ? Icons.sync_problem : Icons.sync,
       stale
-          ? L.t('This picture is from $when — their device has not reached '
-              'this one since.',
-              'התמונה הזאת מ$when — המכשיר שלהם לא הגיע לכאן מאז.')
-          : L.t('Up to date — last heard from them $when.',
-              'מעודכן — נשמע מהם לאחרונה $when.'),
+          ? L.t(
+              'Paired with $who — this picture is from $when, and their '
+                  'device has not reached this one since.',
+              'מחוברים ל־$who — התמונה הזאת מ$when, והמכשיר שלהם לא הגיע '
+                  'לכאן מאז.')
+          : L.t('Paired with $who — last heard $when.',
+              'מחוברים ל־$who — נשמע לאחרונה $when.'),
     );
   }
 

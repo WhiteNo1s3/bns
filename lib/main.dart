@@ -1623,46 +1623,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         centerTitle: false,
         hideOnDesktopWide:
             true, // modern PC sidebar handles navigation chrome + marked selection
-        // ON A PHONE, ICONS ARE NOT WORDS (owner QA, 2026-08-14: "all
-        // buttons are useless"). Calendar, Memories and Keep-this now live
-        // in the labeled doors at the bottom, so the top bar keeps ONE
-        // thing — settings — and says so in a word instead of a glyph
-        // nobody can decode without a long press.
-        actions: hasSidebar
+        // ONE MAP (owner, 2026-08-16): the sidebar is the map on wide
+        // screens, doors+menu are the map on phones — the top bar carries
+        // NO third copy of any room. The lone exception is guided mode,
+        // where doors and menu are deliberately absent: the caregiver's
+        // key-gated Settings door lives here, or nowhere.
+        actions: _guidedMode
             ? [
-                IconButton(
-                  icon: const Icon(Icons.calendar_month),
-                  tooltip: L.t('Calendar', 'לוח שנה'),
-                  onPressed: () => context.push('/calendar'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.sync_alt),
-                  tooltip: L.t('Sync your devices', 'סנכרון בין המכשירים'),
-                  onPressed: () => context.push('/sync'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.psychology),
-                  tooltip: L.t('Memories', 'זיכרונות'),
-                  onPressed: () => context.push('/memories'),
-                ),
-              ]
-            : [
                 TextButton.icon(
-                  // At level 4 settings are the caregiver's room: the same
-                  // key opens it, and a device with no key yet offers the
-                  // caregiver the setup instead of swinging open.
+                  // The same key opens it; a device with no key yet offers
+                  // the caregiver the setup instead of swinging open.
                   onPressed: () async {
-                    if (_guidedMode) {
-                      final ok = await showCareUnlockDialog(context,
-                          offerSetupIfMissing: true);
-                      if (!ok || !mounted) return;
-                    }
-                    if (mounted) context.push('/sync');
+                    final ok = await showCareUnlockDialog(context,
+                        offerSetupIfMissing: true);
+                    if (!ok || !mounted) return;
+                    context.push('/sync');
                   },
                   icon: const Icon(Icons.settings_outlined, size: 22),
                   label: Text(L.t('Settings', 'הגדרות')),
                 ),
-              ],
+              ]
+            : const [],
       ),
       body: Stack(
         children: [
@@ -2221,40 +2202,22 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 24),
-                  QuickCaptureBar(
-                    onTap: () async {
-                      await context.push('/capture');
-                      await _refreshDoneToday();
-                    },
-                  ),
-                  // Day diary thread — the spine of "everything said and done".
-                  // Available in guided mode too (read path); building stays elsewhere.
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push('/day'),
-                    icon: const Icon(Icons.menu_book_outlined),
-                    label: Text(L.t(
-                        'Today\'s words — everything said and done',
-                        'מילות היום — כל מה שנאמר ונעשה')),
-                  ),
-                  // ONE DOOR PER PLACE (found by using it, 2026-08-15).
-                  // The bottom of Today had grown to six full-width buttons
-                  // stacked in a column — and once the labeled doors arrived
-                  // at the bottom of the phone, three of them (calendar,
-                  // memories, keep-this) were second doors to rooms that
-                  // already had one. Two ways to the same place is not twice
-                  // the help; it is one more thing to read and rule out.
-                  // What stays here is only what the doors do NOT cover:
-                  // managing the routines themselves. The sidebar covers it
-                  // on PC and wide tablets; guided mode never manages.
-                  if (!hasSidebar && !_guidedMode) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () => context.push('/routines'),
-                      icon: const Icon(Icons.list_alt),
-                      label: Text(L.t('Manage all routines (add, edit, delete)',
-                          'ניהול כל השגרות (הוספה, עריכה, מחיקה)')),
+                  // ONE MAP (owner, 2026-08-16, after the level-1 tester's
+                  // "old 4-tab still there = two maps"): the doors hold the
+                  // main rooms, the menu holds the rest, and Today carries
+                  // NO second copy of either. Every button that used to
+                  // stand here — capture, day words, manage routines — was
+                  // a duplicate door to a room that already has one.
+                  //
+                  // The one exception is guided mode, where doors and menu
+                  // are deliberately absent: this bar IS the telling door.
+                  if (_guidedMode) ...[
+                    const SizedBox(height: 24),
+                    QuickCaptureBar(
+                      onTap: () async {
+                        await context.push('/capture');
+                        await _refreshDoneToday();
+                      },
                     ),
                   ],
 

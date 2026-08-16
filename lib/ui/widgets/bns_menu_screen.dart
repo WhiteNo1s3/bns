@@ -45,34 +45,11 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Where each door leads, in the person's words. Guided mode (level 4)
-    // hides managing — the inspector builds the day, and a menu must not
-    // offer rooms that will only say "not for you" inside.
+    // ONE MAP (owner, 2026-08-16, after the level-1 tester's "two maps"):
+    // the doors at the bottom hold the main rooms — Today, Keep this,
+    // Memories, Calendar — and THIS list holds only the rest. No room has
+    // two doors anymore. Guided mode (level 4) never sees this screen.
     final doors = <(String route, IconData icon, String label, String hint)>[
-      (
-        '/',
-        Icons.today,
-        L.t('Today', 'היום'),
-        L.t('The day, its steps, the diary', 'היום, הצעדים שלו, היומן')
-      ),
-      (
-        '/capture',
-        Icons.mic,
-        L.t('Keep this', 'לשמור את זה'),
-        L.t('Say or write a thought — it stays', 'להגיד או לכתוב מחשבה — זה נשאר')
-      ),
-      (
-        '/memories',
-        Icons.menu_book,
-        L.t('Your memories', 'הזיכרונות שלך'),
-        L.t('Everything you kept', 'כל מה ששמרת')
-      ),
-      (
-        '/calendar',
-        Icons.calendar_month,
-        L.t('Calendar', 'לוח שנה'),
-        L.t('Appointments and days ahead', 'תורים וימים שמתקרבים')
-      ),
       (
         '/day',
         Icons.auto_stories,
@@ -99,6 +76,18 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 4, 14),
+            child: Text(
+              L.t(
+                  'The main rooms live on the doors below. Here is the rest.',
+                  'החדרים העיקריים נמצאים בדלתות למטה. כאן נמצא כל השאר.'),
+              style: TextStyle(
+                  fontSize: 15,
+                  height: 1.3,
+                  color: cs.onSurfaceVariant),
+            ),
+          ),
           for (final (route, icon, label, hint) in doors)
             Card(
               margin: const EdgeInsets.only(bottom: 10),

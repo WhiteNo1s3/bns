@@ -23,9 +23,12 @@ is not yet even understood. Nothing here gets to quietly disappear.
 
 ## Understood, open, next in line
 
-- **Two maps on the phone** (☰ menu + 4 doors + old header buttons in
-  places). One navigation story needs choosing; the menu and doors both
-  arrived this week. Owner call wanted here.
+- ~~**Two maps on the phone**~~ — RESOLVED by owner rule (2026-08-16):
+  doors hold the main rooms (Today / Keep this / Memories / Calendar),
+  the ☰ menu holds only the rest (day words / my routines / settings),
+  and Today's body carries no second copy of any room. Guided mode is
+  the lone exception: no doors, no menu — the capture bar and the
+  key-gated Settings door live on Today because there is nowhere else.
 - **Three Dones** (tile ✓ + FAB + "זה נעשה?" dialog asking again after a
   step flow) — consolidate: a deliberate step-finish should not re-ask.
 - **Mac pairing window loops for an already-trusted device** + phone/Mac

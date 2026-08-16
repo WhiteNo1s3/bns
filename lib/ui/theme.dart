@@ -112,9 +112,10 @@ class BnsTheme {
         surfaceContainerHighest: lift(0.16),
       );
     }
-    // Light: warm the paper a touch so white stops feeling clinical.
+    // Light: warm the paper a touch so white stops feeling clinical —
+    // cream-leaning to match the honeyed default.
     Color warm(double a) =>
-        Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFFFBF8F4));
+        Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFFFBF7EE));
     return s.copyWith(
       surface: warm(0.015),
       surfaceContainerLowest: const Color(0xFFFFFFFF),
@@ -132,8 +133,10 @@ class BnsTheme {
   static Color _seedForPalette(RelaxingPalette p) {
     switch (p) {
       case RelaxingPalette.clay:
-        // Terracotta — earth, tea, evening light. Alive without alarm.
-        return const Color(0xFFD26A4B);
+        // Golden clay — the owner steered it yellower (2026-08-16 night:
+        // "color is better, we should go more yellowish"): honey and
+        // afternoon light, still earth, still calm.
+        return const Color(0xFFD9933C);
       case RelaxingPalette.lavender:
         return const Color(0xFF9B7BF7);
       case RelaxingPalette.sand:

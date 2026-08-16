@@ -146,6 +146,34 @@ Directions taken (design written, build next):
 - **Garden looks** — wave 24: words-first cards, planted vs. passing,
   months as beds, no counts anywhere.
 
+## Marks + the wall audit (2026-08-16 evening — owner directives)
+
+Built same evening:
+- **The marks (tagging) system got hands** (owner: "improve to maximum
+  the tagging system which doesn't exist in practice in any of the
+  versions" — verified true in bns, gBNS and grokBNS alike). Chips to
+  choose a mark at capture, a person's own word, marks editable later on
+  the kept memory, flair on every Memories row, filter-by-mark, and
+  search that speaks the person's language («משבר» finds `crisis`).
+  Wave 25; test/tag_flair_test.dart. Riding along: `asked-help` wears
+  words now, `day-idea` joined plumbing, and a live vent no longer
+  offers the family switch (filtered exports strip mad-vents by law —
+  the switch was a lie).
+- **Vents-to-family question** (owner) — answered as design, not code:
+  the cooled storm door, wave 26, awaiting the owner's yes.
+
+Understood, open — found while answering the vents question:
+- **The care wall is thinner in code than in law.** The family FILE has
+  only two widths (chosen / full-care everything); the Level-1
+  "asks only" window and the ask-notify (`need_help.dart` share side)
+  have ZERO callers; and **LAN sync ships the person's FULL store —
+  vents included — to every trusted device at every care level**, so a
+  paired Care device at level 1–2 already holds everything and its home
+  shows the rants. The per-level caregiver window exists as law
+  (`familyShareLevelFor`) and not as plumbing. Belongs to the BNS Care
+  build (wave 23, RECEIVE-first-THEN-send); recorded in bns-format.md
+  so the doc no longer overclaims.
+
 ## Keep-and-find pass (bns-test/qa-keep-find.md, 2026-08-16 night)
 
 The loop itself PASSED on Android L4: keep a Hebrew thought, find it

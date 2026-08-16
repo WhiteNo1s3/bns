@@ -331,4 +331,4 @@ This document is the source of truth. Update it when schema changes.
 - `CalendarEvent.needHelp` (bool, default false): the person opened Need help on this plan.
 - `Routine.tags` may include `need-help`.
 - `QuickCapture.tags` may include `asked-help` (the Level-1 share that travels) plus `need-help` and `family`. A skip note may have `need-help` without `asked-help` — that is NOT an ask and must not notify family.
-- Family-share `.bns` now respects `careLevel`: 1 = asks only; 2 = chosen family plans + family tags + asks; 3–4 = full.
+- Family-share `.bns`: the DESIGN is per-level windows (1 = asks only; 2 = chosen family plans + family tags + asks; 3–4 = full — `familyShareLevelFor` in `lib/core/need_help.dart` is the law). What the exporter DOES today (audit, 2026-08-16 evening): two widths only, keyed on `fullCareMode` — chosen vs. everything. The asks-only width and the ask-notify have no callers yet, and LAN sync to a trusted device carries the full store at every level. Wiring the windows is part of the BNS Care work (ideas wave 23); this line goes back to "respects `careLevel`" when the code does.

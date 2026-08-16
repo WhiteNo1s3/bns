@@ -976,3 +976,80 @@ Today Memories is a list of gray cards. The garden the docs promised
   not scrolling a log.
 - **No counts, no streaks.** Nothing numbered anywhere in the garden.
 - Same static laws: no motion, 48dp, adult temperature.
+
+## Wave 25 — the marks system gets hands (owner, 2026-08-16 evening — BUILT)
+
+"We got to improve to maximum the tagging system which doesn't exist in
+practice in any of the versions." He was right, three times over: bns,
+gBNS and grokBNS all carried the same tags-as-plumbing — a model field,
+a flair renderer on exactly one screen, and not one door for a person
+to PUT a mark on a moment or ASK for the marked ones back.
+
+Built tonight (the word for a person is **סימן**, a mark — "tag" is
+developer speech):
+
+- **A mark on the moment, at capture.** Inside the options door (which
+  now says what it holds: «לשמור לתמיד · משפחה · סימן · הקשר»), a quiet
+  wrap of word-chips — gentlest first: טוב, הרגשתי בטוח, תהיות, דרמה,
+  הרגשתי מבולבל, הרגשתי יותר מדי, משבר — plus «מילה משלכם», the
+  person's own word, kept exactly as they wrote it. One shared hand:
+  `lib/ui/widgets/mark_picker.dart`.
+- **A mark can arrive later than the moment.** On the kept memory
+  («לשנות את הסימנים»): same chips, same own-word door, and the family
+  switch — so "that was actually a crisis" or "family can know after
+  all" is a decision for any day, always the person's side of the wall.
+- **The marks answer back in Memories.** Every row wears its flair, and
+  one quiet chip-row above the list filters by a mark — "show me the
+  hard ones" is finally a tap, not an archaeology dig.
+- **Search speaks the person's language.** Typing «משבר» finds a moment
+  stored as `crisis`; "storm" and «סערה» find the vents where vents are
+  allowed to show. The stored key is plumbing; the label is the truth
+  (`tagMatchesQuery` / `memoryMatchesQuery` in `lib/core/tag_flair.dart`).
+- **Honesty fixes riding along:** `asked-help` finally wears words
+  («ביקשתי עזרה») instead of its internal key; `day-idea` joined the
+  plumbing set (filing, not flair); and while a storm is being vented
+  the capture screen no longer offers the family switch — that switch
+  was a lie (filtered exports strip mad-vents by law) and marks are a
+  weighing no one should do mid-rage.
+- Laws held: doors with names, 48dp chips, no motion (selection is a
+  color that is or isn't), adult temperature, plumbing never shows.
+  `test/tag_flair_test.dart` holds all of it.
+
+Reserved doors stay doors: family, the flame, need-help and asked-help
+never appear as pickable chips — they have their own flows.
+
+## Wave 26 — the cooled storm door (owner question, 2026-08-16 evening — DESIGN, awaiting the owner's yes)
+
+The owner asked whether vents should be shareable with family. What is
+true today: at level 3–4 the family file carries every vent (the rants
+ARE the signal — that law stands). At level 1–2 a `mad-vent` NEVER
+enters the filtered share, even tagged family, because a rage-moment
+decision must not outlive the rage. Both laws are right. The gap is a
+third case neither covers: a person at level 1–2 who wants the people
+who care to see a storm — **after it cooled**. Sharing is always the
+person's side of the wall, and for storms the wall currently has no
+door at all below level 3.
+
+The proposal — a door that only opens cold:
+
+1. **Never at capture.** While the storm is live there is no family
+   switch, no marks, no weighing (built in wave 25). Nothing here
+   changes that, and the app never suggests sharing a vent.
+2. **Only from the kept memory, only after.** The door appears on a
+   vent's memory view once mad mode has expired AND the person has
+   promoted it («לשמור את זה תמיד» — the existing gesture that already
+   means "this one outlives the rage").
+3. **One plain sentence, WE voice, adult temperature:**
+   «להראות למשפחה את הסערה הזאת?» — confirm or leave, no drama, no
+   second ask.
+4. **Mechanically honest:** saying yes swaps `mad-vent` for
+   `storm-kept` — a new known mark that keeps the storm's flair (סערה)
+   but is no longer a vent: it stops burning out (already true for
+   promoted vents) and passes the family filter as an ordinary chosen
+   memory. The exporter law "a mad-vent never enters a filtered share"
+   is NOT touched — no flag, no exception path, nothing a bug can leak
+   through. A storm crosses the wall only by becoming, through two
+   deliberate human gestures, something that is no longer a storm.
+
+Until the owner's yes, nothing changes in code: vents stay unshareable
+below level 3, and the level-3–4 full file keeps carrying them.

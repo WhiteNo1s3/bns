@@ -77,7 +77,10 @@ marked "family can know" (`shareWithFamily`) + moments tagged `family`
 exists in the family file, no matter how it's opened
 (`BnsExporter.exportFamilyShare` — a filtered EXPORT, never a filtered
 view). A `mad-vent` NEVER enters a filtered share even if tagged — a
-rage-moment decision to share must not outlive the rage. Maps to
+rage-moment decision to share must not outlive the rage; while a storm
+is being vented, capture doesn't even offer the family switch. A
+deliberate share of a COOLED storm is designed but not decided — the
+"cooled storm door", ideas wave 26, awaiting the owner's yes. Maps to
 `FamilyShareLevel.chosenFamily`.
 
 **What the person can do.** Everything — level 2 changes only the width
@@ -106,7 +109,12 @@ together, never imposed.
 every moment, every voice note, **the rants included** (owner explicit,
 2026-07-08: the frustration IS the signal — "annoyed at the elevator"
 is how you know to help with elevators; hearing it in his own voice IS
-the information). Maps to `FamilyShareLevel.fullCare`.
+the information). Maps to `FamilyShareLevel.fullCare`. The rants travel
+to the HELPER only: on the person's own device, storms still never come
+back (caregiver-robot report, fixed 2026-08-16 — the day diary showed
+vents to a level-3 person because `includeMad` keyed on `fullCareMode`
+alone; vents now show only where the helper is, or while the person's
+own mad mode still burns).
 
 **What the person can do.** Their app is unchanged: full editing, full
 building, all doors. Level 3 opens the window wide; it takes nothing

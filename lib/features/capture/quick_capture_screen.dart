@@ -20,6 +20,7 @@ import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/mark_picker.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -693,8 +694,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               label: Text(
                   _showMore
                       ? L.t('Close the options', 'לסגור את האפשרויות')
-                      : L.t('Keep forever · family · context',
-                          'לשמור לתמיד · משפחה · הקשר'),
+                      : _selectedTags.contains('mad-vent')
+                          ? L.t('Keep forever · context',
+                              'לשמור לתמיד · הקשר')
+                          : L.t('Keep forever · family · a mark · context',
+                              'לשמור לתמיד · משפחה · סימן · הקשר'),
                   style: const TextStyle(fontSize: 15)),
             ),
             if (_showMore) ...[
@@ -707,19 +711,37 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                   _memoryLevel = v ? MemoryLevel.memorize : defaultKeptLevel;
                 }),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(L.t('Family can know this one',
-                    'המשפחה יכולה לדעת על זה')),
-                value: _selectedTags.contains('family'),
-                onChanged: (v) => setState(() {
-                  if (v) {
-                    _selectedTags.add('family');
-                  } else {
-                    _selectedTags.remove('family');
-                  }
-                }),
-              ),
+              // A storm is a storm: while venting there is no family
+              // switch (the share it promised was a lie — filtered
+              // exports strip mad-vents by law) and no marks to weigh.
+              if (!_selectedTags.contains('mad-vent')) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(L.t('Family can know this one',
+                      'המשפחה יכולה לדעת על זה')),
+                  value: _selectedTags.contains('family'),
+                  onChanged: (v) => setState(() {
+                    if (v) {
+                      _selectedTags.add('family');
+                    } else {
+                      _selectedTags.remove('family');
+                    }
+                  }),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  L.t('A mark on this moment', 'סימן על הרגע'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                MarkPicker(
+                  selected: _selectedTags,
+                  onChanged: () => setState(() {}),
+                ),
+              ],
               const SizedBox(height: 8),
               TextField(
                 controller: _contextController,

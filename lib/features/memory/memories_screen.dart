@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/memory/memory_view_screen.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -26,6 +27,11 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   bool _loading = true;
   bool _showTrash = false;
   bool _showSearch = false;
+
+  /// "Show me the hard ones" — one chosen mark narrows the list.
+  /// Null = every memory. Canonical keys from [flairTagsOf].
+  String? _tagFilter;
+  List<String> _markKeys = const [];
 
   @override
   void initState() {
@@ -59,13 +65,18 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
   void _apply() {
     var list = _raw;
-    final q = _search.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      list = list.where((c) {
-        final words = memoryWords(c).toLowerCase();
-        final tags = c.tags.join(' ').toLowerCase();
-        return words.contains(q) || tags.contains(q);
-      }).toList();
+    // The marks that exist in the person's kept list right now. A filter
+    // whose mark is gone (last carrier put away) quietly lets go.
+    _markKeys = _showTrash ? const [] : flairTagsOf(_raw);
+    if (_tagFilter != null && !_markKeys.contains(_tagFilter)) {
+      _tagFilter = null;
+    }
+    if (_search.trim().isNotEmpty) {
+      // One matcher for words AND marks — «משבר» finds `crisis`.
+      list = list.where((c) => memoryMatchesQuery(c, _search)).toList();
+    }
+    if (_tagFilter != null) {
+      list = list.where((c) => memoryHasTag(c, _tagFilter!)).toList();
     }
     setState(() {
       _shown = list;
@@ -93,6 +104,32 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   Future<void> _restore(QuickCapture m) async {
     await IsarService.restoreCapture(m.id);
     await _load();
+  }
+
+  /// One mark as a filter door. Selection is a state, not a motion.
+  Widget _markFilterChip(String key) {
+    final cs = Theme.of(context).colorScheme;
+    final look = tagLook(key)!;
+    final on = _tagFilter == key;
+    final tint = look.color(cs);
+    return FilterChip(
+      avatar: Icon(look.icon, size: 18, color: on ? tint : cs.onSurfaceVariant),
+      label: Text(look.label),
+      selected: on,
+      showCheckmark: false,
+      selectedColor: tint.withValues(alpha: 0.16),
+      side: BorderSide(
+          color: on ? tint.withValues(alpha: 0.45) : cs.outlineVariant),
+      labelStyle: TextStyle(
+        fontSize: 14,
+        fontWeight: on ? FontWeight.w600 : FontWeight.w500,
+        color: on ? tint : cs.onSurfaceVariant,
+      ),
+      onSelected: (_) {
+        _tagFilter = on ? null : key;
+        _apply();
+      },
+    );
   }
 
   @override
@@ -143,6 +180,23 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                         _search = val;
                         _apply();
                       },
+                    ),
+                  ),
+                // The marks that live in this list, as one quiet row.
+                // Tap one to see only those moments; tap again for all.
+                if (_markKeys.isNotEmpty)
+                  SizedBox(
+                    height: 56,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      children: [
+                        for (final key in _markKeys)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 8),
+                            child: _markFilterChip(key),
+                          ),
+                      ],
                     ),
                   ),
                 Expanded(
@@ -207,7 +261,22 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                 ),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 6),
-                                  child: Text(when),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(when),
+                                      // The mark travels with the row —
+                                      // a tag nobody can see is a tag
+                                      // nobody trusts.
+                                      if (!_showTrash &&
+                                          tagsHaveFlair(m.tags)) ...[
+                                        const SizedBox(height: 6),
+                                        TagFlairRow(
+                                            tags: m.tags, scale: 0.9),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                                 trailing: _showTrash
                                     ? IconButton(

@@ -615,6 +615,14 @@ class _PhoneDoors extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.onSurface,
           )),
+          // OFF-MAP MEANS NO DOOR LIES (level-1 tester, 2026-08-16: "Tab
+          // says Today while you are in Menu or Sync"). NavigationBar
+          // insists on an index — so when the person stands somewhere
+          // without a door, the indicator simply goes invisible instead
+          // of pointing at the wrong room.
+          indicatorColor: here == null
+              ? Colors.transparent
+              : Theme.of(context).colorScheme.secondaryContainer,
         ),
         child: NavigationBar(
           // NavigationBar insists on a selected index; when the person is

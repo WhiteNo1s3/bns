@@ -1631,6 +1631,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                   L.t('Name this device', 'תן שם למכשיר')),
                               content: TextField(
                                   controller: ctrl,
+                                  autofocus: true,
+                                  // The keyboard's own ✓ saves too — typing
+                                  // a name and hitting enter used to drop
+                                  // it silently (level-1 tester,
+                                  // 2026-08-16: "Rename to Phone typed,
+                                  // did not persist").
+                                  onSubmitted: (v) => Navigator.pop(c, v),
                                   decoration: InputDecoration(
                                       labelText:
                                           L.t('Device name', 'שם המכשיר'))),

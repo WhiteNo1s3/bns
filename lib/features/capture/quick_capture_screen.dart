@@ -454,12 +454,41 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       if (Navigator.of(context).canPop()) {
         Navigator.pop(context, true);
       } else {
-        context.go('/memories');
+        // Home, where the "What you kept" strip shows the new thought —
+        // /memories from a root capture stranded people off-map (level-1
+        // tester: Save should end where the day is, with proof in view).
+        context.go('/');
       }
     }
   }
 
-  void _leaveWithoutSaving() {
+  /// No path out of this screen may silently cost words (level-1 tester,
+  /// 2026-08-16: typed `sunday_tinker`, pressed Save, landed elsewhere,
+  /// note gone). A box with words in it asks before it lets go — whatever
+  /// weird route brought the exit.
+  Future<void> _leaveWithoutSaving() async {
+    final hasWords =
+        _textController.text.trim().isNotEmpty || _takes.isNotEmpty;
+    if (hasWords) {
+      final sure = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(L.t('Leave without keeping?', 'לצאת בלי לשמור?')),
+          content: Text(L.t(
+              'There are words (or a voice) here that were not saved yet.',
+              'יש כאן מילים (או קול) שעוד לא נשמרו.')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Stay', 'להישאר'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(L.t('Leave', 'לצאת'))),
+          ],
+        ),
+      );
+      if (sure != true || !mounted) return;
+    }
     if (Navigator.of(context).canPop()) {
       Navigator.pop(context);
     } else {

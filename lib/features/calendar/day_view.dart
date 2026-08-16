@@ -218,7 +218,10 @@ class _DayViewState extends State<DayView> {
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final controller =
         TextEditingController(text: L.t('Appointment', 'פגישה'));
-    final timeController = TextEditingController(text: '10:00');
+    // A CLOCK, NOT A TEXT FIELD (level-1 tester, 2026-08-16: typing into
+    // the prefilled field APPENDED — "08:00 saved as 10:15"). The time is
+    // picked on a clock face; nothing can smash into nothing.
+    TimeOfDay picked = const TimeOfDay(hour: 10, minute: 0);
     var shareWithFamily = false;
 
     await showDialog(
@@ -233,10 +236,18 @@ class _DayViewState extends State<DayView> {
                   controller: controller,
                   decoration:
                       InputDecoration(labelText: L.t('Title', 'כותרת'))),
-              TextField(
-                  controller: timeController,
-                  decoration: InputDecoration(
-                      labelText: L.t('Time (HH:mm)', 'שעה (HH:mm)'))),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.schedule, size: 20),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48)),
+                label: Text(picked.format(ctx)),
+                onPressed: () async {
+                  final t = await showTimePicker(
+                      context: ctx, initialTime: picked);
+                  if (t != null) setDialogState(() => picked = t);
+                },
+              ),
               const SizedBox(height: 8),
               // Important things he might forget (doctor, wedding, holiday) —
               // ONLY these ever enter the family share. Rest is his business.
@@ -268,7 +279,8 @@ class _DayViewState extends State<DayView> {
                   title: controller.text,
                   date: dateStr,
                   // Quarter hours only — no ugly numbers (owner law).
-                  time: _snapToQuarter(timeController.text),
+                  time: _snapToQuarter(
+                      '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}'),
                   notes: '',
                   shareWithFamily: shareWithFamily,
                   createdAt: DateTime.now(),

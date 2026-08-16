@@ -360,7 +360,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _setCaregiverDevice(bool v) async {
     final s = await IsarService.getSettings();
-    await IsarService.updateSettings(s.copyWith(caregiverDevice: v));
+    // Guided is never the helper's own hat — putting the helper hat ON
+    // takes any stale guidedMode OFF right here, not at the next launch.
+    await IsarService.updateSettings(
+        s.copyWith(caregiverDevice: v, guidedMode: v ? false : null));
     // Reminders belong to the person being helped, not the helper.
     await NotificationsService.rescheduleAll();
     if (mounted) setState(() => _caregiverDevice = v);

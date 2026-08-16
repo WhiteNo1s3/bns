@@ -89,14 +89,17 @@ Future<void> _startupChores(List<String> args) async {
       // The containment state follows the settings, always — the router
       // asks it synchronously on every navigation.
       IsarService.getSettings().then((s) {
-        CareState.guided.value = s.guidedMode;
+        // guided && !caregiver: a helper's copy is never the guided one,
+        // even in the moment before a contaminated store heals on load.
+        CareState.guided.value = s.guidedMode && !s.caregiverDevice;
         CareState.caregiver.value = s.caregiverDevice;
       }).catchError((Object _) {});
     };
     // The hand gets its answer from the first gesture onward.
     await BnsHaptics.init();
     final startupSettings = await IsarService.getSettings();
-    CareState.guided.value = startupSettings.guidedMode;
+    CareState.guided.value =
+        startupSettings.guidedMode && !startupSettings.caregiverDevice;
     CareState.caregiver.value = startupSettings.caregiverDevice;
     await NotificationsService.init();
     // First sweep also clears anything stale left in the shade from before
@@ -190,12 +193,11 @@ final _router = GoRouter(
   // passes through here, and here there is one rule: a guided device
   // shows the day and the telling door; the caregiver's rooms open inside
   // their unlocked sitting; everything else goes home.
-  redirect: (context, state) {
-    if (!CareState.guided.value) return null;
-    if (CareState.caregiverUnlocked) return null;
-    const open = {'/', '/capture'};
-    return open.contains(state.uri.path) ? null : '/';
-  },
+  // The decision itself lives beside CareState (one truth, testable):
+  // a guided device shows the day and the telling door, an unlocked
+  // caregiver sitting opens their rooms — and a HELPER's device is never
+  // contained at all, whatever a contaminated store still claims.
+  redirect: (context, state) => CareState.containmentRedirect(state.uri.path),
   routes: [
     GoRoute(
       path: '/',

@@ -1,5 +1,60 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## The stuck day + the jailed helper (2026-08-17, owner urgent)
+
+Fixed this pass (all 169 tests green):
+
+- **"I cannot return when I am at a day in the future... correct it with
+  a return button"** (owner — Android, Mac, Windows). Yesterday's fix
+  kept the bar, but the way back was still an arrow GLYPH among four
+  unlabeled icons, and «להיום» only re-dated the same room. Now a worded
+  «חזרה» is PINNED under the day on every platform and width, and it
+  actually LEAVES — one pop back to the room the day was opened from
+  (calendar / Today). The bar went words-only («להיום», «יומן»); sync
+  and mic doors left it (wrong-room dump / duplicate of the body's
+  worded capture button), add-plan moved into the body WITH the events
+  list it adds to. Day title shortened (it was clipping). The pep-talk
+  card above the day is gone; the done-count sits with the routines as
+  a fact («2 מתוך 4»). And done in the day view is a QUIET ✓ — no
+  «בוצע?» second question; only take-back still asks.
+  `test/day_return_door_test.dart` (first widget tests in the suite).
+
+- **"The caregiver becomes level 4 user — this is not acceptable"**
+  (owner). The own-hat merge fix (2026-08-16) stopped NEW adoption but
+  PRESERVED existing contamination: a Care store that already said
+  `guidedMode=true` (the .l4-test Care restored from .bak is one) kept
+  it forever, and the router's containment rule jailed the helper at
+  `/` — the inspector locked out of building the very day. Four walls
+  now:
+  1. The containment rule ignores a helper's device entirely
+     (`CareState.containmentRedirect` — testable, one place).
+  2. A contaminated store (`caregiverDevice && guidedMode`) HEALS at
+     load; flipping a device to caregiver also clears guided instantly.
+  3. Hats never travel in EITHER direction through merge. The reverse
+     hole was real and one build away: after the own-hat fix, a person
+     pulling Care's healed store would have adopted `guidedMode=false`
+     — the level-4 cage silently opening at the next auto-sync. Closed
+     before it ever reached a build.
+  4. `CareState.guided` is fed as `guidedMode && !caregiverDevice`, so
+     even the in-memory moment before a heal persists cannot jail.
+  `test/care_containment_test.dart`. Leftover cosmetics on contaminated
+  Care stores (shareName=Ben, careLevel=4 in its settings display) are
+  NOT auto-healed — display-only, owned by the BNS Care build.
+
+- **Stale-build reality (why "it won't work on android, mac, windows"):**
+  the Windows exe cannot carry ANY fix (rebuild broken: MSBuild
+  VCTargetsPath / ARM64, source is the VM's gBNS); the emulator APK is
+  from 15 Aug; the S23 and Mac apps predate yesterday's day-bar fix.
+  Fresh builds made this pass: `dist/` macOS zip + signed release APK.
+  Tomorrow's test must run on THESE.
+
+Cross-tree (gBNS `PROTOTYPER.md`, read 2026-08-17): its "quiet ✓ / no
+unlabeled day-view row / no pep talk" items are DONE here in the day
+view (Today's own quiet-✓ remains gBNS's iterate). Its other open items
+already live in this ledger: skip-reason must stick (miss-sheet race),
+LAN re-pair sheet for a trusted phone (sync-identity chunk), the
+capture maze, late-day proof on the S23.
+
 The reports in this folder are the raw truth from live use. This file is
 the honest ledger: what was fixed, what is understood-but-open, and what
 is not yet even understood. Nothing here gets to quietly disappear.

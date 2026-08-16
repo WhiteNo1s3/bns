@@ -247,6 +247,16 @@ class IsarService {
       );
       changed = true;
     }
+    // THE HELPER IS NEVER THE GUIDED ONE (owner, 2026-08-17: "the
+    // caregiver becomes level 4 user — this is not acceptable"). Stores
+    // contaminated before the own-hat merge fix still carry the person's
+    // guidedMode on Care — and keeping local flags on merge now PRESERVES
+    // that contamination forever. Heal it here, at load: guided is the
+    // shape of the person's day, never of the inspector's copy.
+    if (s.caregiverDevice && s.guidedMode) {
+      s = s.copyWith(guidedMode: false);
+      changed = true;
+    }
     if (changed) d.settings = s;
 
     // Gentle seed data on first run so the app feels useful immediately
@@ -554,7 +564,8 @@ class IsarService {
       ..addAll(logs);
 
     // Same law as mergeData: a caregiver device restoring a person's
-    // backup carries their DATA, never their hat.
+    // backup carries their DATA, never their hat. And guided is never
+    // the helper's hat at all — not even "kept" from a contaminated store.
     final keepRole = local.caregiverDevice;
     d.settings = settings.copyWith(
       serverUrl: local.serverUrl,
@@ -563,7 +574,7 @@ class IsarService {
       deviceName: local.deviceName,
       retentionDays: local.retentionDays,
       caregiverDevice: local.caregiverDevice,
-      guidedMode: keepRole ? local.guidedMode : null,
+      guidedMode: keepRole ? false : null,
       fullCareMode: keepRole ? local.fullCareMode : null,
       careLevel: keepRole ? local.careLevel : null,
       shareName: keepRole ? local.shareName : null,
@@ -621,7 +632,17 @@ class IsarService {
     // guidedMode=true, careLevel=4 — "a later relaunch can confuse who
     // is who"). A caregiver device keeps its OWN hat: role flags, share
     // name and the caregiver's key never adopt the person's.
+    //
+    // AND THE PERSON DOES NOT BECOME THE HELPER (2026-08-17): hats never
+    // travel in EITHER direction. A person's device pulling a Care store
+    // must not adopt the helper's flags — adopting guidedMode=false from
+    // Care would silently open the level-4 cage, and adopting the
+    // helper's shareName/key would rename the person mid-arrangement.
+    // Care flags cross only between the person's OWN devices (both sides
+    // wearing no helper hat).
     final keepRole = local.caregiverDevice;
+    final incomingIsHelper = incomingSettings.caregiverDevice;
+    final hatsStay = keepRole || incomingIsHelper;
     d.settings = incomingSettings.copyWith(
       deviceId: local.deviceId,
       deviceName: local.deviceName,
@@ -631,11 +652,12 @@ class IsarService {
       caregiverDevice: local.caregiverDevice,
       keybinds: local.keybinds,
       enabledKeybinds: local.enabledKeybinds,
-      guidedMode: keepRole ? local.guidedMode : null,
-      fullCareMode: keepRole ? local.fullCareMode : null,
-      careLevel: keepRole ? local.careLevel : null,
-      shareName: keepRole ? local.shareName : null,
-      careLockHash: keepRole ? local.careLockHash : null,
+      // A helper's guided is healed to false, never merely "kept".
+      guidedMode: keepRole ? false : (hatsStay ? local.guidedMode : null),
+      fullCareMode: hatsStay ? local.fullCareMode : null,
+      careLevel: hatsStay ? local.careLevel : null,
+      shareName: hatsStay ? local.shareName : null,
+      careLockHash: hatsStay ? local.careLockHash : null,
     );
     await _persist();
   }

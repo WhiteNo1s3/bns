@@ -65,6 +65,22 @@ class CareState {
       _unlockedUntil = DateTime.now().add(const Duration(minutes: 5));
 
   static void relock() => _unlockedUntil = null;
+
+  /// The door-frame rule, in one place the router asks: where may this
+  /// route go? null = pass, a path = go there instead.
+  ///
+  /// A HELPER'S DEVICE IS NEVER THE CONTAINED ONE (owner, 2026-08-17:
+  /// "the caregiver becomes level 4 user — this is not acceptable").
+  /// Containment is the shape of the PERSON's guided day; the inspector's
+  /// rooms are their work. Whatever a contaminated store still claims,
+  /// the helper walks free — and the person's cage never opens from here.
+  static String? containmentRedirect(String path) {
+    if (caregiver.value) return null;
+    if (!guided.value) return null;
+    if (caregiverUnlocked) return null;
+    const open = {'/', '/capture'};
+    return open.contains(path) ? null : '/';
+  }
 }
 
 /// 'salt:hash' for [password]. A fresh random salt per set.

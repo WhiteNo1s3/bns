@@ -143,29 +143,29 @@ class _DayViewState extends State<DayView> {
 
     // Same gentle temper as Today: ask before marking, and un-checking
     // removes the mark entirely (never a silent flip to "skipped").
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(r.title),
-        content: Text(done
-            ? L.t('Take the ✓ back? That happens — no harm.',
-                'להחזיר את ה־✓? זה קורה — שום נזק.')
-            : L.t('Is it done? 🌿', 'בוצע? 🌿')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: Text(done
-                  ? L.t('Keep it done', 'להשאיר בוצע')
-                  : L.t('Not yet', 'עוד לא'))),
-          FilledButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: Text(done
-                  ? L.t('Take it back', 'להחזיר')
-                  : L.t('Done ✓', 'בוצע ✓'))),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    // DONE IS A QUIET ✓ (owner law, 2026-07-08; re-affirmed in the
+    // cross-tree pass 2026-08-17: "no second question"). Marking done just
+    // marks it — the tile flipping IS the answer. Only taking a kept
+    // answer BACK still asks, because an answer is worth one guard.
+    if (done) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(r.title),
+          content: Text(L.t('Take the ✓ back? That happens — no harm.',
+              'להחזיר את ה־✓? זה קורה — שום נזק.')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(L.t('Keep it done', 'להשאיר בוצע'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: Text(L.t('Take it back', 'להחזיר'))),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
 
     if (done) {
       await IsarService.removeCompletion(routineId: r.id, date: dateStr);
@@ -412,9 +412,23 @@ class _DayViewState extends State<DayView> {
     }
   }
 
+  /// One worded step OUT — back to the room this day was opened from
+  /// (calendar or Today: the map with all the doors). A day reached with
+  /// nothing underneath it goes home instead of nowhere.
+  void _returnToMap() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateLabel = DateFormat.yMMMMEEEEd().format(_date);
+    // The full ceremonial date clipped on phones (triage, 2026-08-16) —
+    // the shorter form still names the day and survives a narrow bar.
+    final dateLabel = DateFormat.MMMEd().format(_date);
     final doneCount =
         _applicableRoutines.where((r) => _isRoutineDone(r.id)).length;
 
@@ -429,6 +443,12 @@ class _DayViewState extends State<DayView> {
       // desktop window the hidden bar left a room with no door at all:
       // no back arrow, and the sidebar buried underneath. A pushed screen
       // always keeps its bar — the bar IS the way back.
+      //
+      // AND EVERY DOOR IN IT WEARS ITS NAME (owner QA: "all buttons are
+      // useless"; cross-tree pass 2026-08-17: "no unlabeled day-view
+      // row"). The icon row — sync, +, book, mic — is gone: Sync was a
+      // wrong-room dump, the mic duplicated the worded capture button in
+      // the body, and what remains is worded. One room, few doors, names.
       appBar: BnsAppBar(
         title: dateLabel,
         actions: [
@@ -445,23 +465,11 @@ class _DayViewState extends State<DayView> {
               child: Text(L.t('Today', 'להיום'),
                   style: const TextStyle(fontSize: 16)),
             ),
-          IconButton(
-              icon: const Icon(Icons.sync_alt),
-              onPressed: () => context.push('/sync'),
-              tooltip: L.t('Sync', 'סנכרון')),
-          IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: _addEvent,
-              tooltip: L.t('Add event', 'הוספת אירוע')),
-          IconButton(
-              icon: const Icon(Icons.menu_book_outlined),
+          TextButton(
               onPressed: () => context.push(
                   '/day?date=${DateFormat('yyyy-MM-dd').format(_date)}'),
-              tooltip: L.t('Day diary thread', 'שרשור יומן היום')),
-          IconButton(
-              icon: const Icon(Icons.mic),
-              onPressed: _quickCapture,
-              tooltip: L.t('Quick capture', 'מחשבה מהירה')),
+              child: Text(L.t('Diary', 'יומן'),
+                  style: const TextStyle(fontSize: 16))),
         ],
       ),
       body: _loading
@@ -471,24 +479,10 @@ class _DayViewState extends State<DayView> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // Summary header - kind and encouraging
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        doneCount > 0
-                            ? L.t(
-                                'You showed up for $doneCount of ${_applicableRoutines.length} gentle steps today.',
-                                'עשית היום $doneCount מתוך ${_applicableRoutines.length} צעדים עדינים.')
-                            : L.t(
-                                'A new day. No pressure — anything you do is progress.',
-                                'יום חדש. בלי לחץ — כל צעד קטן הוא התקדמות.'),
-                        style: const TextStyle(fontSize: 15),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
+                  // No pep talk above the work (owner + his father,
+                  // 2026-08-16; cross-tree pass 2026-08-17). The day opens
+                  // on the day; the done-count sits with the routines it
+                  // counts, as a fact.
                   Text(L.t('Events', 'אירועים'),
                       style: Theme.of(context).textTheme.titleMedium),
                   if (_events.isEmpty)
@@ -563,10 +557,41 @@ class _DayViewState extends State<DayView> {
                           // its own icon, deliberately, and nowhere else.
                           onTap: () => _openGather(e),
                         )),
+                  // The add-door lives WITH the list it adds to — worded,
+                  // full-width, in the body (a third word in the bar
+                  // overflowed phone width; the bar keeps two doors max).
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: OutlinedButton(
+                      onPressed: _addEvent,
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48)),
+                      child: Text(L.t('Add a plan for this day',
+                          'להוסיף אירוע ליום הזה')),
+                    ),
+                  ),
 
                   const SizedBox(height: 24),
-                  Text(L.t('Routines for this day', 'שגרות ליום הזה'),
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                            L.t('Routines for this day', 'שגרות ליום הזה'),
+                            style: Theme.of(context).textTheme.titleMedium),
+                      ),
+                      // Readiness as a fact: "2 of 4", never what's missing.
+                      if (_applicableRoutines.isNotEmpty && !_isFutureDay)
+                        Text(
+                          L.t('$doneCount of ${_applicableRoutines.length}',
+                              '$doneCount מתוך ${_applicableRoutines.length}'),
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                        ),
+                    ],
+                  ),
                   if (_isFutureDay)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 4),
@@ -807,6 +832,23 @@ class _DayViewState extends State<DayView> {
                 ],
               ),
             ),
+      // THE RETURN DOOR (owner, 2026-08-17: "I cannot return when I am at
+      // a day in the future, just one screen... I would like to correct
+      // it with a return button"). The bar's arrow is a glyph among four
+      // icons — a button wears its name. This door is pinned under the
+      // day on every platform and width, cannot scroll away, and actually
+      // LEAVES (the «להיום» action above only re-dates the same room).
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: FilledButton.tonal(
+          onPressed: _returnToMap,
+          style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56)),
+          child: Text(L.t('Back', 'חזרה'),
+              style: const TextStyle(fontSize: 17)),
+        ),
+      ),
     );
   }
 }

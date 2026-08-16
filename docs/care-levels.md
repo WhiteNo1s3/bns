@@ -209,10 +209,20 @@ UI app-wide.
   is the single law for what a caregiver/family window may receive:
   1 → asks only, 2 → chosen family, 3–4 → full care. Own devices (peer
   not a caregiver) always get the full day.
-- **The helper does not become the person.** On merge and restore, a
-  `caregiverDevice` keeps its OWN hat — role flags, care level, share
-  name, and the key never adopt the person's
-  (`lib/data/local/isar_service.dart`, caregiver report 2026-08-16).
+- **The helper does not become the person — and hats never travel at
+  all (2026-08-17).** On merge and restore, a `caregiverDevice` keeps
+  its OWN hat — role flags, care level, share name, and the key never
+  adopt the person's (`lib/data/local/isar_service.dart`, caregiver
+  report 2026-08-16). The reverse holds too: a person's device pulling
+  a Care store never adopts the helper's flags — adopting Care's
+  `guidedMode=false` would have silently opened the level-4 cage on
+  the next auto-sync. Care flags cross only between the person's own
+  devices. Three more walls from the same day: the router's
+  containment rule ignores a helper's device entirely
+  (`CareState.containmentRedirect`), a store that still carries the
+  pre-fix contamination (`caregiverDevice && guidedMode`) heals at
+  load, and flipping a device to caregiver clears `guidedMode` on the
+  spot. `test/care_containment_test.dart` holds all of it.
 - **Every level keeps the non-negotiables.** Adult temperature, no
   punishment language, static screens, labeled doors, 48dp targets,
   LAN-only privacy — the level changes who helps, never how the app

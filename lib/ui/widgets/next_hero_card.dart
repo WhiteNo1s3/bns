@@ -259,6 +259,10 @@ List<Routine> openRoutinesInNextOrder({
   required List<Routine> todays,
   required Set<String> doneIds,
   required Set<String> skippedIds,
+  // Postponed by the person's own will (owner, 2026-08-16): while a
+  // snooze runs, the hero stops offering that one — "later" that keeps
+  // getting suggested anyway is not later, it is nagging.
+  Set<String> snoozedIds = const {},
   DateTime? now,
 }) {
   final n = now ?? DateTime.now();
@@ -271,7 +275,10 @@ List<Routine> openRoutinesInNextOrder({
   }
 
   final open = todays
-      .where((r) => !doneIds.contains(r.id) && !skippedIds.contains(r.id))
+      .where((r) =>
+          !doneIds.contains(r.id) &&
+          !skippedIds.contains(r.id) &&
+          !snoozedIds.contains(r.id))
       .toList();
 
   open.sort((a, b) {

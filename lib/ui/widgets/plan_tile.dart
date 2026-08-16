@@ -91,8 +91,8 @@ class PlanTile extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              L.t('Didn\'t happen — that\'s okay',
-                                  'לא קרה — זה בסדר גמור'),
+                              L.t('Didn\'t happen — noted',
+                                  'לא קרה — נרשם'),
                               style: TextStyle(
                                 fontSize: big ? 16 : 13,
                                 fontWeight: FontWeight.w600,

@@ -432,14 +432,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               'Vented. It burns away on its own — nothing is held against you.',
               'פרקת. זה נמחק מעצמו — שום דבר לא נשמר נגדך.')
           : _memoryLevel == MemoryLevel.memorize
-              ? L.t('Memorized permanently. This will stay with you.',
-                  'נשמר לתמיד. זה יישאר איתך.')
-              : _memoryLevel == MemoryLevel.remember
-                  ? L.t(
-                      'Remembered. The context of what happened is saved for you.',
-                      'נשמר לזיכרון. ההקשר של מה שקרה נשמר בשבילך.')
-                  : L.t('Saved. Thank you for capturing that.',
-                      'נשמר. תודה שתיעדת את זה.');
+              ? L.t('Kept permanently.', 'נשמר לתמיד.')
+              : L.t('Saved.', 'נשמר.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
       );

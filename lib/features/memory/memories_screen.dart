@@ -107,17 +107,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
         leading: Image.asset('assets/icon/bns_logo.png', height: 32, width: 32),
         hideOnDesktopWide: true,
         actions: [
-          IconButton(
-            icon: Icon(_showSearch ? Icons.search_off : Icons.search),
-            tooltip: L.t('Find', 'למצוא'),
-            onPressed: () => setState(() {
-              _showSearch = !_showSearch;
-              if (!_showSearch) {
-                _search = '';
-                _apply();
-              }
-            }),
-          ),
+          // Search moved OFF the bar (owner, 2026-08-16: the toggle "makes
+          // an annoying loop that can piss one off — user better off not
+          // knowing this"). It lives quietly at the end of the list now.
           IconButton(
             icon: Icon(_showTrash ? Icons.menu_book : Icons.delete_outline),
             tooltip: _showTrash
@@ -161,8 +153,31 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                          itemCount: _shown.length,
+                          // One extra row at the very end: the buried
+                          // search door.
+                          itemCount: _shown.length + (_showTrash ? 0 : 1),
                           itemBuilder: (ctx, i) {
+                            if (!_showTrash && i == _shown.length) {
+                              return Center(
+                                child: TextButton.icon(
+                                  onPressed: () => setState(() {
+                                    _showSearch = !_showSearch;
+                                    if (!_showSearch) {
+                                      _search = '';
+                                      _apply();
+                                    }
+                                  }),
+                                  icon: const Icon(Icons.search, size: 20),
+                                  label: Text(
+                                      _showSearch
+                                          ? L.t('Close the search',
+                                              'לסגור את החיפוש')
+                                          : L.t('Find something old',
+                                              'לחפש משהו ישן'),
+                                      style: const TextStyle(fontSize: 14)),
+                                ),
+                              );
+                            }
                             final m = _shown[i];
                             final words = memoryWords(m);
                             final when = DateFormat.yMMMd(L.isHebrew ? 'he' : 'en')

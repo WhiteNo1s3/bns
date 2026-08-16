@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
@@ -28,6 +29,10 @@ class RoutineTile extends StatelessWidget {
   // Today's "why" only — other days stay in the diary, not on this tile.
   final String? recentNote;
   final String? recentNoteWhen;
+
+  /// When the person said "later" — the tile stays in place (the day is
+  /// steady) and simply says when it knocks again.
+  final DateTime? snoozedUntil;
   // How many things were told about this one TODAY.
   final int keptCount;
   final VoidCallback? onShowKept;
@@ -45,6 +50,7 @@ class RoutineTile extends StatelessWidget {
     this.skippedToday = false,
     this.recentNote,
     this.recentNoteWhen,
+    this.snoozedUntil,
     this.keptCount = 0,
     this.onShowKept,
   });
@@ -124,6 +130,32 @@ class RoutineTile extends StatelessWidget {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    // "Later, by my will" — said in place, no reshuffle:
+                    // the tile keeps its spot and states when it knocks.
+                    if (snoozedUntil != null &&
+                        snoozedUntil!.isAfter(DateTime.now()) &&
+                        !isDone &&
+                        !skippedToday) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.update,
+                              size: big ? 20 : 16,
+                              color: colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 6),
+                          Text(
+                            L.t(
+                                'You asked for later — it knocks at ${DateFormat.Hm().format(snoozedUntil!)}',
+                                'ביקשת מאוחר יותר — יחזור ב־${DateFormat.Hm().format(snoozedUntil!)}'),
+                            style: TextStyle(
+                              fontSize: big ? 15 : 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     // Today's answer when it ISN'T a ✓: a soft tag, not a
                     // checkmark. Skipped days are said, never faked.
                     if (skippedToday && !isDone) ...[
@@ -138,8 +170,8 @@ class RoutineTile extends StatelessWidget {
                           // pushing past the row edge (RTL safety).
                           Expanded(
                             child: Text(
-                              L.t('Didn\'t happen today — that\'s okay',
-                                  'לא קרה היום — זה בסדר גמור'),
+                              L.t('Didn\'t happen today — noted',
+                                  'לא קרה היום — נרשם'),
                               style: TextStyle(
                                 fontSize: big ? 16 : 13,
                                 fontWeight: FontWeight.w600,

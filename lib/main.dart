@@ -16,10 +16,12 @@ import 'package:bns/core/owl_time.dart';
 import 'package:bns/ui/widgets/routine_tile.dart';
 import 'package:bns/ui/widgets/plan_tile.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
+import 'package:bns/ui/widgets/postpone_sheet.dart';
 import 'package:bns/ui/widgets/bns_menu_screen.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
+import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/care_lock.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
@@ -139,7 +141,11 @@ Future<void> _startupChores(List<String> args) async {
     DateTime lastToastAt = DateTime.fromMillisecondsSinceEpoch(0);
     LanSyncService.instance.progressStream.listen((p) {
       if (p.subtle) return;
-      if (!p.isComplete && p.error == null) return;
+      // PROBLEMS SPEAK, SUCCESS STAYS QUIET (owner, 2026-08-16: "the sync
+      // success shouldn't make toast all the time, it is annoying").
+      // Auto-sync doing its job is ambient — Today's last-synced line and
+      // the Sync screen carry it. A toast is for something that needs you.
+      if (p.error == null) return;
       final text = p.error == null ? p.message : '${p.message}\n${p.error}';
       final now = DateTime.now();
       if (text == lastToast &&
@@ -652,6 +658,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // stand in the day with the weight of a step (owner, 2026-08-09).
   List<CalendarEvent> _todayPlans = const [];
   Map<String, int> _stepProgress = const {}; // routineId → parts done today
+  // routineId → when the person said to knock again ("later, by my will").
+  Map<String, DateTime> _snoozedUntil = const {};
   bool _nextFirstOrder = false; // false = morning→night (default)
   bool _guidedMode = false; // level 4: only the list, inspector builds
   String? _lastSyncLine; // cached "last synced" note (no per-frame queries)
@@ -701,6 +709,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final todayPlans = await IsarService.getEventsForDate(todayStr);
+    // The person's own "later"s — the hero honors them, the tiles say them.
+    final snoozes = await IsarService.getReminderSnoozes();
+    final snoozedRoutines = <String, DateTime>{};
+    snoozes.forEach((payload, until) {
+      final parts = payload.split(':');
+      if (parts.length >= 2 && parts[0] == 'routine') {
+        snoozedRoutines[parts[1]] = until;
+      }
+    });
     // The kept "why"s: need-help notes from the last few days, latest one
     // per routine. They ride the tiles so the reason is met, not searched.
     final captures = await IsarService.getAllCaptures();
@@ -762,6 +779,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       _madToday = mad;
       _todayPlans = todayPlans;
       _stepProgress = steps;
+      _snoozedUntil = snoozedRoutines;
       _nextFirstOrder = settings.todayOrder == 'next';
       final lastSyncAt = trusted.isEmpty
           ? null
@@ -925,6 +943,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             onStepDone: r.steps.isNotEmpty ? () => _advanceStep(r) : null,
             selected: _routinesFocus.hasFocus && i == _kbSelected,
             skippedToday: _skippedTodayIds.contains(r.id),
+            snoozedUntil: _snoozedUntil[r.id],
             recentNote: _recentNoteText[r.id],
             recentNoteWhen: _recentNoteWhen[r.id],
             keptCount: _keptByRoutine[r.id]?.length ?? 0,
@@ -991,11 +1010,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       // happened, so an ungentle close costs nothing. Say so once.
       if (!IsarService.lastExitWasClean && !_uncleanExitNoticeShown) {
         _uncleanExitNoticeShown = true;
+        // ADULT WARMTH (owner + his father, 2026-08-16: "we went baby
+        // soft... it's for adults"): state the fact, skip the cooing.
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          duration: const Duration(seconds: 6),
+          duration: const Duration(seconds: 4),
           content: Text(L.t(
-              'Last time didn\'t close gently — no worries. Everything was already saved as you went. Nothing lost.',
-              'בפעם הקודמת האפליקציה לא נסגרה בעדינות — לא נורא. הכול נשמר תוך כדי, שום דבר לא הלך לאיבוד.')),
+              'Everything from last time is saved.',
+              'הכול מהפעם הקודמת שמור.')),
         ));
       }
     }
@@ -1262,10 +1283,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(L.t(
-                'Didn\'t happen? That\'s okay. If something got in the way, '
-                    'write it down — it will be remembered, so it can get help.',
-                'לא קרה? זה בסדר גמור. אם משהו הפריע, אפשר לכתוב אותו כאן — '
-                    'הוא ייזכר, כדי שיהיה אפשר לעזור.')),
+                'Didn\'t happen. If something got in the way, write it — '
+                    'it\'s kept.',
+                'לא קרה. אם משהו הפריע, אפשר לכתוב — זה נשמר.')),
             const SizedBox(height: 16),
             TextField(
               controller: noteCtrl,
@@ -1281,6 +1301,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 // main problem door — typing alone is not enough.
                 suffixIcon: DictationMicButton(controller: noteCtrl),
               ),
+            ),
+            const SizedBox(height: 12),
+            // LATER, BY MY WILL (owner, 2026-08-16, for levels 3–4): the
+            // third kind answer. Not done, not skipped — just "not right
+            // now", said with two big taps and a filling bar.
+            OutlinedButton.icon(
+              onPressed: () async {
+                final d = await showPostponeSheet(
+                    context: ctx, title: r.title, big: _guidedMode);
+                if (d == null) return;
+                await saveProblemNote();
+                await IsarService.snoozeReminder(
+                    'routine:${r.id}', DateTime.now().add(d));
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _refreshDoneToday();
+              },
+              style: OutlinedButton.styleFrom(
+                  minimumSize: Size.fromHeight(_guidedMode ? 60 : 52)),
+              icon: const Icon(Icons.update, size: 24),
+              label: Text(L.t('Later — remind me again',
+                  'מאוחר יותר — להזכיר שוב')),
             ),
             const SizedBox(height: 12),
             QuickCaptureBar(
@@ -1412,10 +1453,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     fontSize: 22, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(L.t(
-                'Didn\'t happen? That\'s okay — plans move. If something got '
-                    'in the way, write it down so it can get help.',
-                'לא קרה? זה בסדר — תוכניות זזות. אם משהו הפריע, אפשר לכתוב '
-                    'אותו כאן כדי שיהיה אפשר לעזור.')),
+                'Plans move. If something got in the way, write it — '
+                    'it\'s kept.',
+                'תוכניות זזות. אם משהו הפריע, אפשר לכתוב — זה נשמר.')),
             const SizedBox(height: 16),
             TextField(
               controller: noteCtrl,
@@ -1428,6 +1468,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 border: const OutlineInputBorder(),
                 suffixIcon: DictationMicButton(controller: noteCtrl),
               ),
+            ),
+            const SizedBox(height: 12),
+            // A plan can also simply move — same third answer as routines.
+            OutlinedButton.icon(
+              onPressed: () async {
+                final d = await showPostponeSheet(
+                    context: ctx, title: plan.title, big: _guidedMode);
+                if (d == null) return;
+                await IsarService.snoozeReminder(
+                    'event:${plan.id}:${plan.date}', DateTime.now().add(d));
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _refreshDoneToday();
+              },
+              style: OutlinedButton.styleFrom(
+                  minimumSize: Size.fromHeight(_guidedMode ? 60 : 52)),
+              icon: const Icon(Icons.update, size: 24),
+              label: Text(L.t('Later — remind me again',
+                  'מאוחר יותר — להזכיר שוב')),
             ),
             const SizedBox(height: 16),
             FilledButton(
@@ -1472,6 +1530,46 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         AndroidBnsWidget.updateWidget();
       },
     );
+  }
+
+  /// "MADE IT" IS EVERYONE'S (owner, 2026-08-16: "level 4 is not disabled
+  /// from this feature — it's not a list for the caregiver only"). The
+  /// person keeps their own day — the auto-summary of what was done, said
+  /// and met — and because it is a capture like any other, it travels to
+  /// the caregiver by the same sync as everything else. Level 4 lost this
+  /// door when the containment closed DayView; it lives on Today now.
+  Future<void> _memorizeToday() async {
+    final todayStr = _todayKey;
+    final routines = await IsarService.getAllRoutines();
+    final applicable = routines
+        .where((r) => r.appliesOn(_logicalToday) && r.isActive)
+        .toList();
+    final logs = await IsarService.getLogsForDate(todayStr);
+    final captures = await IsarService.getCapturesForDate(_logicalToday);
+    final events = await IsarService.getEventsForDate(todayStr);
+    final summary = buildDayAutoSummary(
+      date: _logicalToday,
+      applicableRoutines: applicable,
+      logs: logs,
+      captures: captures,
+      events: events,
+      t: L.t,
+      dayLabel: DateFormat.yMMMd(L.isHebrew ? 'he' : 'en')
+          .format(_logicalToday),
+    );
+    await IsarService.addCapture(QuickCapture(
+      id: '',
+      at: DateTime.now(),
+      text: summary,
+      tags: const ['day-memory', 'auto-summary'],
+      memoryLevel: MemoryLevel.memorize,
+      isDayMemory: true,
+    ));
+    await _refreshDoneToday();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t('The day is kept.', 'היום נשמר.'))));
+    }
   }
 
   /// TOMORROW, SET UP TONIGHT (owner, 2026-08-15: "planning tomorrow the
@@ -1715,11 +1813,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       Expanded(
                         child: Text(
                           _madActive
-                              ? L.t(
-                                  'It\'s okay to be furious. This space can take it.',
-                                  'מותר להיות עצבניים. המקום הזה יכול להכיל את זה.')
-                              : L.t('Hey — whatever today looks like is okay.',
-                                  'היי — איך שהיום נראה, זה בסדר.'),
+                              ? L.t('Furious is allowed here.',
+                                  'מותר לכעוס כאן.')
+                              : L.t('Your day.', 'היום שלך.'),
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
@@ -1744,11 +1840,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   const SizedBox(height: 6),
                   Text(
                     _madActive
-                        ? L.t(
-                            'Rage is part of the marathon too. Skipping today on purpose still counts.',
-                            'גם כעס הוא חלק מהמרתון. לדלג על היום בכוונה — גם זה נחשב.')
-                        : L.t('Routines support you. They never get mad.',
-                            'השגרות כאן בשבילך. הן אף פעם לא כועסות.'),
+                        ? L.t('Deciding to skip today counts too.',
+                            'גם להחליט לדלג היום — נחשב.')
+                        : L.t('What gets done, gets done. The rest waits.',
+                            'מה שנעשה — נעשה. השאר יחכה.'),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -1894,6 +1989,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         todays: todaysRoutines,
                         doneIds: _doneTodayIds,
                         skippedIds: _skippedTodayIds,
+                        snoozedIds: _snoozedUntil.keys.toSet(),
                       );
                       // ALWAYS RETURN: something already started outranks
                       // the clock. Half-done work is the easiest thing in
@@ -1960,15 +2056,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 padding: const EdgeInsets.all(14),
                                 child: Text(
                                   L.t(
-                                      'Welcome back — the day waited for you. '
-                                          'A few earlier things are still open '
-                                          'below: done late is fully done, and '
-                                          '"didn\'t happen" with a word about '
-                                          'why counts too. Start anywhere.',
-                                      'ברוכים השבים — היום חיכה לך. כמה דברים '
-                                          'מוקדמים עדיין פתוחים למטה: לסיים '
-                                          'באיחור זה לגמרי לסיים, וגם ״לא קרה״ '
-                                          'עם מילה על למה — נחשב. אפשר להתחיל '
+                                      'A few earlier things are still open. '
+                                          'Late still counts. Start anywhere.',
+                                      'כמה דברים מוקדמים עדיין פתוחים. '
+                                          'מאוחר — עדיין נחשב. אפשר להתחיל '
                                           'מכל מקום.'),
                                   style: TextStyle(
                                       fontSize: 14 * _textScale,
@@ -2221,6 +2312,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         await context.push('/capture');
                         await _refreshDoneToday();
                       },
+                    ),
+                    const SizedBox(height: 12),
+                    // "Made it" belongs to level 4 too — one tap keeps the
+                    // day, and it reaches the caregiver with the sync.
+                    OutlinedButton.icon(
+                      onPressed: _memorizeToday,
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(60)),
+                      icon: const Icon(Icons.stars, size: 26),
+                      label: Text(L.t('Keep this day', 'לשמור את היום'),
+                          style: TextStyle(fontSize: 16 * _textScale)),
                     ),
                   ],
 

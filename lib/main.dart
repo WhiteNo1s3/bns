@@ -88,11 +88,14 @@ Future<void> _startupChores(List<String> args) async {
       // asks it synchronously on every navigation.
       IsarService.getSettings().then((s) {
         CareState.guided.value = s.guidedMode;
+        CareState.caregiver.value = s.caregiverDevice;
       }).catchError((Object _) {});
     };
     // The hand gets its answer from the first gesture onward.
     await BnsHaptics.init();
-    CareState.guided.value = (await IsarService.getSettings()).guidedMode;
+    final startupSettings = await IsarService.getSettings();
+    CareState.guided.value = startupSettings.guidedMode;
+    CareState.caregiver.value = startupSettings.caregiverDevice;
     await NotificationsService.init();
     // First sweep also clears anything stale left in the shade from before
     // this launch — opening BNS means the day on screen takes over.

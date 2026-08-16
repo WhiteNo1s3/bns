@@ -69,7 +69,14 @@ class _DayThreadScreenState extends State<DayThreadScreen> {
     final madUntil = settings.madModeUntil;
     final madActive =
         madUntil != null && madUntil.isAfter(DateTime.now());
-    final includeMad = settings.fullCareMode || madActive;
+    // VENTS NEVER COME BACK AT THE PERSON (caregiver report, 2026-08-16:
+    // "Memories showed the rants back... feels like the app told on
+    // them"). fullCareMode is true on the PERSON'S own level-3 device too
+    // — the rants are the signal for the HELPER, so they show only where
+    // the helper is: on the caregiver device. On the person's device a
+    // vent surfaces only while their own mad mode is still burning.
+    final includeMad =
+        (settings.fullCareMode && settings.caregiverDevice) || madActive;
 
     final routines = await IsarService.getAllRoutines();
     final logs = await IsarService.getLogsForDate(_dateStr);

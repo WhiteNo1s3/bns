@@ -542,12 +542,21 @@ class IsarService {
       ..clear()
       ..addAll(logs);
 
+    // Same law as mergeData: a caregiver device restoring a person's
+    // backup carries their DATA, never their hat.
+    final keepRole = local.caregiverDevice;
     d.settings = settings.copyWith(
       serverUrl: local.serverUrl,
       serverToken: local.serverToken,
       deviceId: local.deviceId,
       deviceName: local.deviceName,
       retentionDays: local.retentionDays,
+      caregiverDevice: local.caregiverDevice,
+      guidedMode: keepRole ? local.guidedMode : null,
+      fullCareMode: keepRole ? local.fullCareMode : null,
+      careLevel: keepRole ? local.careLevel : null,
+      shareName: keepRole ? local.shareName : null,
+      careLockHash: keepRole ? local.careLockHash : null,
     );
     await _persist();
   }
@@ -596,6 +605,12 @@ class IsarService {
       await _persist();
       return;
     }
+    // THE HELPER DOES NOT BECOME THE PERSON (caregiver report,
+    // 2026-08-16: after first sync, Care's store said shareName=Ben,
+    // guidedMode=true, careLevel=4 — "a later relaunch can confuse who
+    // is who"). A caregiver device keeps its OWN hat: role flags, share
+    // name and the caregiver's key never adopt the person's.
+    final keepRole = local.caregiverDevice;
     d.settings = incomingSettings.copyWith(
       deviceId: local.deviceId,
       deviceName: local.deviceName,
@@ -605,6 +620,11 @@ class IsarService {
       caregiverDevice: local.caregiverDevice,
       keybinds: local.keybinds,
       enabledKeybinds: local.enabledKeybinds,
+      guidedMode: keepRole ? local.guidedMode : null,
+      fullCareMode: keepRole ? local.fullCareMode : null,
+      careLevel: keepRole ? local.careLevel : null,
+      shareName: keepRole ? local.shareName : null,
+      careLockHash: keepRole ? local.careLockHash : null,
     );
     await _persist();
   }

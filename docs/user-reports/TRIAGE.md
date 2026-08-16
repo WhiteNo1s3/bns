@@ -60,3 +60,34 @@ is not yet even understood. Nothing here gets to quietly disappear.
 
 - Editing `bns_data.json` by hand (level-4 report #7) — recorded in wave
   21 as future platform-keystore hardening.
+
+
+## Caregiver problems pass (docs/user-reports/2026-08-16-caregiver-problems.md)
+
+Fixed same day:
+- **Vents shown back to the level-3 person in the day diary** — includeMad
+  keyed on fullCareMode alone; now vents show only where the HELPER is
+  (caregiverDevice) or while the person's own mad mode still burns.
+- **Doctor-row tap silently family-shared a medical plan** — a plain tap
+  never shares; the row opens the bag ("מה לוקחים?"), sharing stays on
+  its own icon.
+- **First sync copied the person's identity onto Care** (shareName=Ben,
+  guidedMode, careLevel=4) — a caregiver device now keeps its own hat
+  through merge AND restore: role flags, share name, caregiver key.
+- **The bag had no door when empty** — the backpack shows on every open
+  plan now; an empty list is where the list gets built.
+- **Care at phone width lost the routines room** — the helper's doors
+  swap "Keep this" for "Routines".
+
+Noted, stale-build (their .l4-test apps predate the caregiver's key):
+- מלווה long-press CRUD leak — already key-gated in main (wave 21).
+- Restart-lands-on-Sync — one-map + guided containment supersede.
+
+Open / recorded:
+- **Version-skew data loss**: the 15-Aug debug APK strips `gather` on
+  save (old models rebuild JSON from known fields). Same risk class for
+  every new field. Future hardening: unknown-key passthrough in models.
+  Alpha rule meanwhile: kill stale builds after a schema wave.
+- Windows person build shares the live Mac Documents store; Windows
+  rebuild broken (MSBuild VCTargetsPath / ARM64). Alpha-env only.
+- Ctrl+R once landed on /sync — unreproduced.

@@ -48,6 +48,11 @@ class CareState {
   /// cannot await).
   static final ValueNotifier<bool> guided = ValueNotifier<bool>(false);
 
+  /// Live helper-hat flag: this copy belongs to the person who HELPS.
+  /// The phone doors ask it — an inspector at phone width lost the
+  /// routines room entirely (caregiver report, 2026-08-16).
+  static final ValueNotifier<bool> caregiver = ValueNotifier<bool>(false);
+
   static DateTime? _unlockedUntil;
 
   /// The caregiver opened their door moments ago — routes that belong to

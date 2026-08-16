@@ -521,7 +521,13 @@ class _DayViewState extends State<DayView> {
                                     'לשתף את המשפחה בזה'),
                             onPressed: () => _toggleFamilyShare(e),
                           ),
-                          onTap: () => _toggleFamilyShare(e),
+                          // A PLAIN TAP NEVER SHARES (caregiver report,
+                          // 2026-08-16: tapping the doctor row silently
+                          // marked it family-shared — "the person thinks
+                          // they broke it"). The row opens what the person
+                          // actually came for — the bag. Sharing lives on
+                          // its own icon, deliberately, and nowhere else.
+                          onTap: () => _openGather(e),
                         )),
 
                   const SizedBox(height: 24),

@@ -119,7 +119,11 @@ class PlanTile extends StatelessWidget {
                     // never as a score of what is missing — "2 of 4 are
                     // with us" invites the next answer; "2 missing" is an
                     // accusation aimed at the person who cannot fetch them.
-                    if (plan.hasGather && !plan.isAnswered) ...[
+                    // The door shows even when the bag is still EMPTY
+                    // (caregiver report, 2026-08-16: "if the bag has no
+                    // door, they cannot answer") — an empty list is where
+                    // the list gets built.
+                    if (onGather != null && !plan.isAnswered) ...[
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
                         onPressed: onGather,
@@ -135,12 +139,14 @@ class PlanTile extends StatelessWidget {
                                 : Icons.backpack_outlined,
                             size: big ? 24 : 20),
                         label: Text(
-                          plan.gatherReady
-                              ? L.t('Everything is with us 🌿',
-                                  'הכול איתנו 🌿')
-                              : L.t(
-                                  'What do we take? ${plan.gatherTaken} of ${plan.gather.length} are with us',
-                                  'מה לוקחים? ${plan.gatherTaken} מתוך ${plan.gather.length} כבר איתנו'),
+                          !plan.hasGather
+                              ? L.t('What do we take?', 'מה לוקחים?')
+                              : plan.gatherReady
+                                  ? L.t('Everything is with us 🌿',
+                                      'הכול איתנו 🌿')
+                                  : L.t(
+                                      'What do we take? ${plan.gatherTaken} of ${plan.gather.length} are with us',
+                                      'מה לוקחים? ${plan.gatherTaken} מתוך ${plan.gather.length} כבר איתנו'),
                           style: TextStyle(fontSize: big ? 16 : 13.5),
                         ),
                       ),

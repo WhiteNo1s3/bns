@@ -114,18 +114,18 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     // at startup (2026-08-16). The containment state pushes changes here.
     _guided = CareState.guided.value;
     CareState.guided.addListener(_onGuidedChanged);
+    CareState.caregiver.addListener(_onGuidedChanged);
     _loadGuided();
   }
 
   void _onGuidedChanged() {
-    if (mounted && CareState.guided.value != _guided) {
-      setState(() => _guided = CareState.guided.value);
-    }
+    if (mounted) setState(() => _guided = CareState.guided.value);
   }
 
   @override
   void dispose() {
     CareState.guided.removeListener(_onGuidedChanged);
+    CareState.caregiver.removeListener(_onGuidedChanged);
     super.dispose();
   }
 
@@ -584,14 +584,22 @@ class _PhoneDoors extends StatelessWidget {
 
   const _PhoneDoors({required this.child, required this.currentPath});
 
-  static const _routes = ['/', '/capture', '/memories', '/calendar'];
+  /// The rooms this device's person actually works in. A HELPER'S copy
+  /// swaps "Keep this" for "Routines" — the inspector builds the day, and
+  /// at phone width the routines room had NO door at all (caregiver
+  /// report, 2026-08-16: "cannot build the day without widening the
+  /// window or hitting the wrong door").
+  List<String> get _routes => CareState.caregiver.value
+      ? const ['/', '/routines', '/memories', '/calendar']
+      : const ['/', '/capture', '/memories', '/calendar'];
 
   /// Which door is standing open — or null when the person is somewhere
-  /// with no door of its own (routines, sync, a single day), where NO
-  /// door is marked rather than a wrong one.
+  /// with no door of its own (sync, a single day), where NO door is
+  /// marked rather than a wrong one.
   int? get _index {
-    for (var i = 0; i < _routes.length; i++) {
-      if (i == 0 ? currentPath == '/' : currentPath.startsWith(_routes[i])) {
+    final routes = _routes;
+    for (var i = 0; i < routes.length; i++) {
+      if (i == 0 ? currentPath == '/' : currentPath.startsWith(routes[i])) {
         return i;
       }
     }
@@ -601,6 +609,7 @@ class _PhoneDoors extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (currentPath.startsWith('/capture')) return child;
+    final caregiver = CareState.caregiver.value;
     final here = _index;
 
     return Scaffold(
@@ -638,11 +647,18 @@ class _PhoneDoors extends StatelessWidget {
             selectedIcon: const Icon(Icons.today, size: 28),
             label: L.t('Today', 'היום'),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.mic_none, size: 28),
-            selectedIcon: const Icon(Icons.mic, size: 28),
-            label: L.t('Keep this', 'לשמור'),
-          ),
+          if (caregiver)
+            NavigationDestination(
+              icon: const Icon(Icons.list_alt_outlined, size: 28),
+              selectedIcon: const Icon(Icons.list_alt, size: 28),
+              label: L.t('Routines', 'שגרות'),
+            )
+          else
+            NavigationDestination(
+              icon: const Icon(Icons.mic_none, size: 28),
+              selectedIcon: const Icon(Icons.mic, size: 28),
+              label: L.t('Keep this', 'לשמור'),
+            ),
           NavigationDestination(
             icon: const Icon(Icons.menu_book_outlined, size: 28),
             selectedIcon: const Icon(Icons.menu_book, size: 28),

@@ -98,9 +98,11 @@ class BnsTheme {
     );
     if (brightness == Brightness.dark) {
       // Lift off pure black into a soft deep tinted by the palette —
-      // the difference between a cave and an evening room.
+      // the difference between a cave and an evening room. The base is
+      // WARM (owner, 2026-08-16: "green and blue are making me sick" —
+      // the old base 0xFF171D1B carried a green cast under everything).
       Color lift(double a) =>
-          Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFF171D1B));
+          Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFF1E1916));
       return s.copyWith(
         surface: lift(0.045),
         surfaceContainerLowest: lift(0.03),
@@ -112,7 +114,7 @@ class BnsTheme {
     }
     // Light: warm the paper a touch so white stops feeling clinical.
     Color warm(double a) =>
-        Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFFFBFAF7));
+        Color.alphaBlend(seed.withValues(alpha: a), const Color(0xFFFBF8F4));
     return s.copyWith(
       surface: warm(0.015),
       surfaceContainerLowest: const Color(0xFFFFFFFF),
@@ -123,18 +125,22 @@ class BnsTheme {
     );
   }
 
+  // Green and blue LEFT THE BUILDING (owner, 2026-08-16: "the whole theme
+  // of green and blue are making me sick"). The family is warm now: clay
+  // is the app's face; lavender, sand and rose stay as warm company.
+  // Stored 'teal'/'deep' values from older builds fall back to clay.
   static Color _seedForPalette(RelaxingPalette p) {
     switch (p) {
-      case RelaxingPalette.teal:
-        // A touch brighter than the old 0xFF14B8A6 — alive, still calm.
-        return const Color(0xFF17C3A8);
+      case RelaxingPalette.clay:
+        // Terracotta — earth, tea, evening light. Alive without alarm.
+        return const Color(0xFFD26A4B);
       case RelaxingPalette.lavender:
         return const Color(0xFF9B7BF7);
       case RelaxingPalette.sand:
         return const Color(0xFFE8930C);
-      case RelaxingPalette.deep:
-        // Was a gray slate — a gloom, not a palette. Now a calm sea blue.
-        return const Color(0xFF4A7DE0);
+      case RelaxingPalette.rose:
+        // Dusty rose — soft warmth for whoever wants gentler than clay.
+        return const Color(0xFFD9678F);
     }
   }
 

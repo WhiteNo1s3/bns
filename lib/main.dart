@@ -415,11 +415,11 @@ class _BnsAppState extends ConsumerState<BnsApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       theme: BnsTheme.build(
-        palette: RelaxingPalette.teal,
+        palette: RelaxingPalette.clay,
         mode: ThemeModeSetting.system,
       ),
       darkTheme: BnsTheme.build(
-        palette: RelaxingPalette.teal,
+        palette: RelaxingPalette.clay,
         mode: ThemeModeSetting.dark,
       ),
       // Static app: even light/dark switches snap instead of morphing.
@@ -667,6 +667,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // "today" on this screen goes through these two, so a 02:00 pill at
   // 01:30 still belongs to TONIGHT's list for a person with a 04:00 border.
   int _rolloverHour = 0;
+  // When the person-day begins (later-today offers slots from here on).
+  int _dayStartHour = 0;
 
   DateTime get _logicalToday => logicalDateOf(DateTime.now(), _rolloverHour);
   String get _todayKey => logicalDayKey(DateTime.now(), _rolloverHour);
@@ -704,6 +706,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     // date "today" even is before anything else is fetched.
     final settings = await IsarService.getSettings();
     _rolloverHour = settings.dayRolloverHour;
+    _dayStartHour = settings.dayStartHour;
     final todayStr = _todayKey;
     final logs = await IsarService.getLogsForDate(todayStr);
     final trusted = await IsarService.getTrustedDevices();
@@ -951,6 +954,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 _showKeptWords(r.title, _keptByRoutine[r.id] ?? const []),
             onToggle: () => _toggleComplete(r),
             onSkip: () => _openDidntHappenSheet(r),
+            // Later today: hidden in guided mode — there the inspector
+            // moves the clock, and the person's list simply follows.
+            onLaterToday: (_guidedMode || r.time == null)
+                ? null
+                : (hhmm) => _postponeItem(r, hhmm),
+            rolloverHour: _rolloverHour,
+            startHour: _dayStartHour,
+            dayKey: _todayKey,
           ),
         ));
       } else if (item is CalendarEvent) {
@@ -962,11 +973,35 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             onToggle: () => _togglePlanDone(item),
             onSkip: () => _openPlanDidntHappenSheet(item),
             onGather: () => _openGather(item),
+            onLaterToday: (_guidedMode || item.time == null || item.isAllDay)
+                ? null
+                : (hhmm) => _postponeItem(item, hhmm),
+            rolloverHour: _rolloverHour,
+            startHour: _dayStartHour,
           ),
         ));
       }
     }
     return tiles;
+  }
+
+  /// LATER TODAY — still this day, a later clock (tester, 2026-08-16: "a
+  /// late morning is normal"). A routine keeps its usual time and gets a
+  /// one-day override; a plan simply moves (that visit is only today).
+  /// Not a skip, not an edit of tomorrow.
+  Future<void> _postponeItem(Object item, String hhmm) async {
+    if (item is Routine) {
+      await IsarService.addRoutine(item.postponeOn(_todayKey, hhmm));
+    } else if (item is CalendarEvent) {
+      await IsarService.addEvent(
+          item.copyWith(time: hhmm, updatedAt: DateTime.now()));
+    }
+    await NotificationsService.rescheduleAll();
+    await _refreshDoneToday();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t('Moved to $hhmm — still today.',
+            'עבר ל־$hhmm — עדיין היום.'))));
   }
 
   Future<void> _toggleTodayOrder() async {
@@ -1005,6 +1040,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         _madActive = mad;
         _guidedMode = s.guidedMode;
         _rolloverHour = s.dayRolloverHour;
+        _dayStartHour = s.dayStartHour;
       });
       // Reassurance, never alarm: every change was already saved as it
       // happened, so an ungentle close costs nothing. Say so once.
@@ -2086,6 +2122,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                               onStepDone: hero.steps.isNotEmpty
                                   ? () => _advanceStep(hero)
                                   : null,
+                              onLaterToday:
+                                  (_guidedMode || hero.time == null)
+                                      ? null
+                                      : (hhmm) => _postponeItem(hero, hhmm),
+                              rolloverHour: _rolloverHour,
+                              startHour: _dayStartHour,
+                              dayKey: _todayKey,
                             )
                           else
                             DayClearCard(

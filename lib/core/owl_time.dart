@@ -9,7 +9,9 @@
 /// day while the person sleeps, never in their face.
 ///
 /// Everything here is pure and tested. `rolloverHour` 0 = midnight, the
-/// exact old behavior; owls pick 1..6.
+/// exact old behavior; owls pick 1..6. `startHour` is when THIS person
+/// begins their day on that same 24-hour entity (Ben: 15:00 → 05:00).
+/// One clock — never a second one, never a hardcoded city.
 library;
 
 /// The border can sit at most here — a "day" that ends later than 06:00
@@ -18,6 +20,22 @@ const int kMaxRolloverHour = 6;
 
 int _clampRollover(int rolloverHour) =>
     rolloverHour < 0 ? 0 : (rolloverHour > kMaxRolloverHour ? kMaxRolloverHour : rolloverHour);
+
+/// A day can begin at any clock hour. 0 = midnight (the old world).
+const int kMaxStartHour = 23;
+
+int _clampStart(int startHour) =>
+    startHour < 0 ? 0 : (startHour > kMaxStartHour ? kMaxStartHour : startHour);
+
+/// When this person-day began (or will begin): the logical date at
+/// [startHour]. With start 15:00 / end 05:00: at 16:00 that is today
+/// 15:00; at 04:00 that is yesterday 15:00 (still this day); at 06:00
+/// the day has already flipped, so it is today 15:00 — still ahead.
+DateTime personDayStart(DateTime now, int startHour, int rolloverHour) {
+  final logical = logicalDateOf(now, rolloverHour);
+  return DateTime(
+      logical.year, logical.month, logical.day, _clampStart(startHour));
+}
 
 /// The date this moment BELONGS to: before the border, it is still
 /// "yesterday" — the night is part of the day it grew out of.

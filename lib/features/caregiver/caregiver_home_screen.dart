@@ -13,6 +13,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/later_today_door.dart';
 
 /// THE HELPER'S HOME (owner, 2026-07-27: "we also want to have a caregiver
 /// interface").
@@ -48,6 +49,10 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   String _personName = '';
   DateTime? _lastSync;
   List<QuickCapture> _asks = const [];
+  // The person's own day borders — later-today speaks their clock.
+  int _rolloverHour = 0;
+  int _dayStartHour = 0;
+  String _todayKey = '';
 
   @override
   void initState() {
@@ -63,6 +68,9 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     final logicalDay =
         logicalDateOf(DateTime.now(), settings.dayRolloverHour);
     final dateStr = dayKeyOf(logicalDay);
+    _rolloverHour = settings.dayRolloverHour;
+    _dayStartHour = settings.dayStartHour;
+    _todayKey = dateStr;
 
     final routines = await IsarService.getAllRoutines();
     final logs = await IsarService.getLogsForDate(dateStr);
@@ -74,7 +82,8 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     if (!mounted) return;
     setState(() {
       _todayRoutines = routines.where((r) => r.appliesOn(logicalDay)).toList()
-        ..sort((a, b) => (a.time ?? '99:99').compareTo(b.time ?? '99:99'));
+        ..sort((a, b) => (a.timeOn(dateStr) ?? '99:99')
+            .compareTo(b.timeOn(dateStr) ?? '99:99'));
       _todayLogs = logs;
       // A helper is trusted with the hard moments too — that is the whole
       // point of level 3 ("the frustration IS the signal").
@@ -161,6 +170,18 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
           : L.t('Paired with $who — last heard $when.',
               'מחוברים ל־$who — נשמע לאחרונה $when.'),
     );
+  }
+
+  /// The helper moves the clock; sync carries it to the person, whose own
+  /// device re-registers the reminder by itself. Today only — tomorrow the
+  /// usual time returns on its own.
+  Future<void> _postponeTheirs(Routine r, String hhmm) async {
+    await IsarService.addRoutine(r.postponeOn(_todayKey, hhmm));
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t('Moved to $hhmm — today only. It will reach them.',
+            'עבר ל־$hhmm — רק היום. זה יגיע אליהם.'))));
   }
 
   Widget _banner(Color bg, Color fg, IconData icon, String text,
@@ -344,9 +365,14 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                       final done = log?.status == CompletionStatus.done;
                       final skipped = log?.status == CompletionStatus.skipped;
                       final why = (log?.reason ?? '').trim();
+                      final movedToday =
+                          r.timeOn(_todayKey) != r.time && r.time != null;
                       return Card(
                         margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                        child: ListTile(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        ListTile(
                           leading: Icon(
                             done
                                 ? Icons.check_circle
@@ -363,10 +389,18 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text((r.time == null
-                                      ? ''
-                                      : '${r.time}  ·  ') +
-                                  RecurrenceUtils.describe(r)),
+                              // Today's actual clock — a later-today move
+                              // shows the moved hour, not the usual one.
+                              Text(RecurrenceUtils.describe(r,
+                                  dayKey: _todayKey)),
+                              if (movedToday)
+                                Text(
+                                  L.t('Moved for today — usually ${r.time}',
+                                      'הועבר להיום — בדרך כלל ${r.time}'),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: cs.onSurfaceVariant),
+                                ),
                               if (skipped)
                                 Text(
                                   why.isEmpty
@@ -383,6 +417,22 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                           trailing: (skipped && why.isNotEmpty)
                               ? _speak(why)
                               : null,
+                        ),
+                        // THE INSPECTOR MOVES THE CLOCK (tester, 2026-08-16:
+                        // "in the L4 pair nobody can postpone"). Day-building
+                        // stays the helper's hand; the ✓ stays the person's.
+                        if (!done && !skipped && r.time != null)
+                          Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                            child: LaterTodayDoor(
+                              now: DateTime.now(),
+                              rolloverHour: _rolloverHour,
+                              startHour: _dayStartHour,
+                              onPicked: (hhmm) => _postponeTheirs(r, hhmm),
+                            ),
+                          ),
+                          ],
                         ),
                       );
                     }),

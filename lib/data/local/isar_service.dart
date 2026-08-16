@@ -752,10 +752,14 @@ class IsarService {
       if (d.stepProgress.length != stepsBefore) changed = true;
 
       final capsBefore = d.captures.length;
-      // Old captures beyond window ('memorize' level is permanent).
+      // Old captures beyond window. THE GARDEN IS SAVED (owner, 2026-08-16:
+      // "it should be saved for them to remember"): anything the person
+      // deliberately kept — 'remember' AND 'memorize' — never rolls off.
+      // A chosen "remember" that self-deletes in two weeks is the void
+      // wearing a policy hat. Only passing 'quick' notes ride the window.
       d.captures.removeWhere((c) =>
           c.at.isBefore(cutoff) &&
-          c.memoryLevel != MemoryLevel.memorize &&
+          c.memoryLevel == MemoryLevel.quick &&
           (c.deletedAt == null || c.deletedAt!.isBefore(trashCutoff)));
       // Trashed captures older than 3 days (permanent delete).
       d.captures.removeWhere(

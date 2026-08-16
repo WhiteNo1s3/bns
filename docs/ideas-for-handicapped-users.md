@@ -882,3 +882,97 @@ adds a settings mode with its own laws, so it should land as a decided
 thing, not a drive-by. The one piece already in place: today's
 caregiver-cannot-done guard was written knowing level 5 would need the
 together-view exception.
+
+---
+
+## Wave 23 — BNS Care becomes its own app (owner direction, 2026-08-16 night)
+
+The owner's words, mid-testing: "we should be making the caregiver app…
+possibility of caregivers that are nurses, or two children need
+assistance; we need to make it sync with few phones and have their
+profile loaded… if we separate the apps we are also not bound to
+misfire of an app to shoot the wrong file into the other's phone —
+caregiver gets information from the user and THEN it sends back."
+The same night, the tester hit the wall from the other side: "One Care
+app cannot honestly hold Level 3 and Level 4 as two people. Same-Mac
+ports, one trusted[], one list."
+
+### The shape
+
+**BNS Care** — a second app from the same repo (one folder, one
+history: a separate entry point / flavor, never a fork). The person's
+app sheds its inspector hat over time; the Care app holds:
+
+- **Profiles.** One profile per person being helped: a nurse with a
+  ward, a parent with two children. Each profile is its OWN snapshot
+  store (`profiles/<id>/bns_data.json`) with its OWN `trusted[]`, its
+  OWN pairing, its own day, level, key and colors. The switcher is a
+  row of named doors, the person's shareName big on each.
+- **Structural misfire-proofing.** Today a wrong-profile push is
+  prevented by care; in the Care app it is prevented by STRUCTURE —
+  a pairing lives inside one profile's store, so there is no code path
+  where profile A's day can address profile B's phone. The wrong-file
+  fear dies at the architecture level, like the roulette died at the
+  port level.
+- **RECEIVE FIRST, THEN SEND (the directional law).** A profile sync
+  is always: pull the person's truth in, merge, and only then push the
+  built day back. Never a blind push into a phone. The person's device
+  stays the source of truth about what HAPPENED; the Care app is the
+  source of what is PLANNED.
+- **Level 5 folds in.** The sketchbook (wave 22) becomes a profile
+  type: "no phone" — a profile that simply has no pairing, whose
+  together-view is the walkthrough. One mental model: a profile may
+  have a paired phone, or be paper-backed.
+- **Multi-caregiver later.** Two children each with the Care app,
+  helping the same parent: each pairs as its own trusted device.
+  Already works at the protocol level; the Care app makes it legible.
+
+### Migration
+
+A device with `caregiverDevice=true` today becomes a Care app with one
+profile, seeded from its current store. The person's app keeps
+`caregiverDevice` support until the Care app ships, then retires the
+inspector screens.
+
+### Order of work (proposed)
+
+1. Profile-scoped stores + switcher inside the existing caregiver
+   screens (still one app — proves the model, fixes the tester's
+   two-people problem).
+2. `main_care.dart` entry point + bundle id `com.whiteno1se.bns.care`,
+   Android flavor + Mac target; the L3/L4 harness swaps to it.
+3. Retire inspector code from the person's app.
+
+---
+
+## Wave 24 — the memory garden: saved, and worth looking at (owner, 2026-08-16 night)
+
+"We will have to work on the memory garden we made, it should be saved
+for them to remember, it suppose to look better."
+
+### Saved — done tonight
+
+The garden's soil had a hole: retention (14–20 days) silently ate
+`remember`-level captures. A person chose "remember" and BNS forgot it
+in two weeks — the void wearing a policy hat. Now only passing `quick`
+notes ride the retention window; `remember` and `memorize` are both
+kept for good (mad-vents still burn out unless deliberately promoted —
+anger gets space, not a permanent record). test/garden_saved_test.dart
+holds the line. Follow-up recorded: pruned captures should also delete
+their orphaned audio files from disk.
+
+### Worth looking at — designed, to build next
+
+Today Memories is a list of gray cards. The garden the docs promised
+("gentle bloom, never numbers") wants:
+
+- **The words first.** The person's own sentence IS the flower — big
+  type, the voice-play button beside it, the date quiet underneath.
+- **Planted vs. passing.** What they kept forever reads as PLANTED:
+  a warm leaf/star mark, clay-toned card, always at the top of its
+  month. Quick notes stay light and small below.
+- **Months as beds.** Group by month with a soft header ("אוגוסט"),
+  newest first — walking back through time feels like walking a path,
+  not scrolling a log.
+- **No counts, no streaks.** Nothing numbered anywhere in the garden.
+- Same static laws: no motion, 48dp, adult temperature.

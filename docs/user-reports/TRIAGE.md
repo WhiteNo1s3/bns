@@ -113,10 +113,47 @@ Fixed same day:
   verified live: four instances on four ports, pairing surviving
   auto-sync crossfire, Care banner green "מחוברים ל־Ben — נשמע לאחרונה".
 
+## Night pass (2026-08-16 evening — caregiver-problems.md + owner directives)
+
+Fixed same night:
+- **"In the L4 pair nobody can postpone"** (tester) — later-today
+  (`timeByDay`) ported from the gBNS working folder on merit (its base
+  was old; only the feature slice came over: pure slot logic, model
+  override, reminder one-shot + fingerprint, 15 ported tests). Doors
+  wired where they belong: person tiles + plans + the Next hero
+  (hidden in guided mode), AND the inspector's rows — «עוד היום» under
+  every open routine on Care, writing a one-day override that syncs to
+  the person, whose own device re-registers the reminder by itself.
+  Moving the clock is day-building (the helper's hand); the ✓ stays
+  the person's.
+- **"Green and blue are making me sick"** (owner) — the palette family
+  is warm now: clay (terracotta) is the app's face; lavender, sand and
+  rose stay; teal and deep are GONE (stored old values fall back to
+  clay). The dark base itself was green-cast (0xFF171D1B) — now a warm
+  deep (0xFF1E1916); light paper warmed a step too.
+- **The garden forgot "remember"** (owner: "it should be saved for
+  them to remember") — retention silently ate `remember`-level
+  captures after 14 days. Now only passing `quick` notes roll off;
+  `remember` and `memorize` are permanent, promoted vents included.
+  test/garden_saved_test.dart.
+
+Directions taken (design written, build next):
+- **BNS Care becomes its own app** (owner) — multi-profile (nurses,
+  two children), one store+pairing per profile so misfires are
+  structurally impossible, RECEIVE-first-THEN-send directional law.
+  Ideas wave 23 + AGENTS law; folds in the tester's "one Care cannot
+  hold two people" and wave-22 sketchbook.
+- **Garden looks** — wave 24: words-first cards, planted vs. passing,
+  months as beds, no counts anywhere.
+
 Open / recorded:
 - **Version-skew data loss**: the 15-Aug debug APK strips `gather` on
   save (old models rebuild JSON from known fields). Same risk class for
   every new field. Future hardening: unknown-key passthrough in models.
+- **Pruned captures orphan their audio files** on disk — cleanup pass
+  wanted alongside the garden work.
+- **dayStartHour setting has no picker yet** (model + logic in; the
+  person's day start defaults to midnight until a settings door lands).
   Alpha rule meanwhile: kill stale builds after a schema wave.
 - Windows person build shares the live Mac Documents store; Windows
   rebuild broken (MSBuild VCTargetsPath / ARM64). Alpha-env only.

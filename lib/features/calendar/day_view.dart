@@ -593,7 +593,11 @@ class _DayViewState extends State<DayView> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(RecurrenceUtils.describe(r)),
+                              // The viewed day's own clock — a later-today
+                              // move shows its moved hour on that day.
+                              Text(RecurrenceUtils.describe(r,
+                                  dayKey:
+                                      DateFormat('yyyy-MM-dd').format(_date))),
                               // The skip is a tag with its why right there —
                               // never just an unexplained empty box. And the
                               // why can be read aloud, relaxed.

@@ -17,8 +17,11 @@ class RecurrenceUtils {
   /// every tile of a Hebrew-first app, found by using it (owner QA,
   /// 2026-08-15). The weekday initials were English too, so a custom
   /// routine said "Custom (S,M,T)" to someone reading right-to-left.
-  static String describe(Routine r) {
-    final time = r.time != null ? ' • ${r.time}' : '';
+  static String describe(Routine r, {String? dayKey}) {
+    // With [dayKey], a later-today override shows TODAY'S clock (17:30),
+    // while any other day still reads the usual time.
+    final clock = r.timeOn(dayKey);
+    final time = clock != null ? ' • $clock' : '';
     switch (r.recurrenceType) {
       case RecurrenceType.daily:
         return L.t('Every day$time', 'כל יום$time');

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/calendar_event.dart';
 import 'package:bns/services/haptics.dart';
+import 'package:bns/ui/widgets/later_today_door.dart';
 
 /// A PLAN standing in the day (owner, 2026-08-09): a doctor appointment, a
 /// one-time thing — not a routine, but today it carries the same weight as
@@ -18,6 +19,12 @@ class PlanTile extends StatelessWidget {
   /// list is the person's part even when building it is not.
   final VoidCallback? onGather;
 
+  /// Later today — still this day, a later clock. Null hides the door.
+  final ValueChanged<String>? onLaterToday;
+  final int rolloverHour;
+  final int startHour;
+  final DateTime? now;
+
   const PlanTile({
     super.key,
     required this.plan,
@@ -25,6 +32,10 @@ class PlanTile extends StatelessWidget {
     required this.onSkip,
     this.big = false,
     this.onGather,
+    this.onLaterToday,
+    this.rolloverHour = 0,
+    this.startHour = 0,
+    this.now,
   });
 
   @override
@@ -32,8 +43,16 @@ class PlanTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDone = plan.isDone;
 
+    final showLater = onLaterToday != null &&
+        !plan.isAnswered &&
+        !plan.isAllDay &&
+        plan.time != null;
+
     return Card(
-      child: InkWell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+      InkWell(
         onTap: onToggle,
         // Same hand, same answer: a plan's long-press buzzes too.
         onLongPress: () {
@@ -176,6 +195,18 @@ class PlanTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+        if (showLater)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: LaterTodayDoor(
+              now: now ?? DateTime.now(),
+              rolloverHour: rolloverHour,
+              startHour: startHour,
+              onPicked: onLaterToday!,
+            ),
+          ),
+        ],
       ),
     );
   }

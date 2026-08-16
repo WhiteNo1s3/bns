@@ -5,6 +5,7 @@
 library;
 
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/later_today.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 
@@ -96,10 +97,42 @@ List<PlannedReminder> planReminders({
   });
 
   // ---- Routines: repeating, at their own time, on their own days ----
+  final rollover = settings.dayRolloverHour;
+  final todayLogical = logicalDateOf(now, rollover);
+  final todayKey = dayKeyOf(todayLogical);
+
   for (final r in routines) {
     if (!r.isActive || r.time == null) continue;
     final hm = _parseTime(r.time!);
     if (hm == null) continue;
+
+    final todayClock = r.timeOn(todayKey);
+    final todayOverridden = todayClock != null && todayClock != r.time;
+
+    // Today-only postpone: fire the override once today, then the usual
+    // clock from the next person-day (the usual time comes back tomorrow).
+    if (todayOverridden && r.appliesOn(todayLogical)) {
+      final ov = _parseTime(todayClock);
+      if (ov != null) {
+        final at = actualMomentOf(todayLogical, ov.$1, ov.$2, rollover);
+        if (at.isAfter(now)) {
+          planned.add(PlannedReminder(
+            id: _stableId('r.${r.id}.p.$todayKey'),
+            title: L.t('Gentle reminder', 'תזכורת עדינה'),
+            body: L.t('${r.title} — whenever you\'re ready',
+                '${r.title} — מתי שנוח לך'),
+            firstAt: at,
+            repeat: PlannedRepeat.none,
+            payload: 'routine:${r.id}',
+          ));
+        }
+      }
+    }
+
+    // While today is overridden, the repeating reminder must not also
+    // ring at the USUAL clock today — search from the next person-day.
+    final searchFrom =
+        todayOverridden ? laterTodayEndExclusive(now, rollover) : now;
 
     switch (r.recurrenceType) {
       case RecurrenceType.daily:
@@ -108,7 +141,7 @@ List<PlannedReminder> planReminders({
           title: L.t('Gentle reminder', 'תזכורת עדינה'),
           body: L.t('${r.title} — whenever you\'re ready',
               '${r.title} — מתי שנוח לך'),
-          firstAt: _nextDailyOccurrence(now, hm.$1, hm.$2),
+          firstAt: _nextDailyOccurrence(searchFrom, hm.$1, hm.$2),
           repeat: PlannedRepeat.daily,
           payload: 'routine:${r.id}',
         ));
@@ -125,14 +158,13 @@ List<PlannedReminder> planReminders({
           // OWL TIME: a small-hour time (before the person's day border)
           // means the NIGHT of that weekday — "Tuesday pills at 02:00"
           // fire on calendar Wednesday 02:00, which IS Tuesday night.
-          final calendarDow =
-              hm.$1 < settings.dayRolloverHour ? (dow + 1) % 7 : dow;
+          final calendarDow = hm.$1 < rollover ? (dow + 1) % 7 : dow;
           planned.add(PlannedReminder(
             id: _stableId('r.${r.id}.$dow'),
             title: L.t('Gentle reminder', 'תזכורת עדינה'),
             body: L.t('${r.title} — whenever you\'re ready',
                 '${r.title} — מתי שנוח לך'),
-            firstAt: _nextWeeklyOccurrence(now, calendarDow, hm.$1, hm.$2),
+            firstAt: _nextWeeklyOccurrence(searchFrom, calendarDow, hm.$1, hm.$2),
             repeat: PlannedRepeat.weekly,
             payload: 'routine:${r.id}',
           ));
@@ -230,11 +262,16 @@ String reminderFingerprint({
     ..write('|${settings.relaxingPalette.name}')
     ..write('|${settings.eventReminderMinutes}')
     ..write('|${settings.reminderTimeoutMinutes}')
-    ..write('|${settings.dayRolloverHour}');
+    ..write('|${settings.dayRolloverHour}')
+    ..write('|${settings.dayStartHour}');
   for (final r in routines) {
     if (!r.isActive || r.time == null) continue;
+    // A later-today override must re-register even when nothing else moved.
+    final ov = r.timeByDay.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
     b.write('|r:${r.id},${r.title},${r.time},${r.recurrenceType.name},'
-        '${(r.daysOfWeek.toList()..sort()).join('.')}');
+        '${(r.daysOfWeek.toList()..sort()).join('.')},'
+        '${ov.map((e) => '${e.key}=${e.value}').join(',')}');
   }
   final horizon = now.add(const Duration(days: kEventReminderHorizonDays + 1));
   for (final e in events) {

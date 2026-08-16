@@ -28,9 +28,11 @@ List<Object> weaveDayList({
   required DateTime now,
   int rolloverHour = 0,
 }) {
+  final dayKey = logicalDayKey(now, rolloverHour);
   int minutesOf(Object item) {
     String? t;
-    if (item is Routine) t = item.time;
+    // A later-today override sorts by TODAY'S clock, not the usual one.
+    if (item is Routine) t = item.timeOn(dayKey);
     if (item is CalendarEvent) t = item.isAllDay ? null : item.time;
     if (t == null) return 24 * 60; // timeless goes last
     final p = t.split(':');
@@ -55,4 +57,60 @@ List<Object> weaveDayList({
     return am.compareTo(bm);
   });
   return list;
+}
+
+/// Id of a woven day item (routine or plan).
+String dayItemId(Object item) =>
+    item is Routine ? item.id : (item as CalendarEvent).id;
+
+/// Title of a woven day item.
+String dayItemTitle(Object item) =>
+    item is Routine ? item.title : (item as CalendarEvent).title;
+
+/// Clock time of a woven day item — null for timeless / all-day plans.
+/// Pass [dayKey] (or [now] + [rolloverHour]) so a today-only postpone
+/// shows 17:30 today and the usual time on any other logical day.
+String? dayItemTime(
+  Object item, {
+  String? dayKey,
+  DateTime? now,
+  int rolloverHour = 0,
+}) {
+  final key = dayKey ?? (now != null ? logicalDayKey(now, rolloverHour) : null);
+  if (item is Routine) return item.timeOn(key);
+  if (item is CalendarEvent) return item.isAllDay ? null : item.time;
+  return null;
+}
+
+/// Open (unanswered) routines AND plans in "what's next" clock order.
+///
+/// This is the list the Next hero, Coming up, and the thin "Just this one"
+/// walk share. A doctor visit at 10:00 can be Next — plans are not a
+/// second list (owner, 2026-08-09 / 2026-08-15).
+///
+/// Answered items (routine ✓ / skip, plan ✓ / didn't-happen) leave this
+/// list, so the next open thing stands in place. Owl-time [rolloverHour]
+/// is the same border as the rest of Today.
+List<Object> openDayItemsInNextOrder({
+  required List<Routine> routines,
+  required List<CalendarEvent> plans,
+  required Set<String> doneRoutineIds,
+  required Set<String> skippedRoutineIds,
+  required DateTime now,
+  int rolloverHour = 0,
+}) {
+  final openRoutines = routines
+      .where((r) =>
+          !doneRoutineIds.contains(r.id) && !skippedRoutineIds.contains(r.id))
+      .toList();
+  final openPlans = plans.where((p) => !p.isAnswered).toList();
+  return weaveDayList(
+    routines: openRoutines,
+    plans: openPlans,
+    doneRoutineIds: const {},
+    skippedRoutineIds: const {},
+    nextFirst: true,
+    now: now,
+    rolloverHour: rolloverHour,
+  );
 }

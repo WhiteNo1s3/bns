@@ -4,6 +4,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/services/haptics.dart';
+import 'package:bns/ui/widgets/later_today_door.dart';
 import 'package:bns/services/tts_service.dart';
 
 /// Reusable tile for routines — a CHECKBOX row (owner, 2026-07-08: "V is
@@ -36,6 +37,12 @@ class RoutineTile extends StatelessWidget {
   // How many things were told about this one TODAY.
   final int keptCount;
   final VoidCallback? onShowKept;
+  /// Later today — still this day, a later clock. Null hides the door.
+  final ValueChanged<String>? onLaterToday;
+  final int rolloverHour;
+  final int startHour;
+  final String? dayKey;
+  final DateTime? now;
 
   const RoutineTile({
     super.key,
@@ -53,18 +60,29 @@ class RoutineTile extends StatelessWidget {
     this.snoozedUntil,
     this.keptCount = 0,
     this.onShowKept,
+    this.onLaterToday,
+    this.rolloverHour = 0,
+    this.startHour = 0,
+    this.dayKey,
+    this.now,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final primary = colorScheme.primary; // consistent relaxing teal
+    final primary = colorScheme.primary; // the palette's own accent
 
     // Modern selected marking for PC (and keyboard nav): subtle teal background + border
     final cardColor = selected ? primary.withOpacity(0.08) : null;
     final border = selected
         ? Border.all(color: primary.withOpacity(0.5), width: 1.5)
         : null;
+
+    final showLater = onLaterToday != null &&
+        !isDone &&
+        !skippedToday &&
+        snoozedUntil == null &&
+        routine.time != null;
 
     return Card(
       color: cardColor,
@@ -74,7 +92,10 @@ class RoutineTile extends StatelessWidget {
               side: border.top, // reuse for all sides
             )
           : null,
-      child: InkWell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+      InkWell(
         onTap: onToggle,
         // The buzz IS the responsiveness: it lands the instant the press
         // registers, so the finger knows it was heard instead of waiting
@@ -124,7 +145,7 @@ class RoutineTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      RecurrenceUtils.describe(routine),
+                      RecurrenceUtils.describe(routine, dayKey: dayKey),
                       style: TextStyle(
                         fontSize: 13,
                         color: colorScheme.onSurfaceVariant,
@@ -296,6 +317,18 @@ class RoutineTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+        if (showLater)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: LaterTodayDoor(
+              now: now ?? DateTime.now(),
+              rolloverHour: rolloverHour,
+              startHour: startHour,
+              onPicked: onLaterToday!,
+            ),
+          ),
+        ],
       ),
     );
   }

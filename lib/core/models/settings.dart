@@ -3,7 +3,9 @@ library;
 
 enum ThemeModeSetting { system, light, dark }
 
-enum RelaxingPalette { teal, lavender, sand, deep }
+// Warm family only — green and blue made the owner sick (2026-08-16).
+// Old stored names ('teal', 'deep') miss the map and fall back to clay.
+enum RelaxingPalette { clay, lavender, sand, rose }
 
 const Object _unset = Object();
 
@@ -50,6 +52,12 @@ class AppSettings {
   // pills at 02:00 sit at the END of today's list and the day flips while
   // they sleep. Clamped to 0..6 (lib/core/owl_time.dart).
   final int dayRolloverHour;
+
+  // When THIS person's 24-hour day entity begins (0 = midnight, the old
+  // world). Ben wakes at 15:00 and the day runs 15:00 → 05:00. Same clock
+  // as [dayRolloverHour] — later-today, the list, Next, and reminders
+  // all read this pair. Clamped to 0..23.
+  final int dayStartHour;
 
   final bool hapticsEnabled;
   final DateTime? lastFullSyncAt;
@@ -169,10 +177,11 @@ class AppSettings {
     this.deviceName = 'My BNS Device',
     this.deviceId = '',
     this.themeMode = ThemeModeSetting.system,
-    this.relaxingPalette = RelaxingPalette.teal,
+    this.relaxingPalette = RelaxingPalette.clay,
     this.notificationsEnabled = true,
     this.reminderStyle = 'gentle',
     this.dayRolloverHour = 0,
+    this.dayStartHour = 0,
     this.notificationColor = 'auto',
     this.eventReminderMinutes = 30,
     this.reminderTimeoutMinutes = 120,
@@ -214,6 +223,7 @@ class AppSettings {
     bool? notificationsEnabled,
     String? reminderStyle,
     int? dayRolloverHour,
+    int? dayStartHour,
     String? notificationColor,
     int? eventReminderMinutes,
     int? reminderTimeoutMinutes,
@@ -249,6 +259,7 @@ class AppSettings {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       reminderStyle: reminderStyle ?? this.reminderStyle,
       dayRolloverHour: dayRolloverHour ?? this.dayRolloverHour,
+      dayStartHour: dayStartHour ?? this.dayStartHour,
       notificationColor: notificationColor ?? this.notificationColor,
       eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
       reminderTimeoutMinutes:
@@ -292,6 +303,7 @@ class AppSettings {
         'notificationsEnabled': notificationsEnabled,
         'reminderStyle': reminderStyle,
         'dayRolloverHour': dayRolloverHour,
+        'dayStartHour': dayStartHour,
         'notificationColor': notificationColor,
         'eventReminderMinutes': eventReminderMinutes,
         'reminderTimeoutMinutes': reminderTimeoutMinutes,
@@ -327,11 +339,13 @@ class AppSettings {
             ThemeModeSetting.system,
         relaxingPalette:
             RelaxingPalette.values.asNameMap()[json['relaxingPalette']] ??
-                RelaxingPalette.teal,
+                RelaxingPalette.clay,
         notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
         reminderStyle: json['reminderStyle'] as String? ?? 'gentle',
         dayRolloverHour:
             ((json['dayRolloverHour'] as num?)?.toInt() ?? 0).clamp(0, 6),
+        dayStartHour:
+            ((json['dayStartHour'] as num?)?.toInt() ?? 0).clamp(0, 23),
         notificationColor: json['notificationColor'] as String? ?? 'auto',
         eventReminderMinutes:
             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,

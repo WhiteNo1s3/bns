@@ -37,6 +37,11 @@ class Routine {
   // For weekly / custom: 0=Sun ... 6=Sat. Empty means all for daily.
   final List<int> daysOfWeek;
   final String? time; // "HH:mm" local, optional — always on a quarter hour
+  /// One-day clock overrides, keyed by the person's logical day
+  /// (`yyyy-MM-dd` from owl time). Later-today writes here so a daily
+  /// 15:00 moved to 17:30 today is 15:00 again tomorrow. After that
+  /// day ends the key no longer matches and the usual [time] returns.
+  final Map<String, String> timeByDay;
   final bool isActive;
   final List<String> tags;
   bool get needsHelp => tags.any(
@@ -54,6 +59,7 @@ class Routine {
     required this.recurrenceType,
     this.daysOfWeek = const [],
     this.time,
+    this.timeByDay = const {},
     this.isActive = true,
     this.tags = const [],
     this.firstStepOnlyDefault = false,
@@ -69,6 +75,7 @@ class Routine {
     RecurrenceType? recurrenceType,
     List<int>? daysOfWeek,
     Object? time = _unset,
+    Map<String, String>? timeByDay,
     bool? isActive,
     List<String>? tags,
     bool? firstStepOnlyDefault,
@@ -84,6 +91,7 @@ class Routine {
       recurrenceType: recurrenceType ?? this.recurrenceType,
       daysOfWeek: daysOfWeek ?? this.daysOfWeek,
       time: time == _unset ? this.time : time as String?,
+      timeByDay: timeByDay ?? this.timeByDay,
       isActive: isActive ?? this.isActive,
       tags: tags ?? this.tags,
       firstStepOnlyDefault: firstStepOnlyDefault ?? this.firstStepOnlyDefault,
@@ -100,6 +108,7 @@ class Routine {
         'recurrenceType': recurrenceType.name,
         'daysOfWeek': daysOfWeek,
         'time': time,
+        if (timeByDay.isNotEmpty) 'timeByDay': timeByDay,
         'isActive': isActive,
         'tags': tags,
         'firstStepOnlyDefault': firstStepOnlyDefault,
@@ -119,6 +128,8 @@ class Routine {
             .map((e) => (e as num).toInt())
             .toList(),
         time: json['time'] as String?,
+        timeByDay: (json['timeByDay'] as Map? ?? const {})
+            .map((k, v) => MapEntry(k.toString(), v.toString())),
         isActive: json['isActive'] as bool? ?? true,
         tags: (json['tags'] as List? ?? const []).cast<String>(),
         firstStepOnlyDefault: json['firstStepOnlyDefault'] as bool? ?? false,
@@ -130,6 +141,22 @@ class Routine {
             DateTime.now(),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
             DateTime.now(),
+      );
+
+  /// Clock for one logical day: today's override if it exists, else [time].
+  String? timeOn(String? dayKey) {
+    if (dayKey != null) {
+      final o = timeByDay[dayKey];
+      if (o != null && o.isNotEmpty) return o;
+    }
+    return time;
+  }
+
+  /// Later-today: keep [time], remember [hhmm] for this logical day only.
+  /// Replaces any older override — they are not expecting more than a day.
+  Routine postponeOn(String dayKey, String hhmm) => copyWith(
+        timeByDay: {dayKey: hhmm},
+        updatedAt: DateTime.now(),
       );
 
   // Convenience: does this routine apply on a given local date?

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
+import 'package:bns/ui/widgets/later_today_door.dart';
 
 /// Big, calm "what's next" for Today.
 ///
@@ -25,6 +26,13 @@ class NextHeroCard extends StatelessWidget {
   /// remember where they were.
   final bool resuming;
 
+  /// Later today — still this day, a later clock. Null hides the door.
+  final ValueChanged<String>? onLaterToday;
+  final int rolloverHour;
+  final int startHour;
+  final String? dayKey;
+  final DateTime? now;
+
   const NextHeroCard({
     super.key,
     required this.routine,
@@ -36,12 +44,17 @@ class NextHeroCard extends StatelessWidget {
     this.onStepDone,
     this.textScale = 1.0,
     this.resuming = false,
+    this.onLaterToday,
+    this.rolloverHour = 0,
+    this.startHour = 0,
+    this.dayKey,
+    this.now,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final time = routine.time;
+    final time = routine.timeOn(dayKey);
     final hasParts = routine.steps.isNotEmpty &&
         stepsDone < routine.steps.length;
     final nextPart = hasParts ? routine.steps[stepsDone] : null;
@@ -182,6 +195,17 @@ class NextHeroCard extends StatelessWidget {
                 style: TextStyle(fontSize: 15 * textScale),
               ),
             ),
+            if (onLaterToday != null && routine.time != null) ...[
+              const SizedBox(height: 8),
+              LaterTodayDoor(
+                now: now ?? DateTime.now(),
+                rolloverHour: rolloverHour,
+                startHour: startHour,
+                onPicked: onLaterToday!,
+                textScale: textScale,
+                onHero: true,
+              ),
+            ],
           ],
         ),
       ),
@@ -264,13 +288,17 @@ List<Routine> openRoutinesInNextOrder({
   // getting suggested anyway is not later, it is nagging.
   Set<String> snoozedIds = const {},
   DateTime? now,
+  // The person's logical day — so a later-today override (17:30 instead
+  // of the usual 15:00) queues by TODAY'S clock. Null keeps usual times.
+  String? dayKey,
 }) {
   final n = now ?? DateTime.now();
   final nowMin = n.hour * 60 + n.minute;
 
   int minutes(Routine r) {
-    if (r.time == null) return 24 * 60;
-    final p = r.time!.split(':');
+    final t = r.timeOn(dayKey);
+    if (t == null) return 24 * 60;
+    final p = t.split(':');
     return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
   }
 

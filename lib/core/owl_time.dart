@@ -80,3 +80,51 @@ DateTime actualMomentOf(
   return DateTime(logicalDate.year, logicalDate.month,
       logicalDate.day + (hour < r ? 1 : 0), hour, minute);
 }
+
+/// THE FUTURE, ON THE PERSON'S CLOCK (level-1 note, 2026-08-17: at
+/// Saturday-night 02:00 the calendar already says Sunday, but the
+/// person's Saturday is still going — Sunday has not come, and a day
+/// that has not come is looked at, never answered).
+///
+/// [startHour] rides along for API symmetry with the person-day pair in
+/// settings; a day that IS the current person-day is answerable at any
+/// hour of it — waking before the usual start must not lock the list.
+bool isFuturePersonDay(
+  DateTime day, {
+  required DateTime now,
+  required int rolloverHour,
+  required int startHour,
+}) {
+  final logical = logicalDateOf(now, rolloverHour);
+  return DateTime(day.year, day.month, day.day).isAfter(logical);
+}
+
+/// A day the person may only LOOK at (it has not come yet).
+bool lookOnly({
+  required DateTime day,
+  required DateTime now,
+  required int rolloverHour,
+  required int startHour,
+}) =>
+    isFuturePersonDay(day,
+        now: now, rolloverHour: rolloverHour, startHour: startHour);
+
+/// Words-side of the same truth (labels ask "has it come?").
+bool hasNotCome({
+  required DateTime day,
+  required DateTime now,
+  required int rolloverHour,
+  required int startHour,
+}) =>
+    lookOnly(day: day, now: now, rolloverHour: rolloverHour,
+        startHour: startHour);
+
+/// Complete / didn't-happen doors exist only on days that have come.
+bool offersCompleteOrSkip({
+  required DateTime day,
+  required DateTime now,
+  required int rolloverHour,
+  required int startHour,
+}) =>
+    !lookOnly(day: day, now: now, rolloverHour: rolloverHour,
+        startHour: startHour);

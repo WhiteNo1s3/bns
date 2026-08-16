@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/calendar/day_view.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -159,6 +160,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       future: Future.wait([
         IsarService.getEventsForDate(dateStr),
         IsarService.getCapturesForDate(day),
+        IsarService.getAllRoutines(),
       ]),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -166,6 +168,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
         }
         final events = snapshot.data![0] as List<CalendarEvent>;
         final captures = snapshot.data![1] as List<QuickCapture>;
+        // THE CALENDAR MUST NOT LIE (level-1 note, 2026-08-17: Saturday
+        // showed one plan while Today carried the real routines). The
+        // preview tells the day whole: plans AND the routines that apply.
+        final routines = (snapshot.data![2] as List<Routine>)
+            .where((r) => r.appliesOn(day) && r.isActive)
+            .toList();
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -173,7 +181,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             Text(DateFormat.yMMMMEEEEd().format(day),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (events.isEmpty && captures.isEmpty)
+            if (events.isEmpty && captures.isEmpty && routines.isEmpty)
               Text(L.t(
                   'Nothing registered yet for this day. Tap + or go to the day view.',
                   'עוד לא נרשם כלום ליום הזה. אפשר ללחוץ על + או להיכנס לתצוגת היום.')),
@@ -182,6 +190,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   title: Text(e.title),
                   subtitle: Text(e.time ?? L.t('All day', 'כל היום')),
                 )),
+            if (routines.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(L.t('Routines', 'שגרות'),
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              ...routines.map((r) => ListTile(
+                    leading: const Icon(Icons.loop),
+                    title: Text(r.title),
+                    subtitle:
+                        Text(RecurrenceUtils.describe(r, dayKey: dateStr)),
+                  )),
+            ],
             if (captures.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(L.t('Quick thoughts', 'מחשבות מהירות'),

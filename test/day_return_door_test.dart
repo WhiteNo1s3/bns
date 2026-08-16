@@ -92,11 +92,26 @@ void main() {
   testWidgets('a future day at phone width has a worded way back',
       (tester) async {
     await freshStore(tester);
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final now = DateTime.now();
+    await tester.runAsync(() => IsarService.addRoutine(Routine(
+          id: 'r-daily',
+          title: 'לקחת תרופות',
+          recurrenceType: RecurrenceType.daily,
+          time: '08:00',
+          createdAt: now,
+          updatedAt: now,
+        )));
+    final tomorrow = now.add(const Duration(days: 1));
     await pumpPushedDay(tester, tomorrow, const Size(390, 844));
 
     expect(find.text('חזרה'), findsOneWidget,
         reason: 'the door wears its name — not an arrow glyph');
+
+    // Tomorrow is look-only (level-1 note, 2026-08-17): the routine is
+    // named, but wears no box and no pencil — nothing begs a tap.
+    expect(find.text('לקחת תרופות'), findsOneWidget);
+    expect(find.byIcon(Icons.check_box_outline_blank), findsNothing);
+    expect(find.byIcon(Icons.edit_note), findsNothing);
 
     await tester.tap(find.text('חזרה'));
     await tester.pumpAndSettle();

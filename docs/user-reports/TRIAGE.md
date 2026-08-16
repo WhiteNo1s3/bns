@@ -1,5 +1,59 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## PR1 + the level-1 note (2026-08-17, second pass — 196 tests green)
+
+The Prototyper's PR1 (`prototyper-doors` on grokBNS) reviewed on merit
+and PORTED: didnt_happen (dismiss-with-words IS the skip), PairingGate +
+pairAskDisposition, DayLookTile, the didnt-happen sheet, and five test
+suites. Two honesty notes: `look_only_test` was RED on its own branch —
+it imports person-day functions nobody had written; they were written
+HERE (owl_time: isFuturePersonDay / lookOnly / hasNotCome /
+offersCompleteOrSkip) and now hold. `pairing_dialog_test` wanted the
+decline renamed «סגירה»; our «סרב» matches the dialog's own body copy
+and stayed — test adapted. PROTOTYPER.md / changes.md were not imported
+(fork-owned).
+
+From `gBNS/level1problems.md` (the note), fixed in bns this pass:
+
+- **"מחר בלי וי ובלי עיפרון. רק להסתכל"** — future-day routine rows are
+  DayLookTile now: name + time, no box, no pencil; a tap says the day
+  can wait. And "future" runs on the PERSON'S clock: at Saturday-night
+  02:00 (day end 05:00), Sunday is still tomorrow — look-only.
+- **"הסיבה נעלמת"** — the dismiss law everywhere: Today's miss sheet
+  closing with words LOGS THE SKIP with those words (unless a door
+  already answered — postpone stays postpone, never a silent skip);
+  DayView's skip lost its capture-screen detour (the "empty save screen"
+  thrower) and uses the one sheet; the English 'Skipped: ' prefix is
+  gone from new records.
+- **"בוצע = וי. אף אחד לא שואל שוב"** — Today's routine ✓ and plan ✓
+  are QUIET now (no «זה נעשה?»); the one ask that stays is
+  consent-over-notes (their own words shown before done-over-a-problem)
+  and take-back. DayView got this last pass.
+- **"צימוד כשלא ביקשתי" / "דף צימוד לא על בוצע"** — an already-trusted
+  device asking to pair stays QUIET (deaf sync is not a reason to
+  re-pair); a pairing ask waits for a mid-answer person (PairingGate
+  around ✓/take-back/miss-sheet); a leftover extra copy cannot stack a
+  second sheet; one showEnterCodeDialog door for the whole app.
+- **"לוח שנה משקר"** — the month's day-preview now tells the day whole:
+  plans AND the routines that apply (it showed one plan while Today
+  carried the real list).
+
+Still open from the note (owned, not lost): the capture maze (cold-open
+stale text, keyboard over Save, two Saves, Hebrew-after-recording
+append) — the capture wave; ghost caregiver rows + trusted-row rename —
+sync-identity chunk; ☰ sometimes dead + "nav ate done" + FAB-on-doors —
+need live repro on THIS build; ghost 03:07/05:00 events — one-time data
+tidy; בוצע screen-reader name — semantics pass; iOS app — no conflict
+markers remain anywhere, it simply needs a rebuild (ask when wanted).
+
+**The real backdoor, named (for the BNS Care wave):** LAN sync ships the
+person's FULL store — vents included — to every trusted device at every
+care level. `familyShareLevelFor` (1 → asks only, 2 → chosen family,
+3–4 → everything) exists as law with ZERO sync callers. Now that hats
+never travel, the peer's helper-hat is honest data: the send side must
+filter what leaves by the person's level whenever the peer wears it.
+That filter is the centerpiece of the BNS Care build (wave 23), next.
+
 ## The stuck day + the jailed helper (2026-08-17, owner urgent)
 
 Fixed this pass (all 169 tests green):

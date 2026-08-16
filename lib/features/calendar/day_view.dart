@@ -6,12 +6,15 @@ import 'package:bns/core/day_ideas.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/day_look_tile.dart';
+import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
 
 /// Day detail view.
@@ -40,6 +43,10 @@ class _DayViewState extends State<DayView> {
   // THE PERSON ANSWERS: on a caregiver device the day is built here but the
   // ✓ is watched, never written (owner, 2026-08-16).
   bool _caregiverDevice = false;
+  // The person's own clock (owl time): the future starts where THEIR day
+  // ends, not at calendar midnight.
+  int _rolloverHour = 0;
+  int _startHour = 0;
 
   @override
   void initState() {
@@ -53,7 +60,10 @@ class _DayViewState extends State<DayView> {
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final allRoutines = await IsarService.getAllRoutines();
-    _caregiverDevice = (await IsarService.getSettings()).caregiverDevice;
+    final settings = await IsarService.getSettings();
+    _caregiverDevice = settings.caregiverDevice;
+    _rolloverHour = settings.dayRolloverHour;
+    _startHour = settings.dayStartHour;
 
     _events = await IsarService.getEventsForDate(dateStr);
     _logs = await IsarService.getLogsForDate(dateStr);
@@ -117,12 +127,15 @@ class _DayViewState extends State<DayView> {
   }
 
   /// You cannot do tomorrow's routine today — marking future days done was
-  /// a real bug (owner, 2026-07-08: "you cannot move across time").
-  bool get _isFutureDay {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    return DateTime(_date.year, _date.month, _date.day).isAfter(today);
-  }
+  /// a real bug (owner, 2026-07-08: "you cannot move across time"). And
+  /// "tomorrow" runs on the PERSON'S clock (level-1 note, 2026-08-17): at
+  /// Saturday-night 02:00 the calendar says Sunday, but their Saturday is
+  /// still going — Sunday has not come.
+  bool get _isFutureDay => lookOnly(
+      day: _date,
+      now: DateTime.now(),
+      rolloverHour: _rolloverHour,
+      startHour: _startHour);
 
   Future<void> _toggleRoutine(Routine r) async {
     if (_caregiverDevice) {
@@ -183,36 +196,37 @@ class _DayViewState extends State<DayView> {
     if (_caregiverDevice) return; // the why is the person's to tell
     if (_isFutureDay) return; // future days are not ours to touch yet
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
-    // Open quick capture pre-linked
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => QuickCaptureScreen(
-          linkedRoutineId: r.id,
-          initialText: 'Skipped: ',
-          initialTags: const ['routine', 'need-help'],
-        ),
-      ),
+    // ONE miss door, no detour (level-1 note, 2026-08-17: the capture
+    // screen "threw me to an empty save screen — the reason was gone").
+    // Type or speak the why HERE; closing with words still keeps them.
+    final result = await showDidntHappenSheet(
+      context: context,
+      title: r.title,
+      confirmLabel: L.t('It didn\'t happen today', 'זה לא קרה היום'),
     );
-    if (result == true) {
-      // Put the person's own words into the skip record itself — the why
-      // must live in the container, not behind a "see elsewhere" pointer.
-      final captures = await IsarService.getAllCaptures();
-      String? words;
-      for (final c in captures) {
-        if (c.linkedRoutineId == r.id) {
-          words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
-          break; // captures come newest-first
-        }
-      }
-      await IsarService.logCompletion(
-        routineId: r.id,
-        date: dateStr,
-        status: CompletionStatus.skipped,
-        reason: (words == null || words.isEmpty) ? null : words,
-      );
-      await _loadData();
+    if (!result.skipped) return;
+    // The why lives in the skip record itself — the container, not a
+    // pointer. And words the person said stay theirs to see (silk):
+    // they land as a need-help note too.
+    await IsarService.logCompletion(
+      routineId: r.id,
+      date: dateStr,
+      status: CompletionStatus.skipped,
+      reason: result.reason,
+    );
+    if (result.reason != null) {
+      await IsarService.addCapture(QuickCapture(
+        id: '',
+        at: DateTime.now(),
+        text: result.reason,
+        linkedRoutineId: r.id,
+        tags: const ['routine', 'need-help'],
+        memoryLevel: MemoryLevel.remember,
+        contextNote: L.t('What got in the way of: ${r.title}',
+            'מה הפריע ל: ${r.title}'),
+      ));
     }
+    await _loadData();
   }
 
   Future<void> _addEvent() async {
@@ -609,13 +623,27 @@ class _DayViewState extends State<DayView> {
                         'אין שגרות מתוכננות ליום הזה.'))
                   else
                     ..._applicableRoutines.map((r) {
+                      // A day that has not come is LOOKED at (level-1 note,
+                      // 2026-08-17: "מחר בלי וי ובלי עיפרון. רק להסתכל").
+                      // Name + time. No box, no pencil, nothing that begs
+                      // a tap — a tap only says the day can wait.
+                      if (_isFutureDay) {
+                        return DayLookTile(
+                          title: r.title,
+                          time: RecurrenceUtils.describe(r,
+                              dayKey:
+                                  DateFormat('yyyy-MM-dd').format(_date)),
+                          onTap: () => ScaffoldMessenger.of(context)
+                              .showSnackBar(SnackBar(
+                                  content: Text(dayHasNotComeLabel()))),
+                        );
+                      }
                       final done = _isRoutineDone(r.id);
                       final skipped = !done && _isRoutineSkipped(r.id);
                       final why = _whyForRoutine(r.id);
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          enabled: !_isFutureDay,
                           onTap: () => _toggleRoutine(r),
                           // On a caregiver device the state is a fact, not a
                           // control — a plain ✓ or an open dot, no box that

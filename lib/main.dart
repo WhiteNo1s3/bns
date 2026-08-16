@@ -24,6 +24,8 @@ import 'package:bns/ui/widgets/kept_memories_strip.dart';
 import 'package:bns/core/day_feed.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/care_lock.dart';
+import 'package:bns/core/didnt_happen.dart';
+import 'package:bns/core/pairing_prompt.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
@@ -126,14 +128,28 @@ Future<void> _startupChores(List<String> args) async {
     // A pairing request must reach the person on ANY screen — it used to
     // be answered only while the Sync screen was open, so "I pressed sync
     // on the phone and the PC did nothing" (owner QA, 2026-08-09).
+    //
+    // But not on top of בוצע, and never for a friend already in the file
+    // (level-1 note, 2026-08-17: "חלון חיבור במק נשאר אחרי שבן פון כבר
+    // מהימן"; "דף צימוד לא על בוצע"). A trusted device stays quiet — deaf
+    // sync is not a reason to re-pair; a mid-answer person finishes their
+    // answer first; a leftover extra copy cannot stack a second sheet.
     LanSyncService.instance.onPairRequest = (req) async {
-      final ctx = _router.routerDelegate.navigatorKey.currentContext;
-      if (ctx == null) return null;
-      return showDialog<String>(
-        context: ctx,
-        barrierDismissible: false,
-        builder: (_) => EnterCodeDialog(peerName: req.deviceName),
+      final trusted = await IsarService.getTrustedDevice(req.deviceId);
+      final disposition = pairAskDisposition(
+        alreadyTrusted: trusted != null,
+        completing: PairingGate.instance.isCompleting,
+        promptAlreadyOpen: PairingGate.instance.isPrompting,
       );
+      if (disposition == PairAskDisposition.stayQuiet) return null;
+      if (disposition == PairAskDisposition.waitForDone) {
+        await PairingGate.instance.waitUntilIdle();
+      }
+      return PairingGate.instance.runPrompt(() async {
+        final ctx = _router.routerDelegate.navigatorKey.currentContext;
+        if (ctx == null) return null;
+        return showEnterCodeDialog(context: ctx, peerName: req.deviceName);
+      });
     };
     // Sync results surface wherever the person is — completions and
     // problems as gentle toasts; routine background chatter stays subtle.
@@ -1183,34 +1199,38 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               null, (best, c) => best == null || c.at.isAfter(best.at) ? c : best);
       if (!mounted) return;
 
-      final noteWords = problemNote?.text ?? problemNote?.contextNote ?? '';
-      final sure = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(r.title),
-          content: problemNote == null
-              ? Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿'))
-              : Text(L.t(
-                  'You wrote about this one:\n\n'
-                      '“$noteWords”\n\n'
-                      'The note stays kept either way. Done anyway?',
-                  'כתבת על המשימה הזאת:\n\n'
-                      '“$noteWords”\n\n'
-                      'הפתק נשאר שמור בכל מקרה. לסמן שנעשה בכל זאת?')),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(L.t('Not yet', 'עוד לא'))),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: Text(problemNote == null
-                    ? L.t('Done ✓', 'נעשה ✓')
-                    : L.t('Yes — done, keep the note ✓',
-                        'כן — נעשה, והפתק נשאר ✓'))),
-          ],
-        ),
-      );
-      if (sure != true) return;
+      // DONE IS A QUIET ✓ (owner law 2026-07-08; the level-1 note and the
+      // cross-tree pass, 2026-08-17: "בוצע = וי. נשארים בהיום. אף אחד לא
+      // שואל שוב."). The tap marks it — no second question. The ONE ask
+      // that stays is consent-over-notes: when the person wrote about a
+      // problem with this very routine, done must show them their own
+      // words first (that is their voice, not a re-ask).
+      if (problemNote != null) {
+        final noteWords = problemNote.text ?? problemNote.contextNote ?? '';
+        final sure = await PairingGate.instance.run(() => showDialog<bool>(
+              context: context,
+              builder: (c) => AlertDialog(
+                title: Text(r.title),
+                content: Text(L.t(
+                    'You wrote about this one:\n\n'
+                        '“$noteWords”\n\n'
+                        'The note stays kept either way. Done anyway?',
+                    'כתבת על המשימה הזאת:\n\n'
+                        '“$noteWords”\n\n'
+                        'הפתק נשאר שמור בכל מקרה. לסמן שנעשה בכל זאת?')),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: Text(L.t('Not yet', 'עוד לא'))),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: Text(L.t('Yes — done, keep the note ✓',
+                          'כן — נעשה, והפתק נשאר ✓'))),
+                ],
+              ),
+            ));
+        if (sure != true) return;
+      }
       await IsarService.logCompletion(
         routineId: r.id,
         date: todayStr,
@@ -1221,22 +1241,22 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         _confetti.play();
       }
     } else {
-      final takeBack = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(r.title),
-          content: Text(L.t('Take the ✓ back? That happens — no harm.',
-              'להוריד את ה-✓? קורה — שום נזק.')),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
-          ],
-        ),
-      );
+      final takeBack = await PairingGate.instance.run(() => showDialog<bool>(
+            context: context,
+            builder: (c) => AlertDialog(
+              title: Text(r.title),
+              content: Text(L.t('Take the ✓ back? That happens — no harm.',
+                  'להוריד את ה-✓? קורה — שום נזק.')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: Text(L.t('Take it back', 'להוריד את הסימון'))),
+              ],
+            ),
+          ));
       if (takeBack != true) return;
       await IsarService.removeCompletion(routineId: r.id, date: todayStr);
     }
@@ -1286,6 +1306,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final todayStr = _todayKey;
     final noteCtrl = TextEditingController();
     var noteSaved = false;
+    // One of the sheet's own doors answered (skip / postpone / capture) —
+    // a dismiss after that must not write a second answer.
+    var resolved = false;
 
     // ROBUST (owner, 2026-07-08): typed words are never lost — whichever
     // way the sheet closes (button, Close, tapping outside), a non-empty
@@ -1306,6 +1329,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       ));
     }
 
+    // While this door is open the person is mid-answer — a pairing ask
+    // waits its turn (level-1 note, 2026-08-17: "דף צימוד לא על בוצע").
+    PairingGate.instance.begin();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1349,6 +1375,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 final d = await showPostponeSheet(
                     context: ctx, title: r.title, big: _guidedMode);
                 if (d == null) return;
+                resolved = true; // postponed is an answer — not a skip
                 await saveProblemNote();
                 await IsarService.snoozeReminder(
                     'routine:${r.id}', DateTime.now().add(d));
@@ -1366,6 +1393,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               onTap: () async {
                 // The skip is logged BEFORE wandering into capture — the
                 // "didn't happen" must never depend on finishing a note.
+                resolved = true;
                 await saveProblemNote();
                 await IsarService.logCompletion(
                   routineId: r.id,
@@ -1393,6 +1421,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () async {
+                resolved = true;
                 await saveProblemNote();
                 if (ctx.mounted) Navigator.pop(ctx);
                 // The why lives IN the skip record itself (owner,
@@ -1421,50 +1450,54 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           ],
         ),
       ),
-      // However the sheet closes, typed words are kept.
-    ).whenComplete(saveProblemNote);
+      // However the sheet closes, typed words are kept — and words on a
+      // closing sheet ARE the answer (level-1 note, 2026-08-17: "כתבתי
+      // למה לא קרה. סגירה. זה נשאר על הפריט. לא מסך שני."): a dismiss
+      // with words logs the skip itself, unless a door already answered
+      // or today already holds an answer for this routine.
+    ).whenComplete(() async {
+      PairingGate.instance.end();
+      await saveProblemNote();
+      final dismissal = didntHappenOnDismiss(noteCtrl.text);
+      if (resolved || !dismissal.skipped) return;
+      final logs = await IsarService.getLogsForDate(todayStr);
+      if (logs.any((l) => l.routineId == r.id)) return;
+      await IsarService.logCompletion(
+        routineId: r.id,
+        date: todayStr,
+        status: CompletionStatus.skipped,
+        reason: dismissal.reason,
+      );
+      ref.invalidate(routinesProvider);
+      await _refreshDoneToday();
+    });
   }
 
-  /// A plan's checkbox — the same gentle guard in both directions as a
-  /// routine's: a stray tap must not fake a win, a real ✓ stays takeable-back.
+  /// A plan's checkbox — done is a QUIET ✓ (owner law; level-1 note,
+  /// 2026-08-17: "אף אחד לא שואל שוב"). Only taking a kept answer back
+  /// still asks: a stray tap must not silently erase a real ✓.
   Future<void> _togglePlanDone(CalendarEvent plan) async {
     if (!plan.isDone) {
-      final sure = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(plan.title),
-          content: Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿')),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(L.t('Not yet', 'עוד לא'))),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: Text(L.t('Done ✓', 'נעשה ✓'))),
-          ],
-        ),
-      );
-      if (sure != true) return;
       await IsarService.answerEvent(plan.id, 'done');
       final settings = await IsarService.getSettings();
       if (!settings.quietMode) _confetti.play();
     } else {
-      final takeBack = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: Text(plan.title),
-          content: Text(L.t('Take the ✓ back? That happens — no harm.',
-              'להוריד את ה-✓? קורה — שום נזק.')),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
-            FilledButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
-          ],
-        ),
-      );
+      final takeBack = await PairingGate.instance.run(() => showDialog<bool>(
+            context: context,
+            builder: (c) => AlertDialog(
+              title: Text(plan.title),
+              content: Text(L.t('Take the ✓ back? That happens — no harm.',
+                  'להוריד את ה-✓? קורה — שום נזק.')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: Text(L.t('Take it back', 'להוריד את הסימון'))),
+              ],
+            ),
+          ));
       if (takeBack != true) return;
       await IsarService.answerEvent(plan.id, null);
     }

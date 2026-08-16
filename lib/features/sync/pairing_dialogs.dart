@@ -155,6 +155,19 @@ class _ShowCodeDialogState extends State<ShowCodeDialog> {
 /// Receiver side of pairing: type the 6-digit code shown on the other
 /// device. Installed app-wide (main.dart), so the request reaches the
 /// person on any screen — not only while the Sync screen happens to be open.
+/// The one door for asking the person about a PAIR request — returns the
+/// typed code, or null when they declined. Everything that shows this
+/// dialog goes through here, so the gate logic in main stays honest.
+Future<String?> showEnterCodeDialog({
+  required BuildContext context,
+  required String peerName,
+}) =>
+    showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => EnterCodeDialog(peerName: peerName),
+    );
+
 class EnterCodeDialog extends StatefulWidget {
   final String peerName;
 

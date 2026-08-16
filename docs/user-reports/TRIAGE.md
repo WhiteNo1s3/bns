@@ -146,6 +146,19 @@ Directions taken (design written, build next):
 - **Garden looks** — wave 24: words-first cards, planted vs. passing,
   months as beds, no counts anywhere.
 
+## Keep-and-find pass (bns-test/qa-keep-find.md, 2026-08-16 night)
+
+The loop itself PASSED on Android L4: keep a Hebrew thought, find it
+first in Memories, family tag survives reload. Their two "bugs to own
+later", owned the same night:
+- **"Save promises 'אני אראה את זה' but lands on Today"** — the promise
+  was a leftover navigation hint. The button now makes the void-promise
+  without it: «שמירה — זה נשאר אצלי». Landing on Today is design (the
+  kept strip is the seeing); now the words match.
+- **Family-share switch hidden under the guided "חזרה ליום שלי" bar** —
+  opening the options door now brings the switches into view by itself
+  (static jump, no glide).
+
 Open / recorded:
 - **Version-skew data loss**: the 15-Aug debug APK strips `gather` on
   save (old models rebuild JSON from known fields). Same risk class for

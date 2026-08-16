@@ -68,6 +68,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   /// Every kept thought is a memory. "Quick" used to hide it after Save.
   MemoryLevel _memoryLevel = defaultKeptLevel;
   bool _showMore = false;
+  // Anchor for scrolling the opened options into view (guided bar case).
+  final GlobalKey _moreOptionsKey = GlobalKey();
   final _contextController =
       TextEditingController(); // for "what happened / why" in remember/memorize
   final Set<String> _selectedTags =
@@ -652,7 +654,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             FilledButton.icon(
               onPressed: _saveCapture,
               icon: const Icon(Icons.check, size: 28),
-              label: Text(L.t('Save — I will see it', 'שמירה — אני אראה את זה')),
+              // The void-promise without a navigation promise (tester,
+              // 2026-08-16: "Save promises 'אני אראה את זה' but lands on
+              // Today"). Saving stays in place; Today's kept strip shows it.
+              label: Text(
+                  L.t('Save — it stays with me', 'שמירה — זה נשאר אצלי')),
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -665,7 +671,23 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             // 2026-08-15). A word-labeled door, same as everywhere else.
             const SizedBox(height: 8),
             TextButton.icon(
-              onPressed: () => setState(() => _showMore = !_showMore),
+              onPressed: () {
+                setState(() => _showMore = !_showMore);
+                // The guided "back to my day" bar shortens the viewport;
+                // an opened door whose switches hide below the fold is a
+                // wall for a level-4 hand (tester, 2026-08-16: "the bar
+                // covers it until you scroll"). Bring them into view.
+                if (_showMore) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    final ctx = _moreOptionsKey.currentContext;
+                    if (ctx != null) {
+                      Scrollable.ensureVisible(ctx,
+                          alignment: 0.5,
+                          duration: Duration.zero); // static app — no glide
+                    }
+                  });
+                }
+              },
               icon: Icon(_showMore ? Icons.expand_less : Icons.expand_more,
                   size: 22),
               label: Text(
@@ -677,6 +699,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             ),
             if (_showMore) ...[
               SwitchListTile(
+                key: _moreOptionsKey,
                 contentPadding: EdgeInsets.zero,
                 title: Text(L.t('Keep this one always', 'לשמור את זה תמיד')),
                 value: _memoryLevel == MemoryLevel.memorize,

@@ -418,11 +418,33 @@ class _DayViewState extends State<DayView> {
     final doneCount =
         _applicableRoutines.where((r) => _isRoutineDone(r.id)).length;
 
+    final viewingToday =
+        DateFormat('yyyy-MM-dd').format(_date) ==
+            DateFormat('yyyy-MM-dd').format(DateTime.now());
+
     return Scaffold(
+      // NEVER hide this bar (owner, 2026-08-16 night: "entering a calendar
+      // date in the future I cannot go back no matter what — any
+      // platform"). This screen is PUSHED over the shell, so on a wide
+      // desktop window the hidden bar left a room with no door at all:
+      // no back arrow, and the sidebar buried underneath. A pushed screen
+      // always keeps its bar — the bar IS the way back.
       appBar: BnsAppBar(
         title: dateLabel,
-        hideOnDesktopWide: true,
         actions: [
+          // Walked into another day? One worded step back to now.
+          if (!viewingToday)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _date = DateTime.now();
+                  _loading = true;
+                });
+                _loadData();
+              },
+              child: Text(L.t('Today', 'להיום'),
+                  style: const TextStyle(fontSize: 16)),
+            ),
           IconButton(
               icon: const Icon(Icons.sync_alt),
               onPressed: () => context.push('/sync'),

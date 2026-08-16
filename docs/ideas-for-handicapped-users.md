@@ -812,3 +812,73 @@ the screens all ask it:
 the file (platform keystore–backed sealing of the care fields). The
 actual level-4 population does not edit JSON — this is recorded as a
 future hardening, not silently claimed as solved.
+
+---
+
+## Wave 22 — level 5, the sketchbook (owner idea, 2026-08-16 — DESIGN, awaiting the owner's yes)
+
+The owner's words: "maybe we think on level 5 that is only for caregiver…
+no need to sync, it's offline — only tasks to do with the neurological
+issued person… where he states the patient ain't good to use phone but
+requires good sketchbook with routines, and that list might serve them."
+
+### What it is
+
+Levels 3–4 assume two devices: the person's phone and the helper's
+window onto it. Level 5 is for the household where that assumption is
+already false — the person cannot use a phone at all. There is ONE
+device, the caregiver's, and it stops being a window and becomes the
+**sketchbook**: the place where the day is written, carried into the
+room, and gone through together.
+
+Nothing to pair, nothing to sync, nothing to go deaf. The pairing
+screens, the presence banner, the sync door — all of it disappears,
+because none of it is true here. A level-5 device opens **zero network
+sockets**: the strongest privacy statement the app can make, made by
+the mode that guards the most fragile person.
+
+### THE PERSON STILL ANSWERS — on the held device
+
+This is the part that keeps level 5 from becoming a clipboard about a
+doll. The caregiver's device grows a door: **"לעבור על היום ביחד"** —
+it opens the same big, calm list a level-4 person sees on their own
+phone. The caregiver holds the phone OPEN BETWEEN THEM, asks in WE
+voice — "לקחנו את התרופות?" — and the person answers; the tick lands
+as their answer, given out loud, in their presence. Same law as the
+gather bag at Shiba: someone else carries the bag, the person answers.
+A ✓ written from the together-view is the person's; the builder screens
+still cannot write one (the caregiver-device guard stays, with a single
+exception carved for the together-view session).
+
+### The paper half
+
+"A good sketchbook with routines" is sometimes literally paper — many
+of these households run on a page taped to the fridge. The day BNS
+builds should be able to BECOME that page: a print-clean day sheet
+(big type, one line per routine, an empty ✓ box, no app furniture) the
+caregiver prints or hand-copies. The phone asks at night what happened
+and keeps the record; the fridge holds the morning. (Follow-up — needs
+a print/PDF package; not in the first cut.)
+
+### Shape in the data (proposed)
+
+- `careLevel: 5`, `caregiverDevice: true`, plus `sketchbookMode: true`
+  (the flag that says "there is no other device").
+- Reminders DO ring here — deliberate exception to "a caregiver is not
+  the patient": in level 5 the helper's pocket is the only pocket, and
+  the day runs on their clock.
+- Store guards relax only inside the together-view (the person's
+  answering session), nowhere else.
+- Discovery/TCP sockets simply never open (`sketchbookMode` short-
+  circuits LanSyncService.start).
+- Export still works: the .bns file is the family's, and the satellite
+  can still open it on the children's computer.
+
+### Why it can wait for a yes
+
+It reuses rooms that already exist (the guided big list, the caregiver
+builder, gather, memorize-day) — mostly plumbing, little new UI. But it
+adds a settings mode with its own laws, so it should land as a decided
+thing, not a drive-by. The one piece already in place: today's
+caregiver-cannot-done guard was written knowing level 5 would need the
+together-view exception.

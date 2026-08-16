@@ -37,6 +37,9 @@ class _DayViewState extends State<DayView> {
   List<QuickCapture> _captures = [];
   List<QuickCapture> _dayMemories = [];
   bool _loading = true;
+  // THE PERSON ANSWERS: on a caregiver device the day is built here but the
+  // ✓ is watched, never written (owner, 2026-08-16).
+  bool _caregiverDevice = false;
 
   @override
   void initState() {
@@ -50,6 +53,7 @@ class _DayViewState extends State<DayView> {
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final allRoutines = await IsarService.getAllRoutines();
+    _caregiverDevice = (await IsarService.getSettings()).caregiverDevice;
 
     _events = await IsarService.getEventsForDate(dateStr);
     _logs = await IsarService.getLogsForDate(dateStr);
@@ -121,6 +125,13 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _toggleRoutine(Routine r) async {
+    if (_caregiverDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'The ✓ is written by the one doing it. It arrives here when the devices meet.',
+              'את ה־✓ כותב מי שעושה. זה מגיע לכאן כשהמכשירים נפגשים.'))));
+      return;
+    }
     if (_isFutureDay) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(L.t('That day hasn\'t come yet — it can wait for you.',
@@ -169,6 +180,7 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _skipRoutine(Routine r) async {
+    if (_caregiverDevice) return; // the why is the person's to tell
     if (_isFutureDay) return; // future days are not ours to touch yet
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     // Open quick capture pre-linked
@@ -558,10 +570,20 @@ class _DayViewState extends State<DayView> {
                         child: ListTile(
                           enabled: !_isFutureDay,
                           onTap: () => _toggleRoutine(r),
+                          // On a caregiver device the state is a fact, not a
+                          // control — a plain ✓ or an open dot, no box that
+                          // begs to be tapped.
                           leading: Icon(
-                              done
-                                  ? Icons.check_box
-                                  : Icons.check_box_outline_blank,
+                              _caregiverDevice
+                                  ? (done
+                                      ? Icons.check
+                                      : Icons.circle_outlined)
+                                  : (done
+                                      ? Icons.check_box
+                                      : Icons.check_box_outline_blank),
+                              color: _caregiverDevice && done
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
                               size: 28),
                           title: Text(r.title,
                               style: done
@@ -612,12 +634,14 @@ class _DayViewState extends State<DayView> {
                                 ),
                             ],
                           ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.edit_note),
-                            onPressed: () => _skipRoutine(r),
-                            tooltip: L.t('Log skip + reason',
-                                'לרשום שלא קרה + סיבה'),
-                          ),
+                          trailing: _caregiverDevice
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.edit_note),
+                                  onPressed: () => _skipRoutine(r),
+                                  tooltip: L.t('Log skip + reason',
+                                      'לרשום שלא קרה + סיבה'),
+                                ),
                         ),
                       );
                     }),

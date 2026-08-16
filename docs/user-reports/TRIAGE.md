@@ -83,6 +83,36 @@ Noted, stale-build (their .l4-test apps predate the caregiver's key):
 - מלווה long-press CRUD leak — already key-gated in main (wave 21).
 - Restart-lands-on-Sync — one-map + guided containment supersede.
 
+## Harness rebuild day (2026-08-16 afternoon)
+
+Fixed same day:
+- **Sync identity roulette — the real pairing-killer found.** Every
+  instance claimed TCP 42425 in its hellos while only one owned it; on a
+  machine running siblings (Person + Care on the Mac, all four harness
+  apps) a PULL could land on the wrong instance, whose honest "REVOKED"
+  (I don't know you) the requester OBEYED — erasing a living pairing.
+  Watched it happen: all four harness stores wiped their trusted lists
+  within seconds of launch. Now every instance binds its own door
+  (42425..+8, else ephemeral) and announces the real number; PULL2 names
+  the expected server, strangers answer NOTME, and the severing word is
+  only valid from the device it names. Legacy PULL (older phone builds)
+  gets silence instead of REVOKED — it can no longer erase anything.
+  This also explains the phone/Mac trusted-list disagreements and the
+  banner snapping to "עדיין לא מחובר" — most of the "sync identity"
+  mystery was this one bug. Still open from that chunk: name-row
+  duplicates when a device is reinstalled (ghost entries).
+- **Caregiver cannot set done (owner reversal, 2026-08-16)** — the
+  helper's device builds and watches; ✓/skip/steps/take-backs write only
+  on the person's device and arrive by sync. Guarded at the store, shown
+  as fact (no checkbox) on the inspector's calendar, dead provider path
+  deleted. Covered by test/caregiver_answers_test.dart.
+- **.l4-test/.l3-test bundles rebuilt from current code** (they predated
+  the caregiver key, one-map, postpone, tone, banner, everything).
+  Same bundle ids, same stores, ad-hoc re-signed with the harness
+  entitlements. L4's erased pairing restored from the .bak files;
+  verified live: four instances on four ports, pairing surviving
+  auto-sync crossfire, Care banner green "מחוברים ל־Ben — נשמע לאחרונה".
+
 Open / recorded:
 - **Version-skew data loss**: the 15-Aug debug APK strips `gather` on
   save (old models rebuild JSON from known fields). Same risk class for

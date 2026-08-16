@@ -308,7 +308,8 @@ class LanSyncService {
       'deviceName': _deviceName,
       'deviceId': _myDeviceId, // stable — trust depends on it
       'lastExport': DateTime.now().toIso8601String(),
-      'port': transferPort,
+      // The door this instance really answers at — never the family default.
+      'port': _boundPort ?? transferPort,
       // A reply is never replied to — that alone keeps the handshake from
       // echoing forever between two devices.
       if (isReply) 'reply': true,
@@ -435,8 +436,31 @@ class LanSyncService {
     });
   }
 
+  /// The TCP port this instance actually LISTENS on. On a machine running
+  /// several instances (Person + Care on one Mac) only one can own
+  /// [transferPort]; the rest take the next free door and say so in their
+  /// hellos. Before this, every instance CLAIMED 42425 while only one owned
+  /// it — so a sync request could reach a sibling instead of its pair, and
+  /// the sibling's honest "I don't know you" erased a living pairing.
+  int? _boundPort;
+
   Future<void> _startTcpServer() async {
-    _tcpServer = await ServerSocket.bind(InternetAddress.anyIPv4, transferPort);
+    for (var candidate = transferPort;
+        candidate < transferPort + 8;
+        candidate++) {
+      try {
+        _tcpServer =
+            await ServerSocket.bind(InternetAddress.anyIPv4, candidate);
+        _boundPort = candidate;
+        _tcpServer!.listen((s) => _handleIncoming(s));
+        return;
+      } on SocketException {
+        continue; // a sibling owns this one — try the next door
+      }
+    }
+    // Eight busy neighbors — take any free door; hellos carry the number.
+    _tcpServer = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
+    _boundPort = _tcpServer!.port;
     _tcpServer!.listen((s) => _handleIncoming(s));
   }
 
@@ -450,7 +474,9 @@ class LanSyncService {
         final nl = bytes.indexOf(10); // '\n'
         if (nl != -1) {
           final header = utf8.decode(bytes.sublist(0, nl)).trim();
-          if (header.startsWith('PAIR ') || header.startsWith('PULL ')) {
+          if (header.startsWith('PAIR ') ||
+              header.startsWith('PULL ') ||
+              header.startsWith('PULL2 ')) {
             await _handleHeaderOnly(header, socket);
             return;
           }
@@ -521,17 +547,48 @@ class LanSyncService {
             message: L.t('Paired safely. The first sync starts by itself.',
                 'הצימוד הושלם בבטחה. הסנכרון הראשון מתחיל מעצמו.'),
             isComplete: true));
-      } else if (header.startsWith('PULL ')) {
-        final requesterId = header.substring(5).trim();
+      } else if (header.startsWith('PULL2 ')) {
+        // PULL2 <requesterId> <expectedServerId> — the request names who it
+        // thinks it reached. Instances on one machine share an IP, and a
+        // PULL landing on the wrong sibling used to be answered REVOKED —
+        // which the requester obeyed, erasing a LIVING pairing (all four
+        // harness stores wiped themselves, 2026-08-16). AN ANSWER ABOUT
+        // TRUST IS ONLY VALID FROM THE DEVICE IT NAMES; anyone else says
+        // NOTME and the requester just waits for a fresher hello.
+        final parts = header.substring(6).trim().split(RegExp(r'\s+'));
+        final requesterId = parts.isEmpty ? '' : parts.first;
+        final expectedId = parts.length > 1 ? parts[1] : '';
+        if (expectedId != _myDeviceId) {
+          socket.add(utf8.encode('NOTME\n'));
+          await socket.flush();
+          return;
+        }
         final trusted = await IsarService.getTrustedDevice(requesterId);
         if (trusted == null) {
-          // We un-paired from this device. SAY so instead of going quiet —
-          // silence looked exactly like a network hiccup, which is why the
-          // other side kept showing "connected" (owner QA, 2026-07-27).
+          // We really are who they asked for, and we really did un-pair.
+          // SAY so instead of going quiet — silence looked exactly like a
+          // network hiccup (owner QA, 2026-07-27).
           socket.add(utf8.encode('REVOKED\n'));
           await socket.flush();
           return;
         }
+        if (trusted.sharedSecret == null || !trusted.lanSyncAllowed) {
+          // Paired but switched off: no data, and no revocation either.
+          return;
+        }
+        final f = await BnsExporter.exportFullSnapshot();
+        final cipher =
+            await _encryptFileInIsolate(f.path, trusted.sharedSecret!);
+        socket.add(cipher);
+      } else if (header.startsWith('PULL ')) {
+        // Older devices that don't send PULL2 yet. They cannot prove who
+        // they reached, so the severing word is never said here — an
+        // unknown requester gets silence, which old clients already show
+        // as "didn't share anything back, maybe un-paired" with re-pair
+        // advice. Honest enough, and it cannot erase a living pairing.
+        final requesterId = header.substring(5).trim();
+        final trusted = await IsarService.getTrustedDevice(requesterId);
+        if (trusted == null) return;
         if (trusted.sharedSecret == null || !trusted.lanSyncAllowed) {
           // Paired but switched off: no data, and no revocation either.
           return;
@@ -653,6 +710,21 @@ class LanSyncService {
       final pulled = await _pullTrusted(peer, trusted.sharedSecret!);
       if (pulled == _PullOutcome.revoked) {
         // _handleRevoke already told the person; nothing more to do here.
+        return false;
+      }
+      if (pulled == _PullOutcome.wrongDevice) {
+        // A different device answered at that address (siblings share a
+        // machine, or the network reshuffled). The next hello carries the
+        // right door — nothing here is worth alarming anyone about.
+        if (!isAuto) {
+          _emitProgress(SyncProgress(
+              progress: 0,
+              message: L.t(
+                  'A different device answered at that address. Waiting '
+                  'for a fresh hello from ${peer.deviceName}.',
+                  'במקום ${peer.deviceName} ענה מכשיר אחר. מחכים לשלום '
+                  'טרי ממנו.')));
+        }
         return false;
       }
       if (pulled == _PullOutcome.nothing) {
@@ -778,7 +850,9 @@ class LanSyncService {
   Future<_PullOutcome> _pullTrusted(BnsPeer peer, String secret) async {
     final s = await Socket.connect(peer.address, peer.port,
         timeout: const Duration(seconds: 15));
-    s.add(utf8.encode('PULL $_myDeviceId\n'));
+    // Name who we think we reached — only THAT device may answer about
+    // trust. A sibling instance at the same address says NOTME instead.
+    s.add(utf8.encode('PULL2 $_myDeviceId ${peer.deviceId}\n'));
     await s.flush();
 
     final encBytes = Uint8List.fromList(await s
@@ -794,9 +868,12 @@ class LanSyncService {
     if (encBytes.length <= 16) {
       final asText = utf8.decode(encBytes, allowMalformed: true).trim();
       if (asText == 'REVOKED') {
+        // With PULL2 this can only come from the device we named — a real
+        // revocation, never a stranger answering the family door.
         await _handleRevoke(peer.deviceId);
         return _PullOutcome.revoked;
       }
+      if (asText == 'NOTME') return _PullOutcome.wrongDevice;
     }
 
     final outPath = '${(await getTemporaryDirectory()).path}/pull.bns';
@@ -970,7 +1047,10 @@ class LanSyncService {
       return;
     }
     try {
-      final socket = await Socket.connect(lastKnownAddress, transferPort,
+      // Prefer the door the peer last announced; the family default may
+      // belong to a sibling instance on that machine.
+      final port = _peers[id]?.port ?? transferPort;
+      final socket = await Socket.connect(lastKnownAddress, port,
           timeout: const Duration(seconds: 3));
       socket.add(utf8.encode('REVOKE $_myDeviceId\n'));
       await socket.flush();
@@ -1033,4 +1113,4 @@ class LanSyncService {
 }
 
 /// What a PULL round actually produced.
-enum _PullOutcome { gotData, nothing, revoked }
+enum _PullOutcome { gotData, nothing, revoked, wrongDevice }

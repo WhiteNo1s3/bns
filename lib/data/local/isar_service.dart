@@ -382,6 +382,10 @@ class IsarService {
   static Future<void> answerEvent(String id, String? answer,
       {String? reason}) async {
     final d = await _load();
+    // THE PERSON ANSWERS (owner, 2026-08-16): a caregiver device builds the
+    // day and watches it — it never writes the answer. Done, skip, steps and
+    // take-backs are born on the person's own device and arrive here by sync.
+    if (d.settings.caregiverDevice) return;
     final i = d.events.indexWhere((e) => e.id == id);
     if (i < 0) return;
     d.events[i] = d.events[i].copyWith(
@@ -441,6 +445,8 @@ class IsarService {
     String? reasonAudioPath,
   }) async {
     final d = await _load();
+    // THE PERSON ANSWERS (owner, 2026-08-16) — see answerEvent.
+    if (d.settings.caregiverDevice) return;
     // One truth per routine per day — replace, never pile up.
     d.logs.removeWhere((l) => l.routineId == routineId && l.date == date);
     d.logs.add(CompletionLog(
@@ -463,6 +469,9 @@ class IsarService {
     required String date,
   }) async {
     final d = await _load();
+    // THE PERSON ANSWERS (owner, 2026-08-16) — a helper cannot take a ✓
+    // back either; the answer belongs to whoever gave it.
+    if (d.settings.caregiverDevice) return;
     d.logs.removeWhere((l) => l.routineId == routineId && l.date == date);
     d.stepProgress.remove('$date|$routineId');
     await _persist();
@@ -480,6 +489,8 @@ class IsarService {
       String routineId, String date, int totalSteps) async {
     final d = await _load();
     final key = '$date|$routineId';
+    // THE PERSON ANSWERS (owner, 2026-08-16) — see answerEvent.
+    if (d.settings.caregiverDevice) return d.stepProgress[key] ?? 0;
     final next = ((d.stepProgress[key] ?? 0) + 1).clamp(0, totalSteps);
     d.stepProgress[key] = next;
     await _persist();

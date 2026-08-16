@@ -35,17 +35,8 @@ class RoutinesNotifier extends AsyncNotifier<List<Routine>> {
     state = AsyncData(await IsarService.getAllRoutines());
   }
 
-  Future<void> toggleComplete(
-      String routineId, String date, bool isDone) async {
-    final status = isDone ? CompletionStatus.done : CompletionStatus.skipped;
-    await IsarService.logCompletion(
-      routineId: routineId,
-      date: date,
-      status: status,
-    );
-    // Refresh routines list if needed (in real would be smarter)
-    state = AsyncData(await IsarService.getAllRoutines());
-  }
+  // (toggleComplete was removed 2026-08-16: no callers, and it flipped an
+  // un-check into a silent "skipped" — an answer nobody gave.)
 }
 
 final routinesNotifierProvider =

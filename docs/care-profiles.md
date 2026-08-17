@@ -13,6 +13,8 @@ side by side. Until this shipped, "multi-profile" meant cloning app
 bundles: two Care apps, two stores, one port pair — two Level-4 agents
 for one Level-4 person. That is not a product.
 
+**2026-08-17 ~06:50:** the switcher (One Care / few people — sit the right person) is still REQUIRED and not shipped. After 49281ac the L2 Care inspector shows an אנשים dropdown sitting on רמה 2. Early profile chrome, not a switcher. Still one Care / one trusted[] / one list. Multiprofile stays REQUIRED until one seat can follow a few people without a cloned app. Do not claim the dropdown is the switcher. Not L4. Not הגדרות.
+
 ## The law
 
 - **A profile is a person.** Each one is its OWN complete BNS home:

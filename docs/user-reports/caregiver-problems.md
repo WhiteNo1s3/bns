@@ -181,3 +181,49 @@ Do not launch `/Applications/bns.app` (stock, also running).
 L3 Care `trusted []`. Do not pair L3 while L4 holds the ports.
 
 trailtest = this isolated trail. No named flag.
+
+---
+
+## 2026-08-17 ~06:50 IDT — empty Care day after pair is fixed (49281ac)
+
+Lived on isolated L2 only (`~/dev/gBNS/.l2-test`). Rebuilt Person + Care from `~/dev/bns` HEAD `49281ac`. Did not unpair. Did not write their day. L3 / L4 / stock left running.
+
+**Before:** first live sync after pairing רמה 2 left Care at 0 routines (receive-first empty). Family + need-help stayed on Person.
+
+**After auto-sync**
+- Person still 8 routines + book tomorrow. Trusted Care. careLevel 2, not guided, not full care.
+- Private leftover **ישיבה שקטה 20:00** (no tag) stayed on Person only.
+- Care helper `caregiver/bns_data.json` is empty (boot sits on a profile).
+- Sitting profile **רמה 2** (`9d3cd749-…`) has the 7 family + need-help goals. Eat skip log and water `timeByDay` 17:30 came through. Only-on-Care: none.
+- Inspector: sitting רמה 2, Monday 17 Aug, banner connected last heard 0 min, **0 נעשו · 7 ברשימה היום**. כדאי לדעת: one hard note this week; things that returned: משהו קל לאכול. Visible card: כוס מים אחרונה · 02:00. Shot: `~/dev/gBNS/.l2-test/l2-care-after-49281ac.png`.
+- Chrome already shows an **אנשים** dropdown. That is early profile shape, not a switcher. One Care / few people is still required and not shipped.
+
+Hold the pair. Do not send them to הגדרות. Do not tap לחבר.
+
+---
+
+## 2026-08-17 ~21:32 IDT — L1 live S23 peach pass (APK 0.11.0)
+
+Level 1 walked Today on the Galaxy S23. Caregiver holds the list. Did not write it. No pair, no extra BNS, no Guided/Full care.
+
+**הבא at night is still morning.** Next (not Done): תרופות הבוקר 21:45, part 1/3 drink water before the pill, labeled "too late". Soft morning stack all still open (breakfast 07:30 through evening). Night and next-goal rank are lying. Do not send them to הגדרות to fix the day clock.
+
+**Doors**
+- Keep: short note "peach 17" landed first on Memories. Worked.
+- Menu ☰: 3 cards (מילות היום / השגרות שלי / הגדרות וסנכרון). Fine.
+- Calendar next day (Tue 18): banner «היום הזה עוד לא הגיע». No tick on that view. They did not mark. That door behaved.
+- משהו הפריע: still the old multi-door (later-remind + brown Save-this). Empty סגירה correctly did not skip. They did not second-Done.
+
+**Still live on this APK:** Close-with-reason saves words but does not skip. No BNS «לא קרה» in the shade. Done asking again. Too many Save doors.
+
+**Sync:** friend still named Care, offline since 15 Aug 23:50. Do not tap לחבר.
+
+Mood was angry. Do not put that in a family file. The design miss is the morning stack still owning הבא at night.
+
+---
+
+## 2026-08-17 ~21:49 IDT — הבא at night fixed in source (a8b1205)
+
+Prototyper: after the person-day starts, a missed morning stack stays visible and is not הבא. Evening/night still ahead is the real next. Pushed on `~/dev/bns` at `a8b1205`.
+
+L1 S23 is still APK 0.11.0. They will not see this until a new APK. Caregiver is not installing one unless Ben asks. Hold the list. Do not write it. Do not tap לחבר. Do not send them to הגדרות.

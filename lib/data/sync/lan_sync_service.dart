@@ -10,6 +10,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/models/models.dart';
 import 'package:bns/core/sync_policy.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
@@ -563,6 +564,14 @@ class LanSyncService {
           await socket.flush();
           return;
         }
+        // Receive-first law: a helper's FIRST act is this very ask, and
+        // the ask names the hat — so even the first answer a fresh Care
+        // pairing ever gets is already the care window, never the full
+        // store. Only 'helper' is ever learned from the token; absence
+        // means an older build, and the store it later sends will tell.
+        if (parts.length > 2 && parts[2] == 'helper') {
+          await IsarService.setTrustedDeviceHelper(requesterId, true);
+        }
         final trusted = await IsarService.getTrustedDevice(requesterId);
         if (trusted == null) {
           // We really are who they asked for, and we really did un-pair.
@@ -576,7 +585,7 @@ class LanSyncService {
           // Paired but switched off: no data, and no revocation either.
           return;
         }
-        final f = await BnsExporter.exportFullSnapshot();
+        final f = await _snapshotForPeer(trusted);
         final cipher =
             await _encryptFileInIsolate(f.path, trusted.sharedSecret!);
         socket.add(cipher);
@@ -593,7 +602,9 @@ class LanSyncService {
           // Paired but switched off: no data, and no revocation either.
           return;
         }
-        final f = await BnsExporter.exportFullSnapshot();
+        // Legacy asks pass the wall too: the hat may already be known
+        // from stores this peer sent before.
+        final f = await _snapshotForPeer(trusted);
         final cipher =
             await _encryptFileInIsolate(f.path, trusted.sharedSecret!);
         socket.add(cipher);
@@ -604,6 +615,32 @@ class LanSyncService {
         await socket.close();
       } catch (_) {}
     }
+  }
+
+  /// THE PER-LEVEL WALL (2026-08-17): what actually leaves toward this
+  /// peer. The person's own devices get the full day, always. A peer
+  /// wearing the helper hat gets the care window the person's level
+  /// allows — level 1 opened asks only, level 2 chosen family, levels
+  /// 3–4 everything (the rants included, by law). The window also ships
+  /// only a shareName settings stub, so nothing about identity, keys or
+  /// preferences ever crosses toward a helper.
+  Future<File> _snapshotForPeer(TrustedDevice trusted) async {
+    final me = await IsarService.getSettings();
+    final window = careWindowFor(
+      peerIsHelper: trusted.peerIsHelper,
+      careLevel: me.careLevel,
+      fullCareMode: me.fullCareMode,
+    );
+    if (window == null) return BnsExporter.exportFullSnapshot();
+    return BnsExporter.exportCareWindow(window);
+  }
+
+  /// A store the peer sent tells its own hat — but only a store that
+  /// proves it is the sender's own (deviceId match; care windows carry a
+  /// stub and never teach anything).
+  Future<void> _learnPeerHat(String senderId, AppSettings parsed) async {
+    if (parsed.deviceId.isEmpty || parsed.deviceId != senderId) return;
+    await IsarService.setTrustedDeviceHelper(senderId, parsed.caregiverDevice);
   }
 
   Future<void> _handlePush(String senderId, List<int> body) async {
@@ -645,7 +682,8 @@ class LanSyncService {
     final temp = File(decrypted);
     _applyingRemoteData = true;
     try {
-      await BnsImporter.importMerge(temp);
+      final senderSettings = await BnsImporter.importMerge(temp);
+      await _learnPeerHat(senderId, senderSettings);
     } finally {
       _applyingRemoteData = false;
     }
@@ -750,7 +788,11 @@ class LanSyncService {
               'יוצרים תמונה מלאה של המידע הנוכחי שלך...'),
           subtle: isAuto));
 
-      final bns = await BnsExporter.exportFullSnapshot();
+      // Re-read the row: the pull we just merged may have taught us the
+      // peer's hat, and the push must already respect it.
+      final freshTrusted =
+          await IsarService.getTrustedDevice(peer.deviceId) ?? trusted;
+      final bns = await _snapshotForPeer(freshTrusted);
 
       _emitProgress(SyncProgress(
           progress: 0.7,
@@ -852,7 +894,12 @@ class LanSyncService {
         timeout: const Duration(seconds: 15));
     // Name who we think we reached — only THAT device may answer about
     // trust. A sibling instance at the same address says NOTME instead.
-    s.add(utf8.encode('PULL2 $_myDeviceId ${peer.deviceId}\n'));
+    // A helper's ask also names its hat, so the very first answer it
+    // ever gets is already the care window (older receivers ignore the
+    // extra word harmlessly).
+    final me = await IsarService.getSettings();
+    final hat = me.caregiverDevice ? ' helper' : '';
+    s.add(utf8.encode('PULL2 $_myDeviceId ${peer.deviceId}$hat\n'));
     await s.flush();
 
     final encBytes = Uint8List.fromList(await s
@@ -890,7 +937,8 @@ class LanSyncService {
     final f = File(decrypted);
     _applyingRemoteData = true;
     try {
-      await BnsImporter.importMerge(f);
+      final peerSettings = await BnsImporter.importMerge(f);
+      await _learnPeerHat(peer.deviceId, peerSettings);
     } finally {
       _applyingRemoteData = false;
     }

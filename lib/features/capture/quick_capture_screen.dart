@@ -12,6 +12,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/recording_text.dart';
+import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/services/apple_file_stt.dart';
@@ -20,6 +21,7 @@ import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/vosk_service.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/mark_picker.dart';
 
 /// Full voice + text capture screen.
@@ -45,6 +47,29 @@ class QuickCaptureScreen extends StatefulWidget {
     this.autoRecord = false,
     this.forDate,
   });
+
+  /// A FRESH VISIT, ASKED FOR OUT LOUD (level-1 note, 2026-08-17: "cold
+  /// open kept old text"). go_router reuses this screen's State when
+  /// /capture is asked for while already showing (same page key), so a
+  /// widget-button or door arrival landed in last visit's leftovers —
+  /// and a new autoRecord was silently skipped. Callers that `go` here
+  /// call [askFresh] first; the open screen BANKS any unsaved words
+  /// (words are never lost — they land as a kept thought) and starts
+  /// the visit clean with the new extras.
+  static final ValueNotifier<int> freshVisit = ValueNotifier<int>(0);
+  static Map<String, dynamic>? _freshExtra;
+
+  static void askFresh([Map<String, dynamic>? extra]) {
+    _freshExtra = extra;
+    freshVisit.value++;
+  }
+
+  /// The pending fresh-visit extras, consumed exactly once.
+  static Map<String, dynamic>? takeFreshExtra() {
+    final e = _freshExtra;
+    _freshExtra = null;
+    return e;
+  }
 
   @override
   State<QuickCaptureScreen> createState() => _QuickCaptureScreenState();
@@ -76,6 +101,12 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   final Set<String> _selectedTags =
       {}; // for crisis, good, garden tags, search by routine/crisis
 
+  /// One save at a time — a double-tap must not keep the thought twice.
+  bool _saving = false;
+
+  /// The person's own past mark words, freshest first — one tap today.
+  List<String> _markVocabulary = const [];
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +131,57 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (widget.autoRecord) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
     }
+    QuickCaptureScreen.takeFreshExtra(); // this visit IS fresh; drop leftovers
+    QuickCaptureScreen.freshVisit.addListener(_onFreshVisitAsked);
+    // Marks suggest themselves from the words as they land.
+    _textController.addListener(_refreshSuggestions);
+    _loadMarkVocabulary();
+  }
+
+  Future<void> _loadMarkVocabulary() async {
+    final all = await IsarService.getAllCaptures();
+    if (!mounted) return;
+    setState(() => _markVocabulary = ownMarksOf(visibleMemories(all)));
+  }
+
+  void _refreshSuggestions() {
+    if (mounted) setState(() {});
+  }
+
+  /// A new arrival while this screen is already open: bank unsaved words
+  /// (never lost — they land as a kept thought), then start clean.
+  Future<void> _onFreshVisitAsked() async {
+    if (!mounted) return;
+    final extra = QuickCaptureScreen.takeFreshExtra() ?? const {};
+    if (_textController.text.trim().isNotEmpty || _takes.isNotEmpty) {
+      final banked = await _keepQuietly();
+      if (!banked) return; // words stay put rather than risk losing them
+    }
+    if (!mounted) return;
+    setState(() {
+      _textController.clear();
+      _contextController.clear();
+      _takes.clear();
+      _selectedTags.clear();
+      _memoryLevel = defaultKeptLevel;
+      _showMore = false;
+      final tags = extra['tags'];
+      if (tags is List) _selectedTags.addAll(tags.cast<String>());
+    });
+    if (extra['autoRecord'] == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
+    }
+  }
+
+  /// Bank the current words/voice as a kept thought without leaving or
+  /// announcing — the fresh visit's quiet guard. True on success.
+  Future<bool> _keepQuietly() async {
+    try {
+      await IsarService.addCapture(_assembleCapture());
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Widget-initiated capture: the phone gently speaks the subject prompt
@@ -117,6 +199,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   @override
   void dispose() {
+    QuickCaptureScreen.freshVisit.removeListener(_onFreshVisitAsked);
     _durationTimer?.cancel();
     TtsService.stop();
     _textController.dispose();
@@ -307,6 +390,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       }
       return;
     }
+    // The take that ASKED is the take that gets the words — a recording
+    // started while the popup was open must not steal them.
+    final asking = _takes.isEmpty ? null : _takes.last;
     final chosen = settings.sttLocale.trim();
     final words = await SpeechPopup.recognize(
       locale: chosen.isEmpty
@@ -317,9 +403,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     if (!mounted) return;
     final said = (words ?? '').trim();
     if (said.isEmpty) return;
-    // The words belong to the take that is waiting for them, and land at
-    // the end of the box — right under its own "הקלטה N" line.
-    final i = _takes.length - 1;
+    final i = asking == null
+        ? -1
+        : _takes.indexWhere((t) => t.path == asking.path);
     if (i >= 0) {
       _takes[i] = _Take(_takes[i].number, _takes[i].path, said);
     }
@@ -363,12 +449,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     await TtsService.speak(words);
   }
 
-  Future<void> _saveCapture() async {
+  /// One assembly for every keep — the visible Save and the quiet bank
+  /// build the identical memory.
+  QuickCapture _assembleCapture() {
     final text = _textController.text.trim();
-    if (text.isEmpty && _takes.isEmpty) {
-      _leaveWithoutSaving();
-      return;
-    }
 
     final tags = ['quick-thought'];
     if (_memoryLevel == MemoryLevel.remember) tags.add('remember-this');
@@ -388,7 +472,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         .where((h) => h.isNotEmpty)
         .join('\n');
 
-    final capture = QuickCapture(
+    return QuickCapture(
       id: _uuid.v4(),
       at: DateTime.now(),
       // A voice-only thought still saves readable words: the transcript
@@ -408,10 +492,21 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           : _contextController.text.trim(),
       forDate: widget.forDate,
     );
+  }
+
+  Future<void> _saveCapture() async {
+    if (_saving) return; // a double-tap must not keep the thought twice
+    final text = _textController.text.trim();
+    if (text.isEmpty && _takes.isEmpty) {
+      _leaveWithoutSaving();
+      return;
+    }
+    _saving = true;
 
     try {
-      await IsarService.addCapture(capture);
+      await IsarService.addCapture(_assembleCapture());
     } catch (_) {
+      _saving = false;
       // Even a broken save must not eat the person's words: everything
       // stays on this screen, said honestly — never a cheerful "saved"
       // over a void (owner QA, 2026-08-14).
@@ -457,6 +552,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         context.go('/');
       }
     }
+    _saving = false;
   }
 
   /// No path out of this screen may silently cost words (level-1 tester,
@@ -502,16 +598,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: BnsAppBar(
-        title: L.t('Keep this', 'לשמור את זה'),
-        actions: [
-          TextButton(
-            onPressed: _saveCapture,
-            child: Text(L.t('Save', 'שמירה'),
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      // ONE SAVE, ALWAYS IN REACH (level-1 note, 2026-08-17: "two saves...
+      // the keyboard covers the big save"). The header שמירה is gone —
+      // the one Save door is PINNED under the screen and rides above the
+      // keyboard; two identical doors made every save a coin-flip story.
+      appBar: BnsAppBar(title: L.t('Keep this', 'לשמור את זה')),
       // The whole screen SCROLLS (owner's phone, 2026-07-26: the tag chips
       // sat 300px past the bottom behind an overflow stripe). A capture
       // screen holds recording + transcript + tags + notes — on a phone
@@ -641,6 +732,8 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 border: const OutlineInputBorder(),
                 filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
+                // Dictation straight into the box — STT everywhere law.
+                suffixIcon: DictationMicButton(controller: _textController),
               ),
             ),
             const SizedBox(height: 10),
@@ -648,23 +741,6 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               onPressed: _hearAloud,
               icon: const Icon(Icons.volume_up_rounded, size: 26),
               label: Text(L.t('Hear the words', 'להקריא את המילים')),
-            ),
-
-            const SizedBox(height: 24),
-
-            FilledButton.icon(
-              onPressed: _saveCapture,
-              icon: const Icon(Icons.check, size: 28),
-              // The void-promise without a navigation promise (tester,
-              // 2026-08-16: "Save promises 'אני אראה את זה' but lands on
-              // Today"). Saving stays in place; Today's kept strip shows it.
-              label: Text(
-                  L.t('Save — it stays with me', 'שמירה — זה נשאר אצלי')),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _leaveWithoutSaving,
-              child: Text(L.t('Not now', 'לא עכשיו')),
             ),
 
             // Extra choices stay closed — but behind a door that SAYS
@@ -739,6 +815,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 const SizedBox(height: 8),
                 MarkPicker(
                   selected: _selectedTags,
+                  vocabulary: _markVocabulary,
                   onChanged: () => setState(() {}),
                 ),
               ],
@@ -755,6 +832,96 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             ],
           ],
         ),
+      ),
+      // THE ONE SAVE, PINNED — it rides above the keyboard (the body's
+      // Save drowned under it; level-1 note, 2026-08-17), with the marks
+      // that offered themselves from the person's own words just above:
+      // one tap accepts a mark, nothing applies itself.
+      bottomNavigationBar: Padding(
+        padding:
+            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_selectedTags.contains('mad-vent'))
+                _SuggestedMarksRow(
+                  words: _textController.text,
+                  vocabulary: _markVocabulary,
+                  alreadyChosen: _selectedTags,
+                  onAccept: (mark) =>
+                      setState(() => _selectedTags.add(mark)),
+                ),
+              FilledButton.icon(
+                onPressed: _saveCapture,
+                icon: const Icon(Icons.check, size: 28),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56)),
+                // The void-promise without a navigation promise (tester,
+                // 2026-08-16: "Save promises 'אני אראה את זה' but lands
+                // on Today"). Saving stays in place; the kept strip shows it.
+                label: Text(
+                    L.t('Save — it stays with me', 'שמירה — זה נשאר אצלי')),
+              ),
+              TextButton(
+                onPressed: _leaveWithoutSaving,
+                style: TextButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44)),
+                child: Text(L.t('Not now', 'לא עכשיו')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The marks living inside the words, offered as one quiet chip row.
+/// Renders nothing when the words hold no known mark — no empty chrome.
+class _SuggestedMarksRow extends StatelessWidget {
+  final String words;
+  final List<String> vocabulary;
+  final Set<String> alreadyChosen;
+  final ValueChanged<String> onAccept;
+
+  const _SuggestedMarksRow({
+    required this.words,
+    required this.vocabulary,
+    required this.alreadyChosen,
+    required this.onAccept,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final offers = suggestMarksFor(words,
+        vocabulary: vocabulary, alreadyChosen: alreadyChosen);
+    if (offers.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final mark in offers)
+            Builder(builder: (context) {
+              final look = tagLook(mark)!;
+              final tint = look.color(cs);
+              return ActionChip(
+                avatar: Icon(look.icon, size: 18, color: tint),
+                label: Text(L.t('Mark: ${look.label}', 'סימן: ${look.label}')),
+                labelStyle: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600, color: tint),
+                side: BorderSide(color: tint.withValues(alpha: 0.45)),
+                onPressed: () => onAccept(mark),
+              );
+            }),
+        ],
       ),
     );
   }

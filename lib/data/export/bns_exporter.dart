@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:bns/core/models/calendar_event.dart';
+import 'package:bns/core/need_help.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/pack/bns_file_imager.dart';
@@ -39,7 +41,7 @@ class BnsExporter {
   }
 
   /// The FAMILY SHARE (owner decisions, 2026-07-06) — a filtered EXPORT,
-  /// never a filtered view. Two levels, both the person's own choice:
+  /// never a filtered view. The person's own choice of width:
   ///
   /// Normal: ONLY events marked "family can know" + moments tagged `family`
   /// (with their voice notes). Nothing else exists in the file, no matter
@@ -53,17 +55,52 @@ class BnsExporter {
   /// The Explorer detects `familyShare: true` and opens the family view.
   static Future<File> exportFamilyShare() async {
     final settings = await IsarService.getSettings();
-    final fullCare = settings.fullCareMode;
+    return exportCareWindow(
+      settings.fullCareMode
+          ? FamilyShareLevel.fullCare
+          : FamilyShareLevel.chosenFamily,
+      filePrefix: 'BNS_Family',
+    );
+  }
+
+  /// THE CARE WINDOW (the per-level wall, 2026-08-17) — what LAN sync
+  /// hands a peer wearing the helper hat. Same law as the family file,
+  /// now with the level-1 width the sync path never had:
+  ///
+  ///  - [FamilyShareLevel.asksOnly] (level 1): ONLY opened Need-help asks.
+  ///    No plans, no routines, no logs — a skip or a mood is never an ask.
+  ///  - [FamilyShareLevel.chosenFamily] (level 2): chosen plans +
+  ///    family-tagged moments (asks ride along — they carry the family
+  ///    tag). Mad-vents never, even tagged.
+  ///  - [FamilyShareLevel.fullCare] (levels 3–4): everything active,
+  ///    rants included — the frustration IS the signal.
+  ///
+  /// Every width ships a settings STUB (shareName only): the helper gets
+  /// the person's DAY, never their identity, keys, or preferences —
+  /// hats cannot travel inside a care window at all.
+  static Future<File> exportCareWindow(
+    FamilyShareLevel width, {
+    String filePrefix = 'BNS_CareWindow',
+  }) async {
+    final settings = await IsarService.getSettings();
+    final fullCare = width == FamilyShareLevel.fullCare;
+    final asksOnly = width == FamilyShareLevel.asksOnly;
     final snapshot = await IsarService.getFullSnapshot();
 
     final events = fullCare
         ? snapshot.events
-        : snapshot.events.where((e) => e.shareWithFamily).toList();
+        : asksOnly
+            ? const <CalendarEvent>[]
+            : snapshot.events.where((e) => e.shareWithFamily).toList();
     final captures = fullCare
         ? snapshot.captures.where((c) => c.deletedAt == null).toList()
-        : snapshot.captures
-            .where((c) => c.deletedAt == null && isFamilyTagged(c.tags))
-            .toList();
+        : asksOnly
+            ? snapshot.captures
+                .where((c) => c.deletedAt == null && level1ShareAllows(c))
+                .toList()
+            : snapshot.captures
+                .where((c) => c.deletedAt == null && isFamilyTagged(c.tags))
+                .toList();
 
     // Voice notes belonging to the shared moments travel along — hearing
     // "super annoyed at the elevator" in his own voice IS the information.
@@ -91,6 +128,7 @@ class BnsExporter {
       'appVersion': '0.12a',
       'schema': 'bns/v2',
       'familyShare': true,
+      'careWindow': width.name,
       if (fullCare) 'fullCare': true,
       'audioCount': audioEntries.length,
       'totalItems': events.length + captures.length,
@@ -114,7 +152,7 @@ class BnsExporter {
     final exportsDir = Directory('${home.path}/exports');
     await exportsDir.create(recursive: true);
     final safeName = settings.effectiveShareName.replaceAll(' ', '_');
-    final outPath = '${exportsDir.path}/BNS_Family_$safeName.bns';
+    final outPath = '${exportsDir.path}/${filePrefix}_$safeName.bns';
 
     // Streamed + atomic (temp+rename inside packToFile), same zip-v2 format.
     final manifestJson = jsonEncode(manifest);

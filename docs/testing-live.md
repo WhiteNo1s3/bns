@@ -66,6 +66,18 @@ flutter run -d <device-id>   # debug build, hot reload with 'r', logs live
 .\dist\windows\bns.exe --data-dir C:\temp\user2
 ```
 
+REAL since 2026-08-17 (it was documented here before the Dart had it —
+and a Windows test seed overwrote the live store through shared
+Documents). Both spellings work (`--data-dir PATH` / `--data-dir=PATH`),
+and so does an environment variable:
+
+```bash
+BNS_DATA_DIR=~/bns-test-l4 open /Applications/bns.app   # macOS
+```
+
+A pinned instance never reads or writes the live `bns_home.txt` pointer
+— the harness is isolated by structure, not by care.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

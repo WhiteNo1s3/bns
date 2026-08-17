@@ -190,6 +190,57 @@ List<String> flairTagsOf(Iterable<QuickCapture> items) {
 bool memoryHasTag(QuickCapture c, String canonicalKey) =>
     c.tags.any((t) => canonicalTag(t) == canonicalKey);
 
+/// A mark the app knows by name, as opposed to a person's own word.
+bool isKnownMark(String tag) => _kKnownTags.containsKey(canonicalTag(tag));
+
+/// THE PERSON'S OWN MARK VOCABULARY, freshest first (feed a newest-first
+/// list). A word invented yesterday belongs on today's picker — it used
+/// to live only on the moment it was typed on, so it could never be
+/// used twice without retyping it exactly (fluency gap #1, 2026-08-17).
+List<String> ownMarksOf(Iterable<QuickCapture> items) => flairTagsOf(items)
+    .where((k) =>
+        !_kKnownTags.containsKey(k) && !kPickerReservedTags.contains(k))
+    .toList();
+
+/// MARKS THAT OFFER THEMSELVES (owner, 2026-08-17: tagging "gotta be
+/// fluent"). Read the person's words and surface the marks already
+/// living inside them: their own past words by containment (Hebrew
+/// prefixes come free), the built-in choosables by their labels in
+/// either language (English on word boundaries — "good" must not hide
+/// inside "goodbye"). One tap accepts; nothing is ever applied by
+/// itself, and the reserved doors (family, storm…) never volunteer.
+List<String> suggestMarksFor(
+  String words, {
+  List<String> vocabulary = const [],
+  Iterable<String> alreadyChosen = const [],
+  int max = 3,
+}) {
+  final text = words.trim().toLowerCase();
+  if (text.isEmpty) return const [];
+  final chosen = alreadyChosen.map(canonicalTag).toSet();
+  final out = <String>[];
+
+  void offer(String key) {
+    final k = canonicalTag(key);
+    if (k.isEmpty || chosen.contains(k) || out.contains(k)) return;
+    if (kPickerReservedTags.contains(k) || kPlumbingTags.contains(k)) return;
+    out.add(k);
+  }
+
+  // The person's own words lead — they are the person's language.
+  for (final own in vocabulary) {
+    final w = canonicalTag(own);
+    if (w.length >= 2 && text.contains(w)) offer(own);
+  }
+  for (final key in kChoosableMarks) {
+    final spec = _kKnownTags[key]!;
+    final enHit = RegExp('\\b${RegExp.escape(spec.en.toLowerCase())}\\b')
+        .hasMatch(text);
+    if (enHit || text.contains(spec.he)) offer(key);
+  }
+  return out.length <= max ? out : out.sublist(0, max);
+}
+
 /// True when at least one of [tags] would show as flair.
 bool tagsHaveFlair(Iterable<String> tags) =>
     tags.any((t) => tagLook(t) != null);

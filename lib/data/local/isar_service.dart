@@ -720,6 +720,21 @@ class IsarService {
     await _persist();
   }
 
+  /// The peer's helper hat, learned from its PULL2 ask or its own store
+  /// arriving. Decides the care window on every later send (the per-level
+  /// wall). No-op when nothing changes or the device is unknown.
+  static Future<void> setTrustedDeviceHelper(String id, bool isHelper) async {
+    final d = await _load();
+    for (var i = 0; i < d.trusted.length; i++) {
+      final t = d.trusted[i];
+      if (t.id != id) continue;
+      if (t.peerIsHelper == isHelper) return;
+      d.trusted[i] = t.copyWith(peerIsHelper: isHelper);
+      await _persist();
+      return;
+    }
+  }
+
   static Future<void> removeTrustedDevice(String id) async {
     final d = await _load();
     d.trusted.removeWhere((t) => t.id == id);

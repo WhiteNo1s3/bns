@@ -19,8 +19,54 @@ class BnsHome {
 
   static Directory? _dir;
 
+  /// A process-pinned home (test isolation door). While set, the pointer
+  /// file is never read OR written — a harness instance structurally
+  /// cannot touch the live store or redirect the live app's home.
+  static Directory? _forced;
+
+  /// THE ISOLATION DOOR the harness always needed (2026-08-17): a
+  /// `--data-dir=<path>` argument or `BNS_DATA_DIR` environment variable
+  /// pins the home for THIS process only. It was documented in
+  /// docs/testing-live.md and never implemented — and a Windows test
+  /// seed overwrote the LIVE Level-1 store through shared Documents
+  /// (caregiver report, 2026-08-16). Call from main() before the store
+  /// opens; harmless when neither is given.
+  static void applyStartupArgs(List<String> args) {
+    String? path;
+    for (var i = 0; i < args.length; i++) {
+      final a = args[i];
+      if (a.startsWith('--data-dir=')) {
+        path = a.substring('--data-dir='.length);
+      } else if (a == '--data-dir' && i + 1 < args.length) {
+        // The testing guide's spelling: `--data-dir C:\temp\user1`.
+        path = args[i + 1];
+      }
+    }
+    try {
+      path ??= Platform.environment['BNS_DATA_DIR'];
+    } catch (_) {}
+    final chosen = (path ?? '').trim();
+    if (chosen.isEmpty) return;
+    try {
+      final d = Directory(chosen)..createSync(recursive: true);
+      _forced = d;
+      _dir = d;
+    } catch (_) {
+      // An unusable isolation path must not take the app down — it just
+      // falls back to the normal home.
+    }
+  }
+
+  /// Drop the process pin (tests only).
+  static void debugClearForcedForTest() {
+    _forced = null;
+    _dir = null;
+  }
+
   /// The current home. Cached after the first read; [setDir] refreshes it.
   static Future<Directory> dir() async {
+    final forced = _forced;
+    if (forced != null) return forced;
     final cached = _dir;
     if (cached != null) return cached;
     final docs = await getApplicationDocumentsDirectory();
@@ -46,6 +92,13 @@ class BnsHome {
   /// Point the home at [newDir] and remember it for every next launch.
   /// The caller is responsible for having moved/copied the data first.
   static Future<void> setDir(Directory newDir) async {
+    if (_forced != null) {
+      // A pinned process may move its own home in memory, but it never
+      // writes the shared pointer — the live app's home is not its to move.
+      _forced = newDir;
+      _dir = newDir;
+      return;
+    }
     final docs = await getApplicationDocumentsDirectory();
     final pointer = File('${docs.path}/$pointerFileName');
     if (newDir.path == docs.path) {

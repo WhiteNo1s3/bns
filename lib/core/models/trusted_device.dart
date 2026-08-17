@@ -18,6 +18,13 @@ class TrustedDevice {
   /// your own devices; turning it off is a one-tap kill switch, not un-pairing.
   final bool lanSyncAllowed;
 
+  /// This peer wears the HELPER hat (its store says `caregiverDevice`).
+  /// Learned from its PULL2 ask and from every store it sends; decides
+  /// which care window leaves toward it (the per-level wall, 2026-08-17).
+  /// False also covers "not known yet" — an old build that never declared
+  /// gets the old behavior until its first store arrives and tells.
+  final bool peerIsHelper;
+
   const TrustedDevice({
     required this.id,
     required this.name,
@@ -26,6 +33,7 @@ class TrustedDevice {
     this.sharedSecret,
     this.autoSyncEnabled = true,
     this.lanSyncAllowed = true,
+    this.peerIsHelper = false,
   });
 
   TrustedDevice copyWith({
@@ -36,6 +44,7 @@ class TrustedDevice {
     Object? sharedSecret = _unset,
     bool? autoSyncEnabled,
     bool? lanSyncAllowed,
+    bool? peerIsHelper,
   }) {
     return TrustedDevice(
       id: id ?? this.id,
@@ -46,6 +55,7 @@ class TrustedDevice {
           sharedSecret == _unset ? this.sharedSecret : sharedSecret as String?,
       autoSyncEnabled: autoSyncEnabled ?? this.autoSyncEnabled,
       lanSyncAllowed: lanSyncAllowed ?? this.lanSyncAllowed,
+      peerIsHelper: peerIsHelper ?? this.peerIsHelper,
     );
   }
 
@@ -57,6 +67,7 @@ class TrustedDevice {
         'sharedSecret': sharedSecret,
         'autoSyncEnabled': autoSyncEnabled,
         'lanSyncAllowed': lanSyncAllowed,
+        'peerIsHelper': peerIsHelper,
       };
 
   factory TrustedDevice.fromJson(Map<String, dynamic> json) => TrustedDevice(
@@ -69,5 +80,6 @@ class TrustedDevice {
         sharedSecret: json['sharedSecret'] as String?,
         autoSyncEnabled: json['autoSyncEnabled'] as bool? ?? true,
         lanSyncAllowed: json['lanSyncAllowed'] as bool? ?? true,
+        peerIsHelper: json['peerIsHelper'] as bool? ?? false,
       );
 }

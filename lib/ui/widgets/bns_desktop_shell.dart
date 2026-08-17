@@ -8,6 +8,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/keybinds.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/export/bns_save_out.dart';
+import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/layout.dart';
@@ -163,6 +164,8 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
   void _onDestinationSelected(int index) {
     final dest = _destinations[index];
     setState(() => _selectedIndex = index);
+    // A sidebar-press on capture is a NEW visit (level-1 note, 2026-08-17).
+    if (dest.route == '/capture') QuickCaptureScreen.askFresh();
     context.go(dest.route);
   }
 
@@ -640,7 +643,13 @@ class _PhoneDoors extends StatelessWidget {
           height: 84,
           animationDuration: Duration.zero, // static: nothing slides
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          onDestinationSelected: (i) => context.go(_routes[i]),
+          onDestinationSelected: (i) {
+            final where = _routes[i];
+            // A door-press is a NEW visit to capture — the reused screen
+            // banks leftovers and opens clean (level-1 note, 2026-08-17).
+            if (where == '/capture') QuickCaptureScreen.askFresh();
+            context.go(where);
+          },
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.today_outlined, size: 28),

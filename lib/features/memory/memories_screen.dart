@@ -6,6 +6,7 @@ import 'package:bns/core/kept_memory.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/memory/memory_view_screen.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 
@@ -203,7 +204,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   child: _shown.isEmpty
                       ? _EmptyMemories(
                           trash: _showTrash,
-                          onTell: () => context.go('/capture'),
+                          onTell: () {
+                            QuickCaptureScreen.askFresh();
+                            context.go('/capture');
+                          },
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -296,7 +300,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       floatingActionButton: _showTrash
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => context.go('/capture'),
+              onPressed: () {
+                QuickCaptureScreen.askFresh();
+                context.go('/capture');
+              },
               icon: const Icon(Icons.mic),
               label: Text(L.t('Keep this', 'לשמור את זה')),
             ),

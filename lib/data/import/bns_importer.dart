@@ -215,7 +215,11 @@ class BnsImporter {
   }
 
   /// Smart merge (last write wins where timestamps exist).
-  static Future<void> importMerge(File bnsFile) async {
+  ///
+  /// Returns the file's OWN settings as parsed (before any keep-local
+  /// rules) — the sync layer reads the sender's hat off them. Callers
+  /// that only merge can ignore the return.
+  static Future<AppSettings> importMerge(File bnsFile) async {
     final parsed = await readBns(bnsFile);
     final remappedCaptures =
         await _remapAudioPaths(parsed.captures, parsed.audioFiles);
@@ -228,5 +232,6 @@ class BnsImporter {
       incomingSettings: parsed.settings,
     );
     await IsarService.pruneOldData();
+    return parsed.settings;
   }
 }

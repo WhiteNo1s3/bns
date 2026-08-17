@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/tag_flair.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 
 /// THE HAND THAT PUTS A MARK ON A MOMENT (owner, 2026-08-16: the tag
 /// system existed only as plumbing — no version had a way to choose one).
@@ -21,10 +22,15 @@ class MarkPicker extends StatefulWidget {
   final Set<String> selected;
   final VoidCallback onChanged;
 
+  /// The person's own past words (see [ownMarksOf]) — a word invented
+  /// yesterday is one tap today, never retyped (fluency, 2026-08-17).
+  final List<String> vocabulary;
+
   const MarkPicker({
     super.key,
     required this.selected,
     required this.onChanged,
+    this.vocabulary = const [],
   });
 
   @override
@@ -55,14 +61,24 @@ class _MarkPickerState extends State<MarkPicker> {
     widget.onChanged();
   }
 
-  /// The person's own words living in the set right now — everything
-  /// that is not a known chip, not reserved, not plumbing.
-  List<String> get _ownWords => widget.selected.where((t) {
-        final c = canonicalTag(t);
-        if (c.isEmpty || kPlumbingTags.contains(c)) return false;
-        if (kPickerReservedTags.contains(c)) return false;
-        return !kChoosableMarks.contains(c);
-      }).toList();
+  /// The person's whole reachable vocabulary: words on THIS moment plus
+  /// the words they invented before ([MarkPicker.vocabulary]) — each one
+  /// a single tap, in one deduped freshest-first row.
+  List<String> get _ownWords {
+    final out = <String>[];
+    final seen = <String>{};
+    void keep(String t) {
+      final c = canonicalTag(t);
+      if (c.isEmpty || kPlumbingTags.contains(c)) return;
+      if (kPickerReservedTags.contains(c)) return;
+      if (kChoosableMarks.contains(c)) return;
+      if (seen.add(c)) out.add(t);
+    }
+
+    widget.selected.forEach(keep);
+    widget.vocabulary.forEach(keep);
+    return out;
+  }
 
   void _addOwnWord(String raw) {
     final word = raw.replaceAll('#', '').trim();
@@ -72,8 +88,10 @@ class _MarkPickerState extends State<MarkPicker> {
       return;
     }
     final c = canonicalTag(word);
-    // The app's filing words and the storm are not a person's mark.
-    if (kPlumbingTags.contains(c) || c == 'mad-vent') {
+    // The app's filing words, the storm, and the marks with their own
+    // doors are not a person's mark — typing "family" must not silently
+    // trip the export path.
+    if (kPlumbingTags.contains(c) || kPickerReservedTags.contains(c)) {
       setState(() => _addingWord = false);
       return;
     }
@@ -119,7 +137,7 @@ class _MarkPickerState extends State<MarkPicker> {
         for (final word in _ownWords) _chip(context, word),
         if (_addingWord)
           SizedBox(
-            width: 200,
+            width: 240,
             child: TextField(
               controller: _wordCtrl,
               autofocus: true,
@@ -128,9 +146,13 @@ class _MarkPickerState extends State<MarkPicker> {
                 isDense: true,
                 hintText: L.t('Your word', 'המילה שלכם'),
                 border: const OutlineInputBorder(),
+                // Voice-first everywhere: a person who cannot type can
+                // still invent a mark (fluency gap #3, 2026-08-17).
+                suffixIcon: DictationMicButton(controller: _wordCtrl),
               ),
+              // Only a deliberate submit makes a mark — a stray tap used
+              // to turn a half-typed word into a permanent one.
               onSubmitted: _addOwnWord,
-              onTapOutside: (_) => _addOwnWord(_wordCtrl.text),
             ),
           )
         else

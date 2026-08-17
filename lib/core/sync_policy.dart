@@ -7,6 +7,8 @@
 /// deliberate act.
 library;
 
+import 'package:bns/core/need_help.dart';
+
 /// After a successful auto-sync, how long before the same device is synced
 /// again merely for being on the network. Local data changes bypass this —
 /// they push almost immediately via [kChangePushDebounce].
@@ -43,3 +45,19 @@ bool shouldAutoSyncOnSight({
 bool peerLooksOnline(DateTime lastSeen, DateTime now,
         {Duration window = kPeerOnlineWindow}) =>
     now.difference(lastSeen) <= window;
+
+/// THE PER-LEVEL WALL (2026-08-17). Which care window leaves toward a
+/// peer — or null for the person's own device, which always gets the
+/// full day. LAN sync used to ship the FULL store, vents included, to
+/// every trusted device at every care level; the family-share law
+/// (`familyShareLevelFor`) existed with no sync callers. Now the peer's
+/// helper hat picks the window:
+///   level 1 → opened asks only, level 2 → chosen family, 3–4 → full care.
+FamilyShareLevel? careWindowFor({
+  required bool peerIsHelper,
+  required int careLevel,
+  required bool fullCareMode,
+}) {
+  if (!peerIsHelper) return null;
+  return familyShareLevelFor(careLevel, fullCareMode: fullCareMode);
+}

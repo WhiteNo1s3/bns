@@ -1,5 +1,65 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## The wall, the maze, the marks (2026-08-17, third pass — 219 tests green)
+
+Owner: "the caregiver gave problems... solve those as soon as possible...
+giant bugs like the maze and the lan sync dumping full store... the
+tagging system needs a work, its gotta be fluent."
+
+- **THE PER-LEVEL SYNC WALL IS UP.** LAN sync used to ship the person's
+  FULL store — vents included — to every trusted device at every care
+  level. Now a peer wearing the helper hat gets the CARE WINDOW the
+  person's level allows: level 1 → opened asks only; level 2 → chosen
+  family plans + family moments (vents never, even tagged); levels 3–4 →
+  everything active, rants included (the law). Every window ships a
+  settings STUB (shareName only) — identity, keys and preferences never
+  cross toward a helper, so a hat cannot travel inside a window at all.
+  The hat is learned two ways: the helper's own PULL2 names it
+  (receive-first law ⇒ even a fresh pairing's FIRST answer is already
+  filtered), and every full store a peer sends teaches it (deviceId must
+  match the sender — a window stub can never teach). Own devices sync
+  full, exactly as before. `careWindowFor` in sync_policy;
+  `exportCareWindow` in the exporter (the family share now delegates to
+  it); `TrustedDevice.peerIsHelper`. test/care_window_test.dart.
+  Transition note: an OLD Care build that never declares and never
+  pushes keeps getting the old full store until it sends once — rebuild
+  the harness Care apps.
+- **THE ISOLATION DOOR IS REAL.** `--data-dir PATH` / `--data-dir=PATH`
+  / `BNS_DATA_DIR` pin a process to its own home; the live
+  `bns_home.txt` pointer is neither read nor written while pinned. The
+  Windows-seed-overwrote-the-live-store class of accident is closed by
+  structure. test/bns_home_isolation_test.dart; testing-live.md updated
+  (it documented the flag a day before the flag existed).
+- **THE CAPTURE MAZE, UNTANGLED.** One Save now — the header שמירה is
+  gone, and the one worded Save is PINNED under the screen, riding above
+  the keyboard (it lived mid-scroll with zero inset handling). A
+  double-tap cannot save twice. Cold-open stale text explained and
+  fixed: go_router reuses the screen's State when /capture is asked for
+  while already open — a widget-press or door-press now asks for a
+  FRESH visit; leftover words are BANKED as a kept thought first (words
+  are never lost), and autoRecord is honored instead of silently
+  skipped. Dictation mic on the words box itself. Spoken words land on
+  the take that asked for them, not whichever take is newest.
+- **MARKS OFFER THEMSELVES (the fluency idea).** The marks are already
+  in the person's words — so the app reads the words and offers the
+  matching marks as one-tap chips right above Save, no disclosure to
+  open: their own past words lead (Hebrew prefixes come free), built-ins
+  match by label in either language (English whole-words only), reserved
+  doors (family, storm) never volunteer, nothing is ever auto-applied,
+  three at most. The picker also remembers the person's whole mark
+  VOCABULARY now — a word invented yesterday is one tap today (it used
+  to live only on the moment it was typed on). A mic on the own-word
+  field (voice-first), no more partial-word commits on stray taps, and
+  typing "family" can no longer silently trip the export path.
+  suggestMarksFor / ownMarksOf in tag_flair; test/mark_suggest_test.dart.
+
+Caregiver-problems file status: every item is now either fixed (identity
+copy → four walls; phone-width routines door; doctor-row tap; bag door;
+vents leak; מלווה leak key-gated) or structurally closed this pass
+(full-store dump → the wall; Windows live-store overwrite → the pin).
+Still theirs: ghost duplicate rows after reinstall + trusted-row rename
+(sync-identity chunk), Android emulator isolate (use --data-dir now).
+
 ## PR1 + the level-1 note (2026-08-17, second pass — 196 tests green)
 
 The Prototyper's PR1 (`prototyper-doors` on grokBNS) reviewed on merit

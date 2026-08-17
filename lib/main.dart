@@ -39,6 +39,7 @@ import 'package:bns/features/diary/day_thread_screen.dart';
 import 'package:bns/features/caregiver/caregiver_home_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/sync/lan_sync_service.dart';
@@ -63,6 +64,11 @@ void main(List<String> args) {
   // All startup chores now happen after the UI exists, each one guarded:
   // a failed chore degrades a feature, never the launch.
   WidgetsFlutterBinding.ensureInitialized();
+  // The isolation door opens BEFORE anything can touch a store: a
+  // --data-dir / BNS_DATA_DIR instance is pinned to its own home and can
+  // never write the live one (synchronous, so even the first frame's
+  // providers read the pinned home).
+  BnsHome.applyStartupArgs(args);
   FlutterError.onError = (details) {
     FlutterError.presentError(details); // log, never die silently
   };
@@ -360,8 +366,12 @@ class _BnsAppState extends ConsumerState<BnsApp> {
     final where = uri.host.isNotEmpty ? uri.host : uri.path.replaceAll('/', '');
     switch (where) {
       case 'record':
+        // A widget-press is a NEW visit — the reused screen resets (and
+        // banks any leftover words) instead of resuming last time's box.
+        QuickCaptureScreen.askFresh({'autoRecord': true});
         _router.go('/capture', extra: {'autoRecord': true});
       case 'add-memory':
+        QuickCaptureScreen.askFresh();
         _router.go('/capture');
       case 'add-task':
         _router.go('/routines', extra: {'openNew': true});
@@ -593,6 +603,7 @@ void _runKeybind(String id) {
       _router.go('/memories');
       break;
     case 'quick_capture':
+      QuickCaptureScreen.askFresh();
       _router.go('/capture');
       break;
     case 'open_sync':

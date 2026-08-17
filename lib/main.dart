@@ -40,6 +40,7 @@ import 'package:bns/features/caregiver/caregiver_home_screen.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/data/local/bns_home.dart';
+import 'package:bns/data/local/care_profiles.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/sync/lan_sync_service.dart';
@@ -109,6 +110,16 @@ Future<void> _startupChores(List<String> args) async {
     CareState.guided.value =
         startupSettings.guidedMode && !startupSettings.caregiverDevice;
     CareState.caregiver.value = startupSettings.caregiverDevice;
+    // CARE PROFILES (docs/care-profiles.md): a pre-profile seat's one
+    // person becomes the first named door by themselves, and the
+    // remembered sitting reopens — BEFORE sync starts serving, so the
+    // first answer already comes from the right store.
+    if (startupSettings.caregiverDevice) {
+      try {
+        await CareProfiles.migrateLegacyIfNeeded();
+        await CareProfiles.resumeSitting();
+      } catch (_) {}
+    }
     await NotificationsService.init();
     // First sweep also clears anything stale left in the shade from before
     // this launch — opening BNS means the day on screen takes over.

@@ -9,10 +9,12 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/utils/recurrence.dart';
+import 'package:bns/data/local/care_profiles.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/later_today_door.dart';
 
 /// THE HELPER'S HOME (owner, 2026-07-27: "we also want to have a caregiver
@@ -54,10 +56,72 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   int _dayStartHour = 0;
   String _todayKey = '';
 
+  // CARE PROFILES (docs/care-profiles.md): the named doors this seat
+  // holds, and which one is open.
+  List<CareProfile> _profiles = const [];
+  CareProfile? _sitting;
+
   @override
   void initState() {
     super.initState();
+    _loadProfiles();
     _load();
+  }
+
+  Future<void> _loadProfiles() async {
+    final all = await CareProfiles.list();
+    final sittingId = await CareProfiles.sittingId();
+    if (!mounted) return;
+    CareProfile? sitting;
+    for (final p in all) {
+      if (p.id == sittingId) sitting = p;
+    }
+    setState(() {
+      _profiles = all;
+      _sitting = sitting;
+    });
+  }
+
+  /// Open another person's door: swap the store, repaint the day.
+  Future<void> _sitWith(CareProfile p) async {
+    if (_sitting?.id == p.id) return;
+    await CareProfiles.enter(p);
+    await _loadProfiles();
+    await _load();
+  }
+
+  /// A new named door. The name can be spoken — voice-first everywhere.
+  Future<void> _newProfile() async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(L.t('Who do you help?', 'את מי אתה מלווה?')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            hintText: L.t('Their name', 'השם שלהם'),
+            border: const OutlineInputBorder(),
+            suffixIcon: DictationMicButton(controller: ctrl),
+          ),
+          onSubmitted: (v) => Navigator.pop(c, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: Text(L.t('Cancel', 'ביטול'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, ctrl.text),
+              child: Text(L.t('Open their door', 'לפתוח להם דלת'))),
+        ],
+      ),
+    );
+    final trimmed = (name ?? '').trim();
+    if (trimmed.isEmpty) return;
+    final p = await CareProfiles.create(trimmed);
+    await _sitWith(p);
   }
 
   Future<void> _load() async {
@@ -235,8 +299,62 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
 
     return Scaffold(
       appBar: BnsAppBar(
-        title: L.t('Their day', 'היום שלהם'),
+        title: _sitting?.name.isNotEmpty == true
+            ? _sitting!.name
+            : L.t('Their day', 'היום שלהם'),
         actions: [
+          // THE DOORS (owner, 2026-08-17: "choose from dropdown the
+          // profile"). Every person this seat helps, by name, one tap —
+          // and a worded door for someone new. Wrong-profile pushes are
+          // impossible by structure; this is just which day is open.
+          PopupMenuButton<String>(
+            tooltip: L.t('Choose a person', 'לבחור אדם'),
+            onSelected: (v) async {
+              if (v == '_new') {
+                await _newProfile();
+                return;
+              }
+              for (final p in _profiles) {
+                if (p.id == v) {
+                  await _sitWith(p);
+                  break;
+                }
+              }
+            },
+            itemBuilder: (c) => [
+              for (final p in _profiles)
+                PopupMenuItem(
+                  value: p.id,
+                  child: Row(children: [
+                    Icon(
+                        p.id == _sitting?.id
+                            ? Icons.meeting_room
+                            : Icons.door_front_door_outlined,
+                        size: 20),
+                    const SizedBox(width: 10),
+                    Text(p.name),
+                  ]),
+                ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: '_new',
+                child: Row(children: [
+                  const Icon(Icons.add, size: 20),
+                  const SizedBox(width: 10),
+                  Text(L.t('Someone new...', 'אדם חדש...')),
+                ]),
+              ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(L.t('People', 'אנשים'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+                const Icon(Icons.arrow_drop_down),
+              ]),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: L.t('Look again', 'לרענן'),

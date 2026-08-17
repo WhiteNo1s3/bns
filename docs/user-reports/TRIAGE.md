@@ -1,5 +1,45 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## Care profiles, wave 1 (2026-08-17, fourth pass)
+
+Owner: "we need profiling system for the caregiver... flawless diamond
+... choose from dropdown the profile, it will host many bns files and
+we keep the loop perfect." Caregiver report REQUIRED section, same day.
+The law: docs/care-profiles.md. Shipped:
+
+- **A profile is a person** — its own complete home under
+  `profiles/<id>/` (store, audio, trusted[], pairing, level). The trust
+  row IS the address book, so a wrong-profile push has no code path.
+- **The sitting**: a worded dropdown on the Care home («אנשים») lists
+  every named door + «אדם חדש...» (name speakable — mic on the field).
+  Choosing swaps the ACTIVE store wholesale; profile stores wear the
+  seat's own settings (hat ON, guided false), so every helper-guard
+  keeps holding in any seat. The sitting survives relaunch
+  (profiles/sitting.txt) and reopens before sync starts serving.
+- **Silk migration**: a pre-profile Care store (one person merged into
+  root) becomes the first named door BY ITSELF at launch — data, trust
+  and audio move behind the door, named from the person; the root store
+  keeps only the seat's settings. Once, idempotent.
+- **The loop stays perfect**: receive-first per profile. A PULL from a
+  person whose door is closed gets SILENCE, never REVOKED (the severing
+  word is only valid from the store that holds the trust — the
+  wiped-pairings class of accident cannot recur across profiles). A
+  PUSH for a closed door is decrypted with THAT profile's own key and
+  waits in `profiles/<id>/inbox/`, merging the moment the door opens.
+  Their key cannot open anyone else's door.
+- test/care_profiles_test.dart (doors, sitting, relaunch, migration,
+  cross-door trust, inbox).
+
+Wave 2 (with BNS Care, main_care.dart): live serving for CLOSED doors
+straight off their store files, and the ward view. Riding along in this
+commit from the Prototyper's hands: the same-Mac discovery fix (TCP WHO
+knock + NSBonjourServices consent keys) — see testing-live.md.
+
+New caregiver report (docs/user-reports/caregiver-problems.md) still
+open after this wave: L3's second Done ask + wrong-goal hero confirm,
+Care later-today door, the honest paired-but-quiet banner, FAB on the
+list. Next iterate per the caregiver's own order.
+
 ## The wall, the maze, the marks (2026-08-17, third pass — 219 tests green)
 
 Owner: "the caregiver gave problems... solve those as soon as possible...

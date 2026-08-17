@@ -964,6 +964,44 @@ class IsarService {
     saveTrouble.value = null;
   }
 
+  // ---- Care profiles: the sitting (docs/care-profiles.md) ----
+
+  /// Swap the ACTIVE store to [sittingHome] (a profile's directory), or
+  /// back to the seat's own home when null. The current store is flushed
+  /// first; every screen repaints through [dataRevision]. The pointer
+  /// file is never touched — a sitting is a session, not a move.
+  static Future<void> enterHome(Directory? sittingHome) async {
+    await flush();
+    _saveRetryTimer?.cancel();
+    _data = null;
+    _pendingSnapshot = null;
+    BnsHome.sitIn(sittingHome);
+    dataRevision.value = ++_revision;
+    try {
+      onDataChanged?.call();
+    } catch (_) {}
+  }
+
+  /// The whole active store as raw JSON — the migration's moving box.
+  static Future<Map<String, dynamic>> rawStoreJson() async {
+    final d = await _load();
+    return d.toJson();
+  }
+
+  /// Empty the person-data out of the ACTIVE store (data, logs, trusted),
+  /// keeping the seat's own settings. The migration's broom: after the
+  /// person moved into their profile, the root store is the caregiver's
+  /// alone.
+  static Future<void> clearPersonData() async {
+    final d = await _load();
+    d.routines.clear();
+    d.events.clear();
+    d.captures.clear();
+    d.logs.clear();
+    d.trusted.clear();
+    await _persist();
+  }
+
   // ---- The home itself ----
 
   /// Move the whole BNS home (data file, audio/, exports/) to [newPath]

@@ -14,6 +14,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/sync_policy.dart';
 import 'package:bns/data/export/bns_exporter.dart';
 import 'package:bns/data/import/bns_importer.dart';
+import 'package:bns/data/local/care_profiles.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/core/models/trusted_device.dart';
@@ -768,6 +769,13 @@ class LanSyncService {
         }
         final trusted = await IsarService.getTrustedDevice(requesterId);
         if (trusted == null) {
+          // PROFILES (docs/care-profiles.md): unknown to the SITTING
+          // store is not unpaired — this person may live behind another
+          // door on this seat. The severing word is only valid from the
+          // store that holds the trust; anyone else stays silent.
+          if (await CareProfiles.trustAnywhere(requesterId) != null) {
+            return;
+          }
           // We really are who they asked for, and we really did un-pair.
           // SAY so instead of going quiet — silence looked exactly like a
           // network hiccup (owner QA, 2026-07-27).
@@ -837,10 +845,48 @@ class LanSyncService {
     await IsarService.setTrustedDeviceHelper(senderId, parsed.caregiverDevice);
   }
 
+  /// A push from a person whose door is closed: find their profile by
+  /// their deviceId, open the bytes with THAT profile's own key, and
+  /// leave the .bns in its inbox for the moment the door opens.
+  Future<void> _keepForClosedDoor(String senderId, List<int> body) async {
+    if (senderId.isEmpty) return;
+    try {
+      final claim = await CareProfiles.trustAnywhere(senderId);
+      final profileId = claim?.profileId;
+      final secret = claim?.device.sharedSecret;
+      if (profileId == null || secret == null || !claim!.device.lanSyncAllowed) {
+        return; // truly unknown, or switched off — ignore entirely
+      }
+      final outPath =
+          '${(await getTemporaryDirectory()).path}/inbox-${DateTime.now().microsecondsSinceEpoch}.bns';
+      final decrypted = await _decryptToFileInIsolate(
+          Uint8List.fromList(body), secret, outPath);
+      if (decrypted == null) return; // wrong key = not really them
+      final f = File(decrypted);
+      await CareProfiles.keepInInbox(profileId, await f.readAsBytes());
+      try {
+        await f.delete();
+      } catch (_) {}
+      _emitProgress(SyncProgress(
+          progress: 1.0,
+          message: L.t(
+              'An update from ${claim.device.name} is waiting behind their door.',
+              'עדכון מ־${claim.device.name} מחכה מאחורי הדלת שלהם.'),
+          isComplete: true,
+          subtle: true));
+    } catch (_) {}
+  }
+
   Future<void> _handlePush(String senderId, List<int> body) async {
     final trusted = await IsarService.getTrustedDevice(senderId);
     if (trusted?.sharedSecret == null || !trusted!.lanSyncAllowed) {
-      // Unknown sender, or LAN disabled for this device — ignore entirely.
+      // PROFILES: a sender unknown to the SITTING store may live behind
+      // a closed door on this seat. Their push is decrypted with THAT
+      // profile's own key and waits in its inbox — merged the moment
+      // the door opens (receive-first preserved, words never lost).
+      // Their key cannot open anyone else's door: wrong-profile landing
+      // is impossible by structure.
+      await _keepForClosedDoor(senderId, body);
       return;
     }
 

@@ -24,6 +24,29 @@ class BnsHome {
   /// cannot touch the live store or redirect the live app's home.
   static Directory? _forced;
 
+  /// THE SITTING (care profiles, 2026-08-17): while the caregiver sits
+  /// with one person, the active home is that profile's directory —
+  /// session-only, above the pin and the pointer, never persisted here
+  /// (profiles/sitting.txt remembers across launches). [rootDir] keeps
+  /// answering the seat's own home so the registry never nests.
+  static Directory? _sitting;
+
+  static void sitIn(Directory? profileHome) => _sitting = profileHome;
+
+  static bool get isSitting => _sitting != null;
+
+  /// The caregiver's own home, ignoring any sitting — where profiles/,
+  /// the registry and the seat's own store live.
+  static Future<Directory> rootDir() async {
+    final sat = _sitting;
+    _sitting = null;
+    try {
+      return await dir();
+    } finally {
+      _sitting = sat;
+    }
+  }
+
   /// THE ISOLATION DOOR the harness always needed (2026-08-17): a
   /// `--data-dir=<path>` argument or `BNS_DATA_DIR` environment variable
   /// pins the home for THIS process only. It was documented in
@@ -60,11 +83,14 @@ class BnsHome {
   /// Drop the process pin (tests only).
   static void debugClearForcedForTest() {
     _forced = null;
+    _sitting = null;
     _dir = null;
   }
 
   /// The current home. Cached after the first read; [setDir] refreshes it.
   static Future<Directory> dir() async {
+    final sitting = _sitting;
+    if (sitting != null) return sitting;
     final forced = _forced;
     if (forced != null) return forced;
     final cached = _dir;

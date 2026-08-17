@@ -157,7 +157,7 @@ class LanSyncService {
   /// every trusted device that allows it. Safe to call repeatedly — also as
   /// a retry after a launch without Wi-Fi.
   Future<void> startForApp() async {
-    if (isRunning) return;
+    if (isTcpUp && isUdpUp) return;
     try {
       final settings = await IsarService.getSettings();
       await start(deviceName: settings.effectiveShareName, autoSync: true);
@@ -255,7 +255,7 @@ class LanSyncService {
   bool isSyncingWith(String deviceId) => _syncingWith.contains(deviceId);
 
   Future<void> start({required String deviceName, bool autoSync = true}) async {
-    if (isRunning) return;
+    if (isTcpUp && isUdpUp) return;
     _deviceName = deviceName;
     _autoSyncEnabled = autoSync;
 
@@ -267,8 +267,8 @@ class LanSyncService {
     // TCP first — it is the door that actually stays up on this Mac
     // (lived 2026-08-17: every BNS had TCP 42425..428, UDP 42424 unbound,
     // no Local Network prompt, Sync said no devices). Hello is best-effort.
-    await _startTcpServer();
-    await _bindDiscoveryUdp();
+    if (!isTcpUp) await _startTcpServer();
+    if (!isUdpUp) await _bindDiscoveryUdp();
 
     await _refreshBroadcastTargets();
     _broadcastTimer ??= Timer.periodic(const Duration(seconds: 5), (_) async {

@@ -49,6 +49,16 @@
 	     start — macOS was the one that was missing it. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>BNS finds your own devices on your Wi-Fi to sync privately. No cloud, no internet.</string>
+	<!-- macOS 15+ will not show the Local Network prompt for a usage
+	     string alone. Declaring the Bonjour service types we speak
+	     (hello is UDP, transfer is TCP) is what lets the dialog appear.
+	     We do not advertise a browser-visible service — the key is the
+	     consent door, not a listing. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_bns._udp</string>
+		<string>_bns._tcp</string>
+	</array>
 	<!-- BNS file type association for .bns (full data delivery via app) - clean native macOS, not iOS-on-Mac -->
 	<key>CFBundleDocumentTypes</key>
 	<array>

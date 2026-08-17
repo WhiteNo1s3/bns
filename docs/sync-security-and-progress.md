@@ -57,7 +57,7 @@ This makes sync safe ("no vault for anyone"), encouraging (progress + kind words
 
 ## Exploit-free by design (July 2026, hardened)
 The promise: **only .bns files ever travel the LAN, and only between devices you paired.**
-- The LAN protocol is strictly BNS-only: discovery uses the BNS_HELLO magic (non-BNS packets fast-rejected), transfers use header-framed PUSH/PULL between known device ids.
+- The LAN protocol is strictly BNS-only: discovery uses the BNS_HELLO magic (non-BNS packets fast-rejected), transfers use header-framed PUSH/PULL between known device ids. `WHO` is header-only identity (id, bound port, name) — no pair, no data — so two apps on one Mac can find each other when UDP hello cannot bind.
 - Every payload is AES-encrypted per trusted device (fresh random IV each transfer). Unknown devices get nothing — not even plaintext metadata. LAN-disabled devices (per-device toggle) get nothing either.
 - Every received payload is structurally validated before any processing: ZIP magic, manifest.json, data.json(.gz) must all be present. A hostile file (e.g. renamed PDF), truncated transfer, or wrong-key decrypt is rejected outright. The same validation guards manual file imports.
 - **Per-device "LAN allowed" toggle** in the trusted devices list — a one-tap kill switch that keeps the pairing but stops all transfers both ways. Default on; we advise keeping it on for your own devices.

@@ -41,6 +41,19 @@ class BnsPeer {
   String toString() => '$deviceName ($address)';
 }
 
+/// Header-only identity from a WHO knock. No pair, no data.
+class WhoIdentity {
+  final String deviceId;
+  final int port;
+  final String deviceName;
+
+  const WhoIdentity({
+    required this.deviceId,
+    required this.port,
+    required this.deviceName,
+  });
+}
+
 /// A pairing request from another device, surfaced to the UI.
 /// The user types the 6-digit code shown on the OTHER device —
 /// the code itself never crosses the network.
@@ -92,6 +105,7 @@ class _CodeMismatch implements Exception {}
 ///   PUSH <deviceId>                    → header line, then IV+ciphertext of a .bns
 ///   PULL <deviceId>                    → replies with IV+ciphertext of a .bns
 ///   REVOKE <deviceId>                  → the sender un-paired from us
+///   WHO                                → reply "WHO <id> <port> <name>" (same-Mac knock)
 class LanSyncService {
   static const int discoveryPort = 42424;
   static const String magic = 'BNS_HELLO';
@@ -109,6 +123,35 @@ class LanSyncService {
   /// device anymore"). There is deliberately no dispose() anymore.
   static final LanSyncService instance = LanSyncService();
 
+  /// Header-only identity. Request is `WHO\n`; reply is this line.
+  static String formatWhoReply({
+    required String deviceId,
+    required int boundPort,
+    required String deviceName,
+  }) {
+    final safeName = deviceName.replaceAll(RegExp(r'[\r\n]'), ' ').trim();
+    final name = safeName.isEmpty ? 'BNS' : safeName;
+    return 'WHO $deviceId $boundPort $name\n';
+  }
+
+  static WhoIdentity? parseWhoReply(String raw) {
+    final line = raw.trim();
+    if (!line.startsWith('WHO ')) return null;
+    final rest = line.substring(4).trim();
+    final sp1 = rest.indexOf(' ');
+    if (sp1 <= 0) return null;
+    final deviceId = rest.substring(0, sp1);
+    final afterId = rest.substring(sp1 + 1).trim();
+    final sp2 = afterId.indexOf(' ');
+    if (sp2 <= 0) return null;
+    final port = int.tryParse(afterId.substring(0, sp2));
+    final name = afterId.substring(sp2 + 1).trim();
+    if (port == null || port <= 0 || deviceId.isEmpty || name.isEmpty) {
+      return null;
+    }
+    return WhoIdentity(deviceId: deviceId, port: port, deviceName: name);
+  }
+
   /// Bring sync up for the whole app: discover, and quietly catch up with
   /// every trusted device that allows it. Safe to call repeatedly — also as
   /// a retry after a launch without Wi-Fi.
@@ -118,8 +161,15 @@ class LanSyncService {
       final settings = await IsarService.getSettings();
       await start(deviceName: settings.effectiveShareName, autoSync: true);
     } catch (_) {
-      // No Wi-Fi, a port already taken — the app itself never suffers,
-      // and the next call simply tries again.
+      // No Wi-Fi, every door taken — the app itself never suffers,
+      // and the next call simply tries again. Say so, quietly: swallowing
+      // every error used to leave Sync looking empty with no words.
+      _emitProgress(SyncProgress(
+          progress: 0,
+          message: L.t(
+              'Could not start looking for nearby devices. Will try again.',
+              'לא הצלחנו להתחיל לחפש מכשירים קרובים. ננסה שוב.'),
+          subtle: true));
     }
   }
 
@@ -191,7 +241,12 @@ class LanSyncService {
           .map((d) => MapEntry(d.id, d.lastAddress)));
   }
 
-  bool get isRunning => _udpSocket != null;
+  bool get isUdpUp => _udpSocket != null;
+  bool get isTcpUp => _tcpServer != null;
+
+  /// Either ear is enough. UDP hello is often refused on this Mac;
+  /// TCP still lets a same-machine knock find the other app.
+  bool get isRunning => isTcpUp || isUdpUp;
 
   /// True while a sync conversation with this device is in flight — the
   /// UI turns its Sync button into a spinner so pressing it six times
@@ -208,49 +263,35 @@ class LanSyncService {
 
     await refreshTrustPolicy();
 
-    // TWO EARS ON ONE MACHINE (caregiver report, 2026-08-16: "after Person
-    // takes both LAN ports on this Mac, Care goes deaf"). On POSIX,
-    // reusePort lets a second instance keep listening for hellos instead
-    // of losing the port to the first — exactly the alpha setup of Person
-    // + Care side by side. Windows has no reusePort; there we fall back,
-    // and a lost bind is at worst the old behavior.
-    try {
-      _udpSocket = await RawDatagramSocket.bind(
-          InternetAddress.anyIPv4, discoveryPort,
-          reusePort: Platform.isMacOS || Platform.isLinux || Platform.isAndroid);
-    } on SocketException {
-      _udpSocket =
-          await RawDatagramSocket.bind(InternetAddress.anyIPv4, discoveryPort);
-    }
-    _udpSocket!.broadcastEnabled = true;
-
-    _udpSocket!.listen((event) {
-      if (event == RawSocketEvent.read) {
-        final d = _udpSocket!.receive();
-        if (d != null) _handleDiscovery(d);
-      }
-    });
+    // TCP first — it is the door that actually stays up on this Mac
+    // (lived 2026-08-17: every BNS had TCP 42425..428, UDP 42424 unbound,
+    // no Local Network prompt, Sync said no devices). Hello is best-effort.
+    await _startTcpServer();
+    await _bindDiscoveryUdp();
 
     await _refreshBroadcastTargets();
-    _broadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _broadcastTimer ??= Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!isRunning) return;
       // Networks come and go (Wi-Fi joins, VPN lifts) — keep the list live,
       // cheaply, once every few beats.
       _broadcastBeat = (_broadcastBeat + 1) % 6;
       if (_broadcastBeat == 0) await _refreshBroadcastTargets();
       _broadcastHello();
+      unawaited(_knockLocalSiblings());
       _pokeMissingTrusted();
       _evictStalePeers();
     });
-    await _startTcpServer();
     _broadcastHello();
+    unawaited(_knockLocalSiblings());
     _pokeMissingTrusted();
 
-    _emitProgress(SyncProgress(
-        progress: 0.0,
-        message: L.t('Looking for your other devices on Wi-Fi...',
-            'מחפשים את המכשירים האחרים שלך ב-Wi-Fi...'),
-        subtle: true));
+    if (isUdpUp) {
+      _emitProgress(SyncProgress(
+          progress: 0.0,
+          message: L.t('Looking for your other devices on Wi-Fi...',
+              'מחפשים את המכשירים האחרים שלך ב-Wi-Fi...'),
+          subtle: true));
+    }
   }
 
   /// A burst of hellos right now — for a screen that just opened or a person
@@ -262,6 +303,7 @@ class LanSyncService {
       if (!isRunning) return;
       _broadcastHello();
       _pokeMissingTrusted();
+      unawaited(_knockLocalSiblings());
       Timer(const Duration(milliseconds: 700), () {
         if (isRunning) _broadcastHello();
       });
@@ -465,6 +507,146 @@ class LanSyncService {
     _tcpServer!.listen((s) => _handleIncoming(s));
   }
 
+  /// Bind UDP 42424 so hellos can leave. On POSIX, reusePort lets a
+  /// second instance keep listening (Person + Care on one Mac). If the
+  /// bind throws or the OS hands back a different port, we keep going
+  /// with TCP only — the same-Mac WHO knock still finds siblings.
+  Future<void> _bindDiscoveryUdp() async {
+    if (_udpSocket != null) return;
+    final posix =
+        Platform.isMacOS || Platform.isLinux || Platform.isAndroid;
+    RawDatagramSocket? sock;
+    try {
+      if (posix) {
+        try {
+          sock = await RawDatagramSocket.bind(
+              InternetAddress.anyIPv4, discoveryPort,
+              reusePort: true);
+        } on SocketException {
+          sock = await RawDatagramSocket.bind(
+              InternetAddress.anyIPv4, discoveryPort);
+        }
+      } else {
+        sock = await RawDatagramSocket.bind(
+            InternetAddress.anyIPv4, discoveryPort);
+      }
+      if (sock.port != discoveryPort) {
+        sock.close();
+        _emitHelloCouldNotOpen();
+        return;
+      }
+      sock.broadcastEnabled = true;
+      _udpSocket = sock;
+      _udpSocket!.listen((event) {
+        if (event == RawSocketEvent.read) {
+          final d = _udpSocket?.receive();
+          if (d != null) _handleDiscovery(d);
+        }
+      });
+    } catch (_) {
+      try {
+        sock?.close();
+      } catch (_) {}
+      _udpSocket = null;
+      _emitHelloCouldNotOpen();
+    }
+  }
+
+  void _emitHelloCouldNotOpen() {
+    _emitProgress(SyncProgress(
+        progress: 0.0,
+        message: L.t(
+            'Hello could not open. Still looking for other BNS apps on this Mac.',
+            'השלום לא נפתח. עדיין מחפשים אפליקציות BNS אחרות במק הזה.'),
+        subtle: true));
+  }
+
+  bool _knocking = false;
+
+  /// Connect to TCP 42425..42432 on loopback and this machine's IPv4s,
+  /// except our own door. A sibling that answers WHO is added as a
+  /// BnsPeer so Sync can offer לחבר / a code. Trust is never copied.
+  Future<void> _knockLocalSiblings() async {
+    if (_knocking || _tcpServer == null) return;
+    _knocking = true;
+    try {
+      final hosts = <String>{'127.0.0.1'};
+      try {
+        final interfaces = await NetworkInterface.list(
+            includeLoopback: true, type: InternetAddressType.IPv4);
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            if (addr.address.startsWith('169.254.')) continue;
+            hosts.add(addr.address);
+          }
+        }
+      } catch (_) {}
+      final myPort = _boundPort;
+      final jobs = <Future<void>>[];
+      for (final host in hosts) {
+        for (var port = transferPort; port <= transferPort + 7; port++) {
+          if (port == myPort) continue;
+          jobs.add(_knockWho(host, port));
+        }
+      }
+      await Future.wait(jobs);
+    } catch (_) {
+    } finally {
+      _knocking = false;
+    }
+  }
+
+  Future<void> _knockWho(String host, int port) async {
+    try {
+      final s = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(milliseconds: 280),
+      );
+      s.add(utf8.encode('WHO\n'));
+      await s.flush();
+      final raw = utf8.decode(
+        await s
+            .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk))
+            .timeout(const Duration(seconds: 2)),
+        allowMalformed: true,
+      );
+      try {
+        await s.close();
+      } catch (_) {}
+      final who = parseWhoReply(raw);
+      if (who == null) return;
+      if (who.deviceId.isEmpty || who.deviceId == _myDeviceId) return;
+      _rememberWhoPeer(host, who);
+    } catch (_) {}
+  }
+
+  void _rememberWhoPeer(String host, WhoIdentity who) {
+    final existing = _peers[who.deviceId];
+    final peer = BnsPeer(
+      deviceName: who.deviceName,
+      address: existing?.address ?? host,
+      port: who.port,
+      lastSeen: DateTime.now(),
+      lastExportTime: existing?.lastExportTime,
+      deviceId: who.deviceId,
+    );
+    _peers[who.deviceId] = peer;
+    _peersController.add(_peers.values.toList());
+    // Already-trusted siblings catch up. We never pair from a knock,
+    // and we never copy anyone's trusted list.
+    if (shouldAutoSyncOnSight(
+      autoSyncEnabled: _autoSyncEnabled && _autoSyncIds.contains(who.deviceId),
+      trusted: _trustedIds.contains(who.deviceId),
+      lanAllowed: _lanAllowedIds.contains(who.deviceId),
+      lastAutoSyncAt: _lastAutoSyncAt[who.deviceId],
+      now: DateTime.now(),
+    )) {
+      _lastAutoSyncAt[who.deviceId] = DateTime.now();
+      syncWithPeer(peer, isAuto: true);
+    }
+  }
+
   Future<void> _handleIncoming(Socket socket) async {
     try {
       final b = BytesBuilder();
@@ -475,7 +657,9 @@ class LanSyncService {
         final nl = bytes.indexOf(10); // '\n'
         if (nl != -1) {
           final header = utf8.decode(bytes.sublist(0, nl)).trim();
-          if (header.startsWith('PAIR ') ||
+          if (header == 'WHO' ||
+              header.startsWith('WHO ') ||
+              header.startsWith('PAIR ') ||
               header.startsWith('PULL ') ||
               header.startsWith('PULL2 ')) {
             await _handleHeaderOnly(header, socket);
@@ -510,7 +694,17 @@ class LanSyncService {
 
   Future<void> _handleHeaderOnly(String header, Socket socket) async {
     try {
-      if (header.startsWith('PAIR ')) {
+      if (header == 'WHO' || header.startsWith('WHO ')) {
+        // Identity only — no pair, no data. A bare WHO is the knock;
+        // a stray "WHO …" still gets our own line, never theirs.
+        socket.add(utf8.encode(formatWhoReply(
+          deviceId: _myDeviceId,
+          boundPort: _boundPort ?? transferPort,
+          deviceName: _deviceName ?? 'BNS',
+        )));
+        await socket.flush();
+        return;
+      } else if (header.startsWith('PAIR ')) {
         final rest = header.substring(5).trim();
         final sp = rest.indexOf(' ');
         final peerId = sp == -1 ? rest : rest.substring(0, sp);
@@ -1155,6 +1349,7 @@ class LanSyncService {
     _udpSocket = null;
     await _tcpServer?.close();
     _tcpServer = null;
+    _boundPort = null;
     _peers.clear();
     if (!_peersController.isClosed) _peersController.add([]);
   }

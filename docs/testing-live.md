@@ -78,6 +78,19 @@ BNS_DATA_DIR=~/bns-test-l4 open /Applications/bns.app   # macOS
 A pinned instance never reads or writes the live `bns_home.txt` pointer
 — the harness is isolated by structure, not by care.
 
+## Same-Mac discovery when UDP 42424 never binds (2026-08-17)
+
+Lived: every BNS on one Mac had TCP up (42425–42428) and UDP 42424
+unbound. No Local Network prompt. לחבר showed «אין מכשירים חדשים»
+because hello never left and `isRunning` meant "UDP is up".
+
+Now `start()` opens TCP first, then tries UDP 42424 (reusePort, then
+without). A failed hello is not fatal — the app stays up and knocks
+`127.0.0.1` plus this machine's IPv4s on TCP 42425–42432 with `WHO\n`.
+A sibling answers `WHO <id> <port> <name>` and appears for לחבר / a
+code. Trust is never copied; L2 is not paired onto L4. Rebuild the L2
+harness from this tree before re-testing.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

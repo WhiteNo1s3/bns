@@ -59,7 +59,7 @@ void main() {
     expect(picked, isNull);
   });
 
-  testWidgets('a set 15 quiets the door to a small changeable line',
+  testWidgets('a set 15 stays a worded door they can see',
       (tester) async {
     int? picked;
     await tester.pumpWidget(MaterialApp(
@@ -71,13 +71,12 @@ void main() {
       ),
     ));
 
-    // Quiet: no question shouted, no chip wall — one small line that
-    // says the fact and opens the sheet when the person wants a change.
+    // L2 lived 2026-08-18: thin orange line too small to use.
     expect(find.text('מתי היום שלך מתחיל?'), findsNothing);
-    expect(find.textContaining('היום שלך מתחיל ב־15:00'), findsOneWidget);
-    expect(find.byType(OutlinedButton), findsNothing);
+    expect(find.textContaining('היום מתחיל 15:00'), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsOneWidget);
 
-    await tester.tap(find.textContaining('היום שלך מתחיל ב־15:00'));
+    await tester.tap(find.textContaining('היום מתחיל 15:00'));
     await pickViaSheet(tester, '16:00');
     expect(picked, 16, reason: 'changing later never needs הגדרות');
   });

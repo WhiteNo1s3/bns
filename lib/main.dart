@@ -1966,7 +1966,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
-                  if (_dayStartHour == 0 && !_guidedMode) ...[
+                  // Always on Today (not guided). Hiding it once 15 is set
+                  // left L2 with a thin line they could not use
+                  // (lived 2026-08-18: "too small to use").
+                  if (!_guidedMode) ...[
                     const SizedBox(height: 16),
                     DayStartDoor(
                       dayStartHour: _dayStartHour,

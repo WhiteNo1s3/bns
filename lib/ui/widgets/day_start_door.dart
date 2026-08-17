@@ -49,20 +49,23 @@ class DayStartDoor extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (!isUnset) {
-      // Quiet, present, changeable — never a wall, never a maze.
-      return TextButton.icon(
+      // Worded, tappable — L2 lived a thin orange line they could
+      // not use (2026-08-18). Same door, bigger words.
+      final hh = dayStartHour.toString().padLeft(2, '0');
+      return OutlinedButton.icon(
+        key: const ValueKey('day-start-set'),
         onPressed: () => _open(context),
-        style: TextButton.styleFrom(
-          minimumSize: const Size.fromHeight(44),
+        style: OutlinedButton.styleFrom(
+          minimumSize: Size.fromHeight(52 * textScale),
           alignment: AlignmentDirectional.centerStart,
-          foregroundColor: cs.onSurfaceVariant,
+          foregroundColor: cs.onSurface,
+          side: BorderSide(color: cs.outline),
         ),
-        icon: Icon(Icons.schedule, size: 18 * textScale),
+        icon: Icon(Icons.schedule, size: 20 * textScale),
         label: Text(
-          L.t(
-              'Your day starts at ${dayStartHour.toString().padLeft(2, '0')}:00',
-              'היום שלך מתחיל ב־${dayStartHour.toString().padLeft(2, '0')}:00'),
-          style: TextStyle(fontSize: 13.5 * textScale),
+          L.t('The day starts at $hh:00', 'היום מתחיל $hh:00'),
+          style: TextStyle(
+              fontSize: 16 * textScale, fontWeight: FontWeight.w600),
         ),
       );
     }

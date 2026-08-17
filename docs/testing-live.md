@@ -163,6 +163,14 @@ Day and pair stayed. Did not open הגדרות. Stayed on Today. Not L4. Not ה�
 
 Caregiver same pass: they did not write the day. Family saw water → 02:30 and desk skip «התבלבלתי. יותר מדי שלבים. לא סיימתי.» Tomorrow look-only. Need-help still cannot reach the doors on 0.11.0. After isolated relaunch they will only look whether Care רמה 2 shows the skip and 02:30. This morning's 17:30 on water often failed to save — watch 02:30.
 
+## 2026-08-17 ~23:50 IDT — leftover 21:45 cannot steal הבא (tree; needs a new APK)
+
+22:07 APK **does** contain a8b1205 (`isNextMorningSlot` / `compareNextPersonDay` in libapp.so). Lived L1 at 23:28 still lost: dayStartHour 0 made 07:45 "in tonight", leftover 21:45 won as latest-past, skip walked backward to 21:30 screen-off, skipped stack kept הבא: לשתות כוס מים.
+
+Root cause: startHour 0 was treated as midnight so the owl hole never fired, and earlier-today sorted latest-first so Next walked backward.
+
+Now: unset start still treats a morning usual time as next-morning once evening has begun; leftover evening clocks on morning stacks cannot be הבא; Next walks the person-day forward (evening / family before 21:30); a skipped row drops the הבא part line. 04:00 owl is still tonight. L1 needs a new APK (emulator can take it). Not L4. Not הגדרות.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

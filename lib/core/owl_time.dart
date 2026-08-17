@@ -166,13 +166,34 @@ bool personDayHasStarted(DateTime now, int startHour, int rolloverHour) =>
   return (hour: int.tryParse(p[0]) ?? 0, minute: int.tryParse(p[1]) ?? 0);
 }
 
+/// When [startHour] is 0 it may mean unset (lived: 15 did not stick).
+/// After evening has begun, Next still uses this as the hole start so a
+/// leftover 21:45 on a 07:45 stack cannot pretend to be tonight.
+const int kImplicitDayStartHour = 15;
+
+/// Evening / night of the person-day — after 15:00, or after midnight
+/// before the owl border (04:00 is still tonight).
+bool eveningHasBegun(DateTime now, int rolloverHour) {
+  final r = _clampRollover(rolloverHour);
+  return now.hour >= kImplicitDayStartHour || now.hour < r;
+}
+
+/// The start hour the hole uses for Next. A set start wins. Unset 0
+/// becomes 15 once evening has begun — not a midnight that swallows
+/// the morning stack into tonight.
+int nextHoleStartHour(int startHour, DateTime now, int rolloverHour) {
+  if (startHour > 0) return startHour;
+  return eveningHasBegun(now, rolloverHour) ? kImplicitDayStartHour : 0;
+}
+
 /// After the day has started, a slot in the owl hole (between the
 /// border and the start — 05:00–15:00 for Ben) is the *next* morning,
 /// not tonight's הבא. A 04:00 owl slot is still this day. Before the
 /// day starts, the hole is just this calendar morning and may be next.
 ///
 /// [usualHhmm] is the routine's ordinary clock. A leftover evening
-/// override on a morning stack must not become tonight's הבא.
+/// override on a morning stack must not become tonight's הבא — even
+/// when startHour is 0 (unset), once evening has begun.
 bool isNextMorningSlot({
   String? usualHhmm,
   String? todayHhmm,
@@ -180,7 +201,14 @@ bool isNextMorningSlot({
   required int startHour,
   required int rolloverHour,
 }) {
-  if (!personDayHasStarted(now, startHour, rolloverHour)) return false;
+  if (startHour > 0 &&
+      !personDayHasStarted(now, startHour, rolloverHour)) {
+    return false;
+  }
+  if (startHour == 0 && !eveningHasBegun(now, rolloverHour)) {
+    return false;
+  }
+  final holeStart = nextHoleStartHour(startHour, now, rolloverHour);
   final raw = usualHhmm ?? todayHhmm;
   final parsed = parseHhmm(raw);
   if (parsed == null) return false;
@@ -188,14 +216,14 @@ bool isNextMorningSlot({
     hour: parsed.hour,
     minute: parsed.minute,
     now: now,
-    startHour: startHour,
+    startHour: holeStart,
     rolloverHour: rolloverHour,
   );
 }
 
 /// "What's next" rank inside one person-day.
 /// 0 = still ahead tonight (nearest first)
-/// 1 = earlier today (nearest / latest first — evening beats 07:30)
+/// 1 = earlier tonight — walks FORWARD (evening meds before 21:30)
 /// 2 = timeless
 /// 3 = next-morning hole after the day started (visible, never הבא)
 int nextPersonDayRank({
@@ -208,11 +236,11 @@ int nextPersonDayRank({
   return owlMinutes >= nowOwl ? 0 : 1;
 }
 
-/// Sort two next-rank keys. Rank 1 (earlier today) prefers the latest
-/// clock — the thing still in front of the person, not the most overdue.
+/// Sort two next-rank keys. Same rank walks the person-day forward
+/// (earlier clock first). Rank 1 must not jump backward to 21:30
+/// while later-today evening work is still open.
 int compareNextPersonDay(int am, int bm, int ra, int rb) {
   if (ra != rb) return ra.compareTo(rb);
-  if (ra == 1) return bm.compareTo(am);
   return am.compareTo(bm);
 }
 

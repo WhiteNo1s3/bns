@@ -121,4 +121,66 @@ void main() {
         reason: 'the person-day has not rolled; 04:00 is still tonight');
     expect(open.map((x) => x.id), contains('breakfast'));
   });
+
+  void lived2328(int startHour) {
+    // Lived 2026-08-17 23:28 IDT on S23 0.11.0 lastUpdate 22:07 (a8b1205
+    // was IN the APK). הבא was still 21:45 morning stack; after skip it
+    // jumped backward to 21:30 screen-off while evening + family stayed open.
+    final now = DateTime(2026, 8, 17, 23, 28);
+    final morning = Routine(
+      id: 'meds',
+      title: 'תרופות הבוקר',
+      recurrenceType: RecurrenceType.daily,
+      time: '07:45',
+      timeByDay: const {'2026-08-17': '21:45'},
+      steps: const [
+        RoutineStep(title: 'לשתות כוס מים'),
+        RoutineStep(title: 'the pill'),
+        RoutineStep(title: 'sit a minute'),
+      ],
+      createdAt: DateTime(2026, 7, 1),
+      updatedAt: DateTime(2026, 7, 1),
+    );
+    final evening = r('evening', '20:00', 'תרופות הערב');
+    final family = r('family', '22:00', 'שיחה משפחתית');
+    final screen = r('screen', '21:30', 'הכנה לשינה / לכבות מסכים');
+    final todays = [morning, evening, family, screen];
+    final open = openRoutinesInNextOrder(
+      todays: todays,
+      doneIds: {},
+      skippedIds: {},
+      now: now,
+      dayKey: logicalDayKey(now, 5),
+      rolloverHour: 5,
+      startHour: startHour,
+    );
+    expect(open.first.id, 'evening',
+        reason: 'startHour=$startHour: leftover 21:45 morning is not הבא '
+            'while evening is open');
+    expect(open.map((x) => x.id).toList(),
+        ['evening', 'screen', 'family', 'meds'],
+        reason: 'person-day walks forward: evening, then 21:30, then 22:00; '
+            'morning leftover last');
+
+    final afterSkip = openRoutinesInNextOrder(
+      todays: todays,
+      doneIds: {},
+      skippedIds: {'meds'},
+      now: now,
+      dayKey: logicalDayKey(now, 5),
+      rolloverHour: 5,
+      startHour: startHour,
+    );
+    expect(afterSkip.first.id, 'evening',
+        reason: 'startHour=$startHour: after skip, הבא goes forward to '
+            'evening — not backward to 21:30');
+    expect(afterSkip.map((x) => x.id), isNot(contains('meds')));
+    expect(afterSkip.map((x) => x.id), containsAll(['evening', 'family']));
+  }
+
+  test('23:28 leftover 21:45 morning stack — הבא is evening (start 15)',
+      () => lived2328(15));
+
+  test('23:28 leftover 21:45 morning stack — הבא is evening (start unset 0)',
+      () => lived2328(0));
 }

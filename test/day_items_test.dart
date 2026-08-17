@@ -109,4 +109,42 @@ void main() {
         reason: 'plans-in-Next walk the person-day; morning stays visible');
     expect(open.first, isA<CalendarEvent>());
   });
+
+  test('23:28 leftover morning + open evening/family — הבא is evening, '
+      'skip does not walk back to 21:30', () {
+    final now = DateTime(2026, 8, 17, 23, 28);
+    final morning = Routine(
+      id: 'meds',
+      title: 'תרופות הבוקר',
+      recurrenceType: RecurrenceType.daily,
+      time: '07:45',
+      timeByDay: const {'2026-08-17': '21:45'},
+      createdAt: created,
+      updatedAt: created,
+    );
+    final evening = r('evening', '20:00');
+    final screen = r('screen', '21:30');
+    final family = CalendarEvent(
+      id: 'family',
+      title: 'שיחה משפחתית',
+      date: '2026-08-17',
+      time: '22:00',
+      createdAt: created,
+      updatedAt: created,
+    );
+    List<Object> open({Set<String> skipped = const {}}) =>
+        openDayItemsInNextOrder(
+          routines: [morning, evening, screen],
+          plans: [family],
+          doneRoutineIds: const {},
+          skippedRoutineIds: skipped,
+          now: now,
+          rolloverHour: 5,
+          startHour: 0, // lived unset
+        );
+    expect(ids(open()), 'evening,screen,family,meds');
+    expect((open().first as Routine).id, 'evening');
+    expect(ids(open(skipped: {'meds'})), 'evening,screen,family',
+        reason: 'after skip, Next stays on evening — not 21:30');
+  });
 }

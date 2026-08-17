@@ -249,7 +249,10 @@ class RoutineTile extends StatelessWidget {
                       ),
                     ],
                     // The next part of this routine, with its helping note.
+                    // A skipped / missed row is answered — it must not
+                    // keep a הבא badge on the remaining drink-water part.
                     if (!isDone &&
+                        !skippedToday &&
                         routine.steps.isNotEmpty &&
                         stepsDone < routine.steps.length) ...[
                       const SizedBox(height: 6),
@@ -276,6 +279,7 @@ class RoutineTile extends StatelessWidget {
                 ),
               ),
               if (!isDone &&
+                  !skippedToday &&
                   routine.steps.isNotEmpty &&
                   stepsDone < routine.steps.length &&
                   onStepDone != null)

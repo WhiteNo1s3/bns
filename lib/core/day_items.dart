@@ -74,9 +74,10 @@ List<Object> weaveDayList({
     final am = minutesOf(a), bm = minutesOf(b);
     if (!nextFirst) return am.compareTo(bm);
     // "What's next" walks the person-day from now: still-ahead tonight
-    // first, then earlier today nearest the person (evening beats a
-    // morning that already passed), then timeless, then the next
-    // morning sitting in the owl hole. Answered tiles hold their spot.
+    // first, then earlier tonight FORWARD (evening meds before an
+    // earlier 21:30), then timeless, then the next morning sitting
+    // in the owl hole — leftover evening clocks on morning stacks
+    // stay there. Answered tiles hold their spot.
     final ra = nextPersonDayRank(
       owlMinutes: am,
       nowOwl: nowMin,

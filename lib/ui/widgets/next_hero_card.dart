@@ -286,8 +286,10 @@ class ComingUpStrip extends StatelessWidget {
 /// After the day starts (15:00 on a 15:00–05:00 day), a 07:30 breakfast
 /// is the next morning: it stays on the list (missed / too late) and
 /// must not steal הבא while evening/night is still ahead. A leftover
-/// evening override on that morning stack does not change that. A 04:00
-/// owl slot is still tonight.
+/// evening override on that morning stack does not change that — even
+/// when startHour is 0 (unset). Next never walks backward to an
+/// earlier 21:30 while later-today items remain. A 04:00 owl slot is
+/// still tonight.
 List<Routine> openRoutinesInNextOrder({
   required List<Routine> todays,
   required Set<String> doneIds,

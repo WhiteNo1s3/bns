@@ -2097,14 +2097,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         startHour: _dayStartHour,
                       );
                       // ALWAYS RETURN: something already started outranks
-                      // the clock. Half-done work is the easiest thing in
-                      // the world to lose and the hardest to come back to —
-                      // so the app carries the place, not the person.
+                      // the clock — unless it is a leftover morning stack.
+                      // Half-done work is the easiest thing in the world
+                      // to lose; a 21:45 morning leftover must not come
+                      // back on top while evening is still open.
+                      final nowForNext = DateTime.now();
                       final started = openNext.where((r) {
                         final done = _stepProgress[r.id] ?? 0;
-                        return r.steps.isNotEmpty &&
-                            done > 0 &&
-                            done < r.steps.length;
+                        if (r.steps.isEmpty ||
+                            done <= 0 ||
+                            done >= r.steps.length) {
+                          return false;
+                        }
+                        return !isNextMorningSlot(
+                          usualHhmm: r.time,
+                          todayHhmm: r.timeOn(_todayKey),
+                          now: nowForNext,
+                          startHour: _dayStartHour,
+                          rolloverHour: _rolloverHour,
+                        );
                       }).toList();
                       final hero = started.isNotEmpty
                           ? started.first

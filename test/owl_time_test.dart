@@ -324,5 +324,48 @@ void main() {
         isFalse,
       );
     });
+
+    test('unset startHour 0 at 23:28 — leftover 21:45 is still next morning',
+        () {
+      // Lived L1 S23: dayStartHour showed 0, a8b1205's hole never fired.
+      final late = DateTime(2026, 8, 17, 23, 28);
+      expect(eveningHasBegun(late, 5), isTrue);
+      expect(nextHoleStartHour(0, late, 5), 15);
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '07:45',
+          todayHhmm: '21:45',
+          now: late,
+          startHour: 0,
+          rolloverHour: 5,
+        ),
+        isTrue,
+        reason: 'unset 0 must not let leftover 21:45 steal הבא',
+      );
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '04:00',
+          now: late,
+          startHour: 0,
+          rolloverHour: 5,
+        ),
+        isFalse,
+        reason: '04:00 owl is still tonight when start is unset',
+      );
+    });
+
+    test('unset startHour 0 before evening — 07:30 may still be next', () {
+      final morning = DateTime(2026, 8, 17, 10, 0);
+      expect(eveningHasBegun(morning, 5), isFalse);
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '07:30',
+          now: morning,
+          startHour: 0,
+          rolloverHour: 5,
+        ),
+        isFalse,
+      );
+    });
   });
 }

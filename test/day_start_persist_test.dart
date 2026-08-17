@@ -117,6 +117,9 @@ void main() {
   });
 
   testWidgets('tap 15 persists; no tap stays 0', (tester) async {
+    // The chip wall became the fusion sheet (2026-08-18): the door
+    // opens it, the rail names the hour, ONE confirm writes — the
+    // self-write guard holds the same as before.
     int? picked;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -132,9 +135,16 @@ void main() {
       expect((await IsarService.getSettings()).dayStartHour, 0);
     });
 
-    await tester.ensureVisible(find.text('15:00'));
+    await tester.tap(find.text('מתי היום שלך מתחיל?'));
+    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(find.text('15:00'),
+        find.byType(ListView), const Offset(0, -52));
     await tester.tap(find.text('15:00'));
     await tester.pump();
+    expect(picked, isNull,
+        reason: 'the rail alone writes nothing — only the confirm door');
+    await tester.tap(find.textContaining('לקבוע'));
+    await tester.pumpAndSettle();
     expect(picked, 15);
     await tester.runAsync(() async {
       await IsarService.persistDayStartHour(picked!);

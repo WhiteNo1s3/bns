@@ -169,6 +169,10 @@ bool personDayHasStarted(DateTime now, int startHour, int rolloverHour) =>
 /// When [startHour] is 0 it may mean unset (lived: 15 did not stick).
 /// After evening has begun, Next still uses this as the hole start so a
 /// leftover 21:45 on a 07:45 stack cannot pretend to be tonight.
+///
+/// RANKING ONLY. Never `updateSettings` / persist dayStartHour. A
+/// virtual 15:00 hole is not a chosen day. Lived 2026-08-17 ~23:57:
+/// unset 0 became 15 in the store without a tap.
 const int kImplicitDayStartHour = 15;
 
 /// Evening / night of the person-day — after 15:00, or after midnight
@@ -181,6 +185,8 @@ bool eveningHasBegun(DateTime now, int rolloverHour) {
 /// The start hour the hole uses for Next. A set start wins. Unset 0
 /// becomes 15 once evening has begun — not a midnight that swallows
 /// the morning stack into tonight.
+///
+/// Returns a rank key only. Must not be written to settings.
 int nextHoleStartHour(int startHour, DateTime now, int rolloverHour) {
   if (startHour > 0) return startHour;
   return eveningHasBegun(now, rolloverHour) ? kImplicitDayStartHour : 0;

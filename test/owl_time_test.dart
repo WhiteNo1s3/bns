@@ -330,7 +330,8 @@ void main() {
       // Lived L1 S23: dayStartHour showed 0, a8b1205's hole never fired.
       final late = DateTime(2026, 8, 17, 23, 28);
       expect(eveningHasBegun(late, 5), isTrue);
-      expect(nextHoleStartHour(0, late, 5), 15);
+      expect(nextHoleStartHour(0, late, 5), 15,
+          reason: 'virtual hole only — must not persist dayStartHour');
       expect(
         isNextMorningSlot(
           usualHhmm: '07:45',

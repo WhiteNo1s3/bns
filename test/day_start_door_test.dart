@@ -21,11 +21,28 @@ void main() {
     expect(find.text('מתי היום שלך מתחיל?'), findsOneWidget);
     expect(find.text('15:00'), findsOneWidget);
     expect(find.text('When does your day start?'), findsNothing);
+    expect(picked, isNull, reason: 'first paint must not pick 15');
 
     await tester.ensureVisible(find.text('15:00'));
     await tester.tap(find.text('15:00'));
     await tester.pump();
     expect(picked, 15);
+  });
+
+  testWidgets('first paint of unset 0 does not fire onPicked', (tester) async {
+    int? picked;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: DayStartDoor(
+          dayStartHour: 0,
+          onPicked: (h) => picked = h,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('מתי היום שלך מתחיל?'), findsOneWidget);
+    expect(find.text('15:00'), findsOneWidget);
+    expect(picked, isNull);
   });
 
   testWidgets('a set 15 quiets the door — no maze', (tester) async {

@@ -1052,9 +1052,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   /// Same persist as Sync / dce029b. Today never sends them to Sync.
+  /// Chip tap only — first paint and evening ranking must not land here.
   Future<void> _setDayStartHour(int v) async {
-    final s = await IsarService.getSettings();
-    await IsarService.updateSettings(s.copyWith(dayStartHour: v));
+    await IsarService.persistDayStartHour(v);
     await NotificationsService.rescheduleAll(force: true);
     AndroidBnsWidget.updateWidget();
     if (!mounted) return;
@@ -1970,7 +1970,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     const SizedBox(height: 16),
                     DayStartDoor(
                       dayStartHour: _dayStartHour,
-                      onPicked: _setDayStartHour,
+                      onPicked: (h) => _setDayStartHour(h),
                       textScale: _textScale,
                     ),
                   ],

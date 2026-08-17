@@ -29,6 +29,11 @@ const kDayStartHourChoices = [
 /// a chosen midnight). This door is that question on the day itself.
 /// One tap persists the same way Sync does. After a real hour, it
 /// quiets — the day is 15:00, not another maze.
+///
+/// Writes ONLY on an explicit tap of an hour chip. First paint must
+/// not pick 15. Evening ranking may *assume* a 15:00 hole — it must
+/// not reach [onPicked]. Lived 2026-08-17 ~23:57: 15 landed without
+/// a tap; that is a miss.
 class DayStartDoor extends StatelessWidget {
   final int dayStartHour;
   final ValueChanged<int> onPicked;
@@ -67,6 +72,10 @@ class DayStartDoor extends StatelessWidget {
           children: [
             for (final h in kDayStartHourChoices)
               OutlinedButton(
+                key: ValueKey('day-start-hour-$h'),
+                autofocus: false,
+                // Chip tap only — never from build, init, or a default
+                // selected 15. Ranking's virtual hole must not land here.
                 onPressed: () => onPicked(h),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(72, 48),

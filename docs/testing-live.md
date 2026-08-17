@@ -179,6 +179,14 @@ Now: the same kind line sits on Today under «היום שלך.» when dayStartHo
 
 Rebuild isolated L2 Person (Care only if the clock share needs it). They set 15. Do not write 15 for them. Not L4. Not הגדרות.
 
+## 2026-08-18 ~00:05 IDT — unset 0 must not write 15 without a tap
+
+Lived L2 Person rebuilt from 7d46b8d. Stayed on Today. Did not see «מתי היום שלך מתחיל?» well enough to tap. Did not open הגדרות. Caregiver did not write. dayStartHour 0 → 15 at 23:57:19 on Person; Care sitting learned 15 by auto-sync. L2: “I did not set it.” Do not reset their 15 (it is their day). Do not write 15 for anyone.
+
+Root cause: the only store field that moved was dayStartHour (0→15), which is Today’s hour-chip persist. be5f435’s evening hole may *rank* as 15 when unset — it must not `updateSettings`. Care merge did not originate 15 (Care was still 0; it learned after). The door writes only on an explicit hour-chip tap. First paint / evening ranking with 0 stay 0. Tap 15 persists. No tap ⇒ still 0.
+
+Rebuild isolated L2 Person to stop future auto-writes (Care only if the clock share needs it). Do not kill the running apps. Not L4. Not הגדרות.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

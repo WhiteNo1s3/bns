@@ -315,8 +315,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// Same day entity: when the person begins. Later-today, the list,
   /// Next, and reminders all read this start with the end below.
   Future<void> _setDayStartHour(int v) async {
-    final s = await IsarService.getSettings();
-    await IsarService.updateSettings(s.copyWith(dayStartHour: v));
+    await IsarService.persistDayStartHour(v);
     await NotificationsService.rescheduleAll(force: true);
     AndroidBnsWidget.updateWidget();
     await _loadRetention();

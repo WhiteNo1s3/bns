@@ -912,6 +912,16 @@ class IsarService {
     await _persist();
   }
 
+  /// Persist the person-day start. Call ONLY from an hour-chip tap
+  /// (Today door or Sync). Ranking may assume a 15:00 hole when unset
+  /// — it must never land here. Lived 2026-08-17 ~23:57: 15 wrote
+  /// itself; a virtual hole is not a chosen day.
+  static Future<void> persistDayStartHour(int hour) async {
+    final h = hour < 0 ? 0 : (hour > 23 ? 23 : hour);
+    final s = await getSettings();
+    await updateSettings(s.copyWith(dayStartHour: h));
+  }
+
   /// Update or add a keybind (PC robust feature). Set-and-forget.
   static Future<void> setKeybind(String id, String combo,
       {bool? enabled}) async {

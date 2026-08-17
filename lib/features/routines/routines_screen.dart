@@ -178,6 +178,23 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
         ],
       ),
       // Guided mode: no adding here — the day arrives from the inspector.
+      // THE RETURN DOOR, same as the day view (owner, 2026-08-18: "went
+      // to routines as caregiver and couldn't get out... where is the
+      // return button?"). A pushed routines room walks back out in words;
+      // a routed one already has the doors/sidebar/☰ under the guarantee.
+      bottomNavigationBar: Navigator.of(context).canPop()
+          ? SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              child: FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                child: Text(L.t('Back', 'חזרה'),
+                    style: const TextStyle(fontSize: 17)),
+              ),
+            )
+          : null,
       floatingActionButton: _guided
           ? null
           : FloatingActionButton.extended(

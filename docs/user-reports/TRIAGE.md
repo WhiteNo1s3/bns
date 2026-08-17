@@ -1,5 +1,34 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## The no-dead-end guarantee (2026-08-18, sixth pass — 280 tests green)
+
+Owner, lived: stuck in routines as caregiver at a narrow window ("no
+return button... why no hamburger on each page"), and Android back
+from a day view EXITED THE APP. Two structural holes, closed as laws:
+
+- **A bar may step aside only when the sidebar is actually there.**
+  `hideOnDesktopWide` hid by PLATFORM alone — below 820 there is no
+  sidebar, so routines / the day thread were doorless rooms at any
+  narrow desktop width. The bar now asks the WINDOW its width (same
+  truth for preferredSize and build): narrow desktop keeps the bar and
+  its ☰/back; wide lets the sidebar own the chrome. Every page carrying
+  the flag inherits the fix at once.
+- **Back never exits from an inner room.** The shell wraps every routed
+  page: pushed screens pop normally first; system back from a routed
+  room that is not home goes HOME; only home hands the gesture to the
+  system. The "pushed back on android, it exit the program" class is
+  closed everywhere, not per-screen.
+- **Routines wears the worded return** when pushed (same pinned «חזרה»
+  as the day view) — the caregiver's "where is the return button?",
+  answered in words.
+- test/no_dead_end_test.dart (bar-width law both sides; back-goes-home
+  and back-at-home both directions).
+
+Owner direction, same message: stop swallowing sync features whole —
+stabilize. The wall + profiles stand tested and STAY; new sync scope is
+FROZEN until the level-1 day runs clean (the reports' L1 list is the
+queue: reach on Today, the miss-door count, hero confirm, FAB seat).
+
 ## The clock without the wall (2026-08-18, fifth pass)
 
 Owner: "the picker of hours states all the times... less nightmare to

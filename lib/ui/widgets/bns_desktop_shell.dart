@@ -329,7 +329,13 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     // tablet or iPad in landscape gets the same comfortable sidebar as a PC.
     // Phones and narrow windows keep the simple flow.
     final useDesktopLayout = BnsLayout.isWide(context);
+    return _BackGoesHome(
+      currentPath: widget.currentPath,
+      child: _buildLayout(context, useDesktopLayout),
+    );
+  }
 
+  Widget _buildLayout(BuildContext context, bool useDesktopLayout) {
     if (!useDesktopLayout) {
       // Phone: three calm doors. Hunting through tiny icons is how a
       // Level-1 user almost breaks the phone. Guided mode stays one list.
@@ -581,6 +587,33 @@ class _DesktopNavItem extends StatelessWidget {
 ///     door at all for someone rebuilding their sense of place.
 ///   - Capture keeps the whole screen — one job, no bar to miss-tap
 ///     while talking.
+/// BACK NEVER EXITS FROM AN INNER ROOM (owner, 2026-08-18: "looking the
+/// day after couldn't get out — pushed back on android, it exit the
+/// program"). Pushed screens above the shell pop normally first; when
+/// back reaches a routed room that is not home, it goes HOME instead of
+/// out of the app. Only home itself lets the system have the gesture.
+class _BackGoesHome extends StatelessWidget {
+  final String currentPath;
+  final Widget child;
+
+  const _BackGoesHome({required this.currentPath, required this.child});
+
+  bool get _atHome =>
+      currentPath == '/' || currentPath.startsWith('/?');
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _atHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/');
+      },
+      child: child,
+    );
+  }
+}
+
 class _PhoneDoors extends StatelessWidget {
   final Widget child;
   final String currentPath;

@@ -31,9 +31,30 @@ class BnsAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.hideOnDesktopWide = false,
   });
 
+  /// THE NO-DEAD-END GUARANTEE (owner, 2026-08-18: "why no hamburger menu
+  /// on each of the pages that I keep on finding delivering to dead end").
+  /// The bar may only step aside when the sidebar shell is actually THERE
+  /// to hold the doors — which is a question of WIDTH, not platform. A
+  /// narrow desktop window used to lose both (no sidebar below 820, bar
+  /// hidden by platform) — a room with no door at any size below wide.
+  ///
+  /// Width comes from the window itself (not a BuildContext) so
+  /// [preferredSize] and [build] can never disagree about whether the
+  /// bar exists.
   bool get _shouldHideForDesktop {
     if (!hideOnDesktopWide) return false;
-    return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+    if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      return false;
+    }
+    try {
+      final views = WidgetsBinding.instance.platformDispatcher.views;
+      if (views.isEmpty) return false;
+      final v = views.first;
+      return (v.physicalSize.width / v.devicePixelRatio) >=
+          BnsLayout.wideMin;
+    } catch (_) {
+      return false; // when unsure, a door beats a clean edge
+    }
   }
 
   @override

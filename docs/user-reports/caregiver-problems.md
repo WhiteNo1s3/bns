@@ -350,3 +350,21 @@ Not L2 (door still too far). Not Caregiver writing. Do not reset 15.
 Look-only: Person and Care sitting רמה 2 both `dayStartHour=15` `dayRolloverHour=5`. Same 7 shared goals + friend 19:30 + book 18 Aug. Quiet sit only on Person. No “island pizza” on the stores.
 
 The door still cannot be the only way a student sets 15 — they could not reach it. Caregiver already needs the aligned day.
+
+---
+
+## 2026-08-18 ~00:44 IDT — cd50298 on emu + L2 overlay
+
+Release `dist/BNS-android-v0.11.0.apk` 00:16. emulator-5554 lastUpdate **00:43:42**. S23 not installed by Caregiver (already 00:16:58). Did not write 15.
+
+L2 Person 92487 / Care 92489 from `cd50298`. Person Today: day-start door **quieted to a thin orange line** (15 already set). No chip wall. Care inspector shows **השעון שלהם** 15:00–05:00. 7 on the list.
+
+Shots: `~/dev/gBNS/.l2-test/l2-person-after-cd50298.png`, `l2-care-after-cd50298.png`
+
+---
+
+## 2026-08-18 ~00:47 IDT — quiet day-start line too small
+
+After 15 is set, Today shows a thin orange line under «היום שלך.» L2 cannot see the window. The line is too small to use.
+
+Prototyper: making the set door worded, not a thin line. Caregiver will not write 15. No הגדרות.

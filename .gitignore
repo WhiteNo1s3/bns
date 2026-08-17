@@ -53,3 +53,7 @@ audio/
 # Built artifacts live in releases/stores, not in source control
 dist/
 build/symbols/
+
+# Live-care harness (real stores + ad-hoc app copies) — never in git.
+.l4-test/
+.l3-test/

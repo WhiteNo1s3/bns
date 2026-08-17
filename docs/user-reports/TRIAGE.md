@@ -60,6 +60,21 @@ vents leak; מלווה leak key-gated) or structurally closed this pass
 Still theirs: ghost duplicate rows after reinstall + trusted-row rename
 (sync-identity chunk), Android emulator isolate (use --data-dir now).
 
+**Harness rebuilt + rehomed (2026-08-17, owner: "focus our files into
+bns folder not gbns").** `.l4-test/` and `.l3-test/` moved from the
+grokBNS folder into the bns repo root (gitignored — real stores and
+ad-hoc app copies never enter git). All four bundles rebuilt from the
+wall build (4b7987e): same bundle ids, same stores, container pointers
+and entitlement paths updated to the new home. LIVE-VERIFIED on the L4
+pair, one auto-sync round: Care's store healed `guidedMode true→false`
+at load (the jailed-helper contamination is gone from disk), the
+person's cage stayed `true` through the round (hats-never-travel held),
+and the person's trusted row learned `peerIsHelper: true` from Care's
+first PULL2 — every next send to Care is the care window. Pairing
+survived the move untouched. The level-1 note also moved into this
+folder (2026-08-17-level1problems.md); PROTOTYPER.md stays with the
+fork it steers.
+
 ## PR1 + the level-1 note (2026-08-17, second pass — 196 tests green)
 
 The Prototyper's PR1 (`prototyper-doors` on grokBNS) reviewed on merit

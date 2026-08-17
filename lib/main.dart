@@ -116,8 +116,14 @@ Future<void> _startupChores(List<String> args) async {
     // first answer already comes from the right store.
     if (startupSettings.caregiverDevice) {
       try {
-        await CareProfiles.migrateLegacyIfNeeded();
-        await CareProfiles.resumeSitting();
+        final migrated = await CareProfiles.migrateLegacyIfNeeded();
+        if (migrated != null) {
+          // The person just moved behind their new door — the seat sits
+          // straight down with them, or the first open looks emptied.
+          await CareProfiles.enter(migrated);
+        } else {
+          await CareProfiles.resumeSitting();
+        }
       } catch (_) {}
     }
     await NotificationsService.init();

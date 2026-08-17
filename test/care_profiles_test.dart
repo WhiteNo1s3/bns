@@ -48,7 +48,8 @@ void main() {
     // Every test runs on a helper's seat.
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(
-        s.copyWith(caregiverDevice: true, shareName: 'מלווה'));
+      s.copyWith(caregiverDevice: true, shareName: 'מלווה'),
+    );
   });
 
   tearDown(() async {
@@ -60,41 +61,51 @@ void main() {
   });
 
   Routine routine(String id) => Routine(
-        id: id,
-        title: 'לקחת תרופות',
-        recurrenceType: RecurrenceType.daily,
-        time: '08:00',
-        createdAt: DateTime(2026, 8, 17),
-        updatedAt: DateTime(2026, 8, 17),
-      );
+    id: id,
+    title: 'לקחת תרופות',
+    recurrenceType: RecurrenceType.daily,
+    time: '08:00',
+    createdAt: DateTime(2026, 8, 17),
+    updatedAt: DateTime(2026, 8, 17),
+  );
 
-  test('a new door: own store, seat\'s hat on, listed in the index',
-      () async {
+  test('a new door: own store, seat\'s hat on, listed in the index', () async {
     final prof = await CareProfiles.create('דנה');
     final dir = await CareProfiles.profileDir(prof.id);
-    final store =
-        jsonDecode(await File('${dir.path}/bns_data.json').readAsString());
-    expect(store['settings']['caregiverDevice'], isTrue,
-        reason: 'every guard keeps answering "I am the helper" in any seat');
+    final store = jsonDecode(
+      await File('${dir.path}/bns_data.json').readAsString(),
+    );
+    expect(
+      store['settings']['caregiverDevice'],
+      isTrue,
+      reason: 'every guard keeps answering "I am the helper" in any seat',
+    );
     expect(store['settings']['guidedMode'], isFalse);
     expect((await CareProfiles.list()).map((e) => e.name), ['דנה']);
   });
 
-  test('the sitting swaps the ACTIVE store wholesale, and stands back up',
-      () async {
-    final dana = await CareProfiles.create('דנה');
-    await CareProfiles.enter(dana);
-    await IsarService.addRoutine(routine('r-dana'));
-    expect((await IsarService.getAllRoutines()).map((r) => r.id),
-        contains('r-dana'));
-    expect(await CareProfiles.sittingId(), dana.id);
+  test(
+    'the sitting swaps the ACTIVE store wholesale, and stands back up',
+    () async {
+      final dana = await CareProfiles.create('דנה');
+      await CareProfiles.enter(dana);
+      await IsarService.addRoutine(routine('r-dana'));
+      expect(
+        (await IsarService.getAllRoutines()).map((r) => r.id),
+        contains('r-dana'),
+      );
+      expect(await CareProfiles.sittingId(), dana.id);
 
-    await CareProfiles.standUp();
-    final atRoot = await IsarService.getAllRoutines();
-    expect(atRoot.any((r) => r.id == 'r-dana'), isFalse,
-        reason: 'דנה\'s day lives behind דנה\'s door only');
-    expect(await CareProfiles.sittingId(), isNull);
-  });
+      await CareProfiles.standUp();
+      final atRoot = await IsarService.getAllRoutines();
+      expect(
+        atRoot.any((r) => r.id == 'r-dana'),
+        isFalse,
+        reason: 'דנה\'s day lives behind דנה\'s door only',
+      );
+      expect(await CareProfiles.sittingId(), isNull);
+    },
+  );
 
   test('the remembered sitting reopens at launch', () async {
     final dana = await CareProfiles.create('דנה');
@@ -105,61 +116,132 @@ void main() {
     BnsHome.sitIn(null);
     final resumed = await CareProfiles.resumeSitting();
     expect(resumed?.id, dana.id);
-    expect((await IsarService.getAllRoutines()).map((r) => r.id),
-        contains('r-dana'));
+    expect(
+      (await IsarService.getAllRoutines()).map((r) => r.id),
+      contains('r-dana'),
+    );
   });
 
-  test('migration: the one merged person becomes the first named door',
-      () async {
-    // A pre-profile Care store: person data + their trusted device.
+  test(
+    'migration: the one merged person becomes the first named door',
+    () async {
+      // A pre-profile Care store: person data + their trusted device.
+      await IsarService.addRoutine(routine('r-ben'));
+      await IsarService.saveTrustedDevice(
+        TrustedDevice(
+          id: 'phone-ben',
+          name: 'Ben',
+          lastAddress: '192.168.31.5',
+          lastSyncedAt: DateTime(2026, 8, 16),
+          sharedSecret: 'c2VjcmV0',
+        ),
+      );
+
+      final prof = await CareProfiles.migrateLegacyIfNeeded();
+      expect(prof, isNotNull);
+      expect(prof!.name, 'Ben', reason: 'named from the person, not a number');
+
+      // The root store is the seat's alone now.
+      expect(await IsarService.getAllRoutines(), isEmpty);
+      expect(await IsarService.getTrustedDevices(), isEmpty);
+      expect((await IsarService.getSettings()).caregiverDevice, isTrue);
+
+      // The person's whole day lives behind their door.
+      await CareProfiles.enter(prof);
+      expect(
+        (await IsarService.getAllRoutines()).map((r) => r.id),
+        contains('r-ben'),
+      );
+      expect((await IsarService.getTrustedDevice('phone-ben'))?.name, 'Ben');
+      await CareProfiles.standUp();
+
+      // Silk means once: a second launch changes nothing.
+      expect(await CareProfiles.migrateLegacyIfNeeded(), isNull);
+    },
+  );
+
+  test('a helper\'s own seed thought is not a person', () async {
+    await IsarService.addCapture(
+      QuickCapture(
+        id: 'seed',
+        at: DateTime(2026, 8, 17),
+        text: 'מנורה בננה נהר',
+        memoryLevel: MemoryLevel.remember,
+      ),
+    );
+    expect(
+      await CareProfiles.migrateLegacyIfNeeded(),
+      isNull,
+      reason: 'captures-only must not mint an empty door named after the seat',
+    );
+    expect(await CareProfiles.list(), isEmpty);
+  });
+
+  test('a leftover empty door does not hide the real person on root', () async {
+    // The false-start door from a captures-only migrate (lived L2 Care).
+    await CareProfiles.create('Care');
     await IsarService.addRoutine(routine('r-ben'));
-    await IsarService.saveTrustedDevice(TrustedDevice(
-      id: 'phone-ben',
-      name: 'Ben',
-      lastAddress: '192.168.31.5',
-      lastSyncedAt: DateTime(2026, 8, 16),
-      sharedSecret: 'c2VjcmV0',
-    ));
+    await IsarService.saveTrustedDevice(
+      TrustedDevice(
+        id: 'phone-ben',
+        name: 'רמה 2',
+        lastAddress: '192.168.31.5',
+        lastSyncedAt: DateTime(2026, 8, 17),
+        sharedSecret: 'c2VjcmV0',
+      ),
+    );
 
     final prof = await CareProfiles.migrateLegacyIfNeeded();
     expect(prof, isNotNull);
-    expect(prof!.name, 'Ben', reason: 'named from the person, not a number');
-
-    // The root store is the seat's alone now.
-    expect(await IsarService.getAllRoutines(), isEmpty);
-    expect(await IsarService.getTrustedDevices(), isEmpty);
-    expect((await IsarService.getSettings()).caregiverDevice, isTrue);
-
-    // The person's whole day lives behind their door.
+    expect(
+      prof!.name,
+      'רמה 2',
+      reason: 'named from the person, not the leftover seat door',
+    );
+    expect(
+      (await CareProfiles.list()).map((e) => e.name).toSet(),
+      containsAll({'Care', 'רמה 2'}),
+    );
+    expect(
+      await IsarService.getAllRoutines(),
+      isEmpty,
+      reason: 'root is the seat again after the person moves',
+    );
     await CareProfiles.enter(prof);
-    expect((await IsarService.getAllRoutines()).map((r) => r.id),
-        contains('r-ben'));
-    expect((await IsarService.getTrustedDevice('phone-ben'))?.name, 'Ben');
-    await CareProfiles.standUp();
-
-    // Silk means once: a second launch changes nothing.
-    expect(await CareProfiles.migrateLegacyIfNeeded(), isNull);
+    expect(
+      (await IsarService.getAllRoutines()).map((r) => r.id),
+      contains('r-ben'),
+    );
   });
 
   test('trustAnywhere finds a person behind a CLOSED door', () async {
     final dana = await CareProfiles.create('דנה');
     await CareProfiles.enter(dana);
-    await IsarService.saveTrustedDevice(TrustedDevice(
-      id: 'phone-dana',
-      name: 'דנה',
-      lastAddress: '',
-      lastSyncedAt: DateTime(2026, 8, 17),
-      sharedSecret: 'c2VjcmV0',
-    ));
+    await IsarService.saveTrustedDevice(
+      TrustedDevice(
+        id: 'phone-dana',
+        name: 'דנה',
+        lastAddress: '',
+        lastSyncedAt: DateTime(2026, 8, 17),
+        sharedSecret: 'c2VjcmV0',
+      ),
+    );
     await CareProfiles.standUp();
 
     final claim = await CareProfiles.trustAnywhere('phone-dana');
-    expect(claim, isNotNull,
-        reason: 'unknown to the sitting store is not unpaired — '
-            'silence, never the severing word');
+    expect(
+      claim,
+      isNotNull,
+      reason:
+          'unknown to the sitting store is not unpaired — '
+          'silence, never the severing word',
+    );
     expect(claim!.profileId, dana.id);
-    expect(await CareProfiles.trustAnywhere('stranger'), isNull,
-        reason: 'a true stranger is still a stranger');
+    expect(
+      await CareProfiles.trustAnywhere('stranger'),
+      isNull,
+      reason: 'a true stranger is still a stranger',
+    );
   });
 
   test('an inbox merges the moment the door opens', () async {
@@ -174,10 +256,13 @@ void main() {
     final pDoor = await CareProfiles.create('פנינה');
     await CareProfiles.keepInInbox(pDoor.id, bytes);
     await CareProfiles.enter(pDoor);
-    expect((await IsarService.getAllRoutines()).map((r) => r.id),
-        contains('r-inbox'),
-        reason: 'receive-first: what arrived while the door was closed '
-            'is in before anything is built on top');
+    expect(
+      (await IsarService.getAllRoutines()).map((r) => r.id),
+      contains('r-inbox'),
+      reason:
+          'receive-first: what arrived while the door was closed '
+          'is in before anything is built on top',
+    );
     final inbox = await CareProfiles.inboxDir(pDoor.id);
     final left = await inbox.exists() ? await inbox.list().toList() : [];
     expect(left, isEmpty, reason: 'a merged push does not linger');

@@ -51,7 +51,7 @@ for one Level-4 person. That is not a product.
   launch: data + trusted row move into `profiles/<id>/`, named from the
   person's trusted-row name; the root store keeps only the caregiver's
   own settings. Nothing to configure, nothing visibly changes — the
-  same day is simply behind a named door now.
+  same day is simply behind a named door now. A helper's own seed thought is not a person (captures-only must not mint an empty door named after the seat). A leftover empty door does not block adopting the real person now living on root.
 
 ## Wave 1 (this build) vs wave 2
 

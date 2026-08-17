@@ -7,8 +7,9 @@
 ///  - the person's own devices still get the full day;
 ///  - a helper at level 1 gets opened asks ONLY — a skip, a mood, a vent
 ///    is never an ask;
-///  - level 2 gets chosen family plans + family-tagged moments, vents
-///    never, even tagged;
+///  - level 2 gets chosen family plans + family-tagged / need-help
+///    routines (and their ✓ / skip logs) + family-tagged moments, vents
+///    never, even tagged; untagged routines stay home;
 ///  - levels 3–4 get everything active, rants included (the law);
 ///  - EVERY window ships a settings stub — shareName only, no identity,
 ///    no keys: a hat cannot travel inside a care window.
@@ -63,33 +64,52 @@ void main() {
   group('careWindowFor — the wall decision', () {
     test('own devices always get the full day', () {
       expect(
-          careWindowFor(
-              peerIsHelper: false, careLevel: 4, fullCareMode: true),
-          isNull);
+        careWindowFor(peerIsHelper: false, careLevel: 4, fullCareMode: true),
+        isNull,
+      );
       expect(
-          careWindowFor(
-              peerIsHelper: false, careLevel: 1, fullCareMode: false),
-          isNull);
+        careWindowFor(peerIsHelper: false, careLevel: 1, fullCareMode: false),
+        isNull,
+      );
     });
 
     test('a helper gets the level\'s window', () {
       expect(
-          careWindowFor(
-              peerIsHelper: true, careLevel: 1, fullCareMode: false),
-          FamilyShareLevel.asksOnly);
+        careWindowFor(peerIsHelper: true, careLevel: 1, fullCareMode: false),
+        FamilyShareLevel.asksOnly,
+      );
       expect(
-          careWindowFor(
-              peerIsHelper: true, careLevel: 2, fullCareMode: false),
-          FamilyShareLevel.chosenFamily);
+        careWindowFor(peerIsHelper: true, careLevel: 2, fullCareMode: false),
+        FamilyShareLevel.chosenFamily,
+      );
       expect(
-          careWindowFor(
-              peerIsHelper: true, careLevel: 3, fullCareMode: true),
-          FamilyShareLevel.fullCare);
+        careWindowFor(peerIsHelper: true, careLevel: 3, fullCareMode: true),
+        FamilyShareLevel.fullCare,
+      );
       expect(
-          careWindowFor(
-              peerIsHelper: true, careLevel: 4, fullCareMode: true),
-          FamilyShareLevel.fullCare);
+        careWindowFor(peerIsHelper: true, careLevel: 4, fullCareMode: true),
+        FamilyShareLevel.fullCare,
+      );
     });
+  });
+
+  test('level 2 shares chosen and asked routines, never private ones', () {
+    final now = DateTime(2026, 8, 17);
+    Routine r(String id, List<String> tags) => Routine(
+      id: id,
+      title: id,
+      recurrenceType: RecurrenceType.daily,
+      tags: tags,
+      createdAt: now,
+      updatedAt: now,
+    );
+    expect(level2ShareAllowsRoutine(r('fam', const ['family'])), isTrue);
+    expect(level2ShareAllowsRoutine(r('ask', const ['need-help'])), isTrue);
+    expect(level2ShareAllowsRoutine(r('priv', const [])), isFalse);
+    expect(
+      level2ShareAllowsRoutine(r('vent', const ['family', 'mad-vent'])),
+      isFalse,
+    );
   });
 
   test('TrustedDevice remembers the helper hat through json', () {
@@ -102,8 +122,11 @@ void main() {
     );
     final back = TrustedDevice.fromJson(t.toJson());
     expect(back.peerIsHelper, isTrue);
-    expect(TrustedDevice.fromJson(const {'id': 'x'}).peerIsHelper, isFalse,
-        reason: 'older rows without the field mean "not known yet"');
+    expect(
+      TrustedDevice.fromJson(const {'id': 'x'}).peerIsHelper,
+      isFalse,
+      reason: 'older rows without the field mean "not known yet"',
+    );
   });
 
   group('exportCareWindow — what is actually in the file', () {
@@ -112,62 +135,105 @@ void main() {
       final now = DateTime(2026, 8, 16, 12);
       final s = await IsarService.getSettings();
       await IsarService.updateSettings(s.copyWith(shareName: 'Ben'));
-      await IsarService.addRoutine(Routine(
-        id: 'r1',
-        title: 'לקחת תרופות',
-        recurrenceType: RecurrenceType.daily,
-        time: '08:00',
-        createdAt: now,
-        updatedAt: now,
-      ));
+      await IsarService.addRoutine(
+        Routine(
+          id: 'r1',
+          title: 'לקחת תרופות',
+          recurrenceType: RecurrenceType.daily,
+          time: '08:00',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await IsarService.addRoutine(
+        Routine(
+          id: 'r-family',
+          title: 'כוס מים',
+          recurrenceType: RecurrenceType.daily,
+          time: '16:00',
+          tags: const ['family'],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await IsarService.addRoutine(
+        Routine(
+          id: 'r-ask',
+          title: 'לסדר שולחן',
+          recurrenceType: RecurrenceType.daily,
+          time: '21:00',
+          tags: const ['need-help'],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
       await IsarService.logCompletion(
-          routineId: 'r1',
-          date: '2026-08-16',
-          status: CompletionStatus.done);
-      await IsarService.addEvent(CalendarEvent(
-        id: 'e-family',
-        title: 'רופא שיניים',
-        date: '2026-08-20',
-        shareWithFamily: true,
-        createdAt: now,
-        updatedAt: now,
-      ));
-      await IsarService.addEvent(CalendarEvent(
-        id: 'e-private',
-        title: 'פגישה פרטית',
-        date: '2026-08-21',
-        createdAt: now,
-        updatedAt: now,
-      ));
-      await IsarService.addCapture(QuickCapture(
-        id: 'c-family',
-        at: now,
-        text: 'רגע משפחתי',
-        tags: const ['family'],
-        memoryLevel: MemoryLevel.remember,
-      ));
-      await IsarService.addCapture(QuickCapture(
-        id: 'c-plain',
-        at: now,
-        text: 'מחשבה פרטית',
-        memoryLevel: MemoryLevel.remember,
-      ));
+        routineId: 'r1',
+        date: '2026-08-16',
+        status: CompletionStatus.done,
+      );
+      await IsarService.logCompletion(
+        routineId: 'r-family',
+        date: '2026-08-16',
+        status: CompletionStatus.skipped,
+        reason: 'משהו הפריע',
+      );
+      await IsarService.addEvent(
+        CalendarEvent(
+          id: 'e-family',
+          title: 'רופא שיניים',
+          date: '2026-08-20',
+          shareWithFamily: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await IsarService.addEvent(
+        CalendarEvent(
+          id: 'e-private',
+          title: 'פגישה פרטית',
+          date: '2026-08-21',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await IsarService.addCapture(
+        QuickCapture(
+          id: 'c-family',
+          at: now,
+          text: 'רגע משפחתי',
+          tags: const ['family'],
+          memoryLevel: MemoryLevel.remember,
+        ),
+      );
+      await IsarService.addCapture(
+        QuickCapture(
+          id: 'c-plain',
+          at: now,
+          text: 'מחשבה פרטית',
+          memoryLevel: MemoryLevel.remember,
+        ),
+      );
       // A vent that was even (wrongly) family-tagged must never leave
       // below full care.
-      await IsarService.addCapture(QuickCapture(
-        id: 'c-vent',
-        at: now,
-        text: 'מעצבן!!!',
-        tags: const ['mad-vent', 'family'],
-        memoryLevel: MemoryLevel.quick,
-      ));
-      await IsarService.addCapture(buildAskedHelpCapture(
-        id: 'c-ask',
-        at: now,
-        aboutTitle: 'לקחת תרופות',
-        linkedRoutineId: 'r1',
-        hebrew: true,
-      ));
+      await IsarService.addCapture(
+        QuickCapture(
+          id: 'c-vent',
+          at: now,
+          text: 'מעצבן!!!',
+          tags: const ['mad-vent', 'family'],
+          memoryLevel: MemoryLevel.quick,
+        ),
+      );
+      await IsarService.addCapture(
+        buildAskedHelpCapture(
+          id: 'c-ask',
+          at: now,
+          aboutTitle: 'לקחת תרופות',
+          linkedRoutineId: 'r1',
+          hebrew: true,
+        ),
+      );
     }
 
     test('level 1: opened asks only, and a settings stub', () async {
@@ -175,70 +241,134 @@ void main() {
       final f = await BnsExporter.exportCareWindow(FamilyShareLevel.asksOnly);
       final parsed = await BnsImporter.readBns(f);
 
-      expect(parsed.captures.map((c) => c.id), ['c-ask'],
-          reason: 'a skip, a mood, a vent is never an ask');
+      expect(parsed.captures.map((c) => c.id), [
+        'c-ask',
+      ], reason: 'a skip, a mood, a vent is never an ask');
       expect(parsed.events, isEmpty);
       expect(parsed.routines, isEmpty);
       expect(parsed.logs, isEmpty);
-      expect(parsed.settings.deviceId, isEmpty,
-          reason: 'a care window teaches nothing about the person\'s device');
+      expect(
+        parsed.settings.deviceId,
+        isEmpty,
+        reason: 'a care window teaches nothing about the person\'s device',
+      );
       expect(parsed.settings.effectiveShareName, 'Ben');
       expect(parsed.settings.careLockHash, isEmpty);
     });
 
     test('level 2: chosen family + family moments, vents never', () async {
       await seedStore();
-      final f =
-          await BnsExporter.exportCareWindow(FamilyShareLevel.chosenFamily);
+      final f = await BnsExporter.exportCareWindow(
+        FamilyShareLevel.chosenFamily,
+      );
       final parsed = await BnsImporter.readBns(f);
 
       expect(parsed.events.map((e) => e.id), ['e-family']);
       final ids = parsed.captures.map((c) => c.id).toSet();
       expect(ids, {'c-family', 'c-ask'});
-      expect(ids.contains('c-vent'), isFalse,
-          reason: 'a rage-moment share decision must not outlive the rage');
-      expect(parsed.routines, isEmpty);
-      expect(parsed.logs, isEmpty);
+      expect(
+        ids.contains('c-vent'),
+        isFalse,
+        reason: 'a rage-moment share decision must not outlive the rage',
+      );
+      expect(
+        parsed.routines.map((r) => r.id).toSet(),
+        {'r-family', 'r-ask'},
+        reason: 'the chosen day travels — private untagged routines stay home',
+      );
+      expect(parsed.routines.map((r) => r.id), isNot(contains('r1')));
+      expect(
+        parsed.logs.map((l) => l.routineId).toSet(),
+        {'r-family'},
+        reason: 'a skip on a shared routine is what happened — it rides along',
+      );
       expect(parsed.settings.deviceId, isEmpty);
     });
 
-    test('levels 3–4: everything active, rants included, still a stub',
-        () async {
-      await seedStore();
-      final f = await BnsExporter.exportCareWindow(FamilyShareLevel.fullCare);
-      final parsed = await BnsImporter.readBns(f);
+    test(
+      'levels 3–4: everything active, rants included, still a stub',
+      () async {
+        await seedStore();
+        final f = await BnsExporter.exportCareWindow(FamilyShareLevel.fullCare);
+        final parsed = await BnsImporter.readBns(f);
 
-      expect(parsed.routines.map((r) => r.id), contains('r1'));
-      expect(parsed.logs, isNotEmpty);
-      expect(parsed.events.length, 2);
-      final ids = parsed.captures.map((c) => c.id).toSet();
-      expect(ids.containsAll({'c-family', 'c-plain', 'c-vent', 'c-ask'}),
+        expect(parsed.routines.map((r) => r.id), contains('r1'));
+        expect(parsed.logs, isNotEmpty);
+        expect(parsed.events.length, 2);
+        final ids = parsed.captures.map((c) => c.id).toSet();
+        expect(
+          ids.containsAll({'c-family', 'c-plain', 'c-vent', 'c-ask'}),
           isTrue,
-          reason: 'full care: the frustration IS the signal');
-      expect(parsed.settings.deviceId, isEmpty,
-          reason: 'even full care ships no identity, keys or preferences');
-      expect(parsed.settings.careLockHash, isEmpty);
-    });
+          reason: 'full care: the frustration IS the signal',
+        );
+        expect(
+          parsed.settings.deviceId,
+          isEmpty,
+          reason: 'even full care ships no identity, keys or preferences',
+        );
+        expect(parsed.settings.careLockHash, isEmpty);
+      },
+    );
+
+    test(
+      'an empty / subset window cannot wipe the person\'s routines',
+      () async {
+        await seedStore();
+        final before = (await IsarService.getAllRoutines())
+            .map((r) => r.id)
+            .toSet();
+        expect(before, containsAll({'r1', 'r-family', 'r-ask'}));
+        // Receive-first from Care that has nothing (or only the window)
+        // must ADD, never replace. Person's private r1 stays.
+        final empty = await BnsExporter.exportCareWindow(
+          FamilyShareLevel.asksOnly,
+        );
+        await BnsImporter.importMerge(empty);
+        final afterEmpty = (await IsarService.getAllRoutines())
+            .map((r) => r.id)
+            .toSet();
+        expect(
+          afterEmpty.containsAll(before),
+          isTrue,
+          reason: 'Care-empty / receive-first must not wipe Person',
+        );
+        final subset = await BnsExporter.exportCareWindow(
+          FamilyShareLevel.chosenFamily,
+        );
+        await BnsImporter.importMerge(subset);
+        final afterSubset = (await IsarService.getAllRoutines())
+            .map((r) => r.id)
+            .toSet();
+        expect(afterSubset.containsAll(before), isTrue);
+      },
+    );
 
     test('a care window cannot teach a hat on import', () async {
       await seedStore();
       final f = await BnsExporter.exportCareWindow(FamilyShareLevel.fullCare);
       final parsedSettings = await BnsImporter.importMerge(f);
-      expect(parsedSettings.deviceId, isEmpty,
-          reason: 'the learn guard (deviceId match) can never pass on a stub');
+      expect(
+        parsedSettings.deviceId,
+        isEmpty,
+        reason: 'the learn guard (deviceId match) can never pass on a stub',
+      );
     });
   });
 
   test('setTrustedDeviceHelper flips only the named row', () async {
-    await IsarService.saveTrustedDevice(TrustedDevice(
-      id: 'care-1',
-      name: 'BNS Care',
-      lastAddress: '',
-      lastSyncedAt: DateTime(2026, 8, 17),
-    ));
+    await IsarService.saveTrustedDevice(
+      TrustedDevice(
+        id: 'care-1',
+        name: 'BNS Care',
+        lastAddress: '',
+        lastSyncedAt: DateTime(2026, 8, 17),
+      ),
+    );
     await IsarService.setTrustedDeviceHelper('care-1', true);
-    expect((await IsarService.getTrustedDevice('care-1'))!.peerIsHelper,
-        isTrue);
+    expect(
+      (await IsarService.getTrustedDevice('care-1'))!.peerIsHelper,
+      isTrue,
+    );
     await IsarService.setTrustedDeviceHelper('nobody', true);
     expect(await IsarService.getTrustedDevice('nobody'), isNull);
   });

@@ -23,21 +23,27 @@ class CareProfile {
   final String name;
   final DateTime createdAt;
 
-  const CareProfile(
-      {required this.id, required this.name, required this.createdAt});
+  const CareProfile({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+  });
 
   CareProfile copyWith({String? name}) =>
       CareProfile(id: id, name: name ?? this.name, createdAt: createdAt);
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'createdAt': createdAt.toIso8601String()};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory CareProfile.fromJson(Map<String, dynamic> j) => CareProfile(
-        id: j['id'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
-            DateTime.now(),
-      );
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now(),
+  );
 }
 
 /// Where a device's trust was found when scanning every store this seat
@@ -77,7 +83,7 @@ class CareProfiles {
       final raw = jsonDecode(await f.readAsString());
       return [
         for (final e in (raw as List))
-          CareProfile.fromJson(e as Map<String, dynamic>)
+          CareProfile.fromJson(e as Map<String, dynamic>),
       ];
     } catch (_) {
       return const [];
@@ -88,8 +94,9 @@ class CareProfiles {
     final f = await _indexFile();
     await f.parent.create(recursive: true);
     await f.writeAsString(
-        jsonEncode([for (final p in profiles) p.toJson()]),
-        flush: true);
+      jsonEncode([for (final p in profiles) p.toJson()]),
+      flush: true,
+    );
   }
 
   /// A new named door. The profile store's settings are seeded from the
@@ -98,7 +105,10 @@ class CareProfiles {
   static Future<CareProfile> create(String name) async {
     final seat = await IsarService.getSettings();
     final profile = CareProfile(
-        id: _uuid.v4(), name: name.trim(), createdAt: DateTime.now());
+      id: _uuid.v4(),
+      name: name.trim(),
+      createdAt: DateTime.now(),
+    );
     final dir = await profileDir(profile.id);
     await dir.create(recursive: true);
     final seeded = seat.copyWith(
@@ -107,9 +117,9 @@ class CareProfiles {
       fullCareMode: false,
       careLevel: 1,
     );
-    await File('${dir.path}/bns_data.json').writeAsString(
-        jsonEncode({'settings': seeded.toJson()}),
-        flush: true);
+    await File(
+      '${dir.path}/bns_data.json',
+    ).writeAsString(jsonEncode({'settings': seeded.toJson()}), flush: true);
     await _writeIndex([...await list(), profile]);
     return profile;
   }
@@ -117,7 +127,7 @@ class CareProfiles {
   static Future<void> rename(String id, String newName) async {
     final all = await list();
     await _writeIndex([
-      for (final p in all) p.id == id ? p.copyWith(name: newName.trim()) : p
+      for (final p in all) p.id == id ? p.copyWith(name: newName.trim()) : p,
     ]);
   }
 
@@ -202,21 +212,27 @@ class CareProfiles {
     }
     for (final p in await list()) {
       final t = await _trustedInStoreFile(
-          File('${(await profileDir(p.id)).path}/bns_data.json'), deviceId);
+        File('${(await profileDir(p.id)).path}/bns_data.json'),
+        deviceId,
+      );
       if (t != null) return ProfileTrust(profileId: p.id, device: t);
     }
     // The seat's root store (only differs while sitting).
     if (BnsHome.isSitting) {
       final root = await BnsHome.rootDir();
       final t = await _trustedInStoreFile(
-          File('${root.path}/bns_data.json'), deviceId);
+        File('${root.path}/bns_data.json'),
+        deviceId,
+      );
       if (t != null) return ProfileTrust(profileId: null, device: t);
     }
     return null;
   }
 
   static Future<TrustedDevice?> _trustedInStoreFile(
-      File store, String deviceId) async {
+    File store,
+    String deviceId,
+  ) async {
     try {
       if (!await store.exists()) return null;
       final raw = jsonDecode(await store.readAsString());
@@ -246,32 +262,50 @@ class CareProfiles {
     if (BnsHome.isSitting) return null;
     final settings = await IsarService.getSettings();
     if (!settings.caregiverDevice) return null;
-    if ((await list()).isNotEmpty) return null;
-
     final trusted = await IsarService.getTrustedDevices();
     final snapshot = await IsarService.getFullSnapshot();
-    final holdsPerson = trusted.isNotEmpty ||
-        snapshot.routines.isNotEmpty ||
-        snapshot.events.isNotEmpty ||
-        snapshot.captures.isNotEmpty;
+    // A helper's own seed thought is not a person. Trust, a day, or a
+    // plan is. Captures-only used to mint an empty door named after the
+    // seat — then the real person's first sync landed on root while
+    // that leftover door sat in the list, and the inspector looked
+    // emptied.
+    // Demo first-run routines (seed-1/2/3) are the seat's, not a person.
+    final ownDay = snapshot.routines.any((r) => !r.id.startsWith('seed-'));
+    final holdsPerson =
+        trusted.isNotEmpty || ownDay || snapshot.events.isNotEmpty;
     if (!holdsPerson) return null;
+
+    // Already behind a named door? Don't mint a second one.
+    for (final t in trusted) {
+      final claim = await trustAnywhere(t.id);
+      if (claim?.profileId != null) return null;
+    }
+
+    // A leftover empty door must not block adopting the real person
+    // now living on root. Only refuse when we have no name to give
+    // them and a door already exists.
+    if (trusted.isEmpty && (await list()).isNotEmpty) return null;
 
     final name = trusted.isNotEmpty && trusted.first.name.trim().isNotEmpty
         ? trusted.first.name.trim()
         : (settings.shareName.trim().isNotEmpty
-            ? settings.shareName.trim()
-            : 'האדם שלי');
+              ? settings.shareName.trim()
+              : 'האדם שלי');
 
     final profile = CareProfile(
-        id: _uuid.v4(), name: name, createdAt: DateTime.now());
+      id: _uuid.v4(),
+      name: name,
+      createdAt: DateTime.now(),
+    );
     final dir = await profileDir(profile.id);
     await dir.create(recursive: true);
 
     // The whole store is the moving box — data, logs, trusted, and the
     // seat's own settings (which is exactly what a profile store wears).
     final raw = await IsarService.rawStoreJson();
-    await File('${dir.path}/bns_data.json')
-        .writeAsString(jsonEncode(raw), flush: true);
+    await File(
+      '${dir.path}/bns_data.json',
+    ).writeAsString(jsonEncode(raw), flush: true);
 
     // The voice comes along: audio files belong to the person's moments.
     final root = await BnsHome.rootDir();
@@ -292,7 +326,7 @@ class CareProfiles {
       }
     }
 
-    await _writeIndex([profile]);
+    await _writeIndex([...await list(), profile]);
     await IsarService.clearPersonData();
     return profile;
   }

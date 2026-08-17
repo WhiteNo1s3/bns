@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -61,11 +62,32 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   List<CareProfile> _profiles = const [];
   CareProfile? _sitting;
 
+  Timer? _revisionDebounce;
+
   @override
   void initState() {
     super.initState();
     _loadProfiles();
     _load();
+    // A sync arriving underneath must paint the day — a restart-to-refresh
+    // is what made receive-first look empty on the live L2 pair.
+    IsarService.dataRevision.addListener(_onDataRevision);
+  }
+
+  void _onDataRevision() {
+    _revisionDebounce?.cancel();
+    _revisionDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      _loadProfiles();
+      _load(quiet: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _revisionDebounce?.cancel();
+    IsarService.dataRevision.removeListener(_onDataRevision);
+    super.dispose();
   }
 
   Future<void> _loadProfiles() async {
@@ -110,11 +132,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: Text(L.t('Cancel', 'ביטול'))),
+            onPressed: () => Navigator.pop(c),
+            child: Text(L.t('Cancel', 'ביטול')),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(c, ctrl.text),
-              child: Text(L.t('Open their door', 'לפתוח להם דלת'))),
+            onPressed: () => Navigator.pop(c, ctrl.text),
+            child: Text(L.t('Open their door', 'לפתוח להם דלת')),
+          ),
         ],
       ),
     );
@@ -124,13 +148,12 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     await _sitWith(p);
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool quiet = false}) async {
+    if (!quiet) setState(() => _loading = true);
     // The helper watches the PERSON'S day — same owl-time border, so at
     // 01:30 the caregiver still sees tonight's list, exactly as they do.
     final settings = await IsarService.getSettings();
-    final logicalDay =
-        logicalDateOf(DateTime.now(), settings.dayRolloverHour);
+    final logicalDay = logicalDateOf(DateTime.now(), settings.dayRolloverHour);
     final dateStr = dayKeyOf(logicalDay);
     _rolloverHour = settings.dayRolloverHour;
     _dayStartHour = settings.dayStartHour;
@@ -146,8 +169,11 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     if (!mounted) return;
     setState(() {
       _todayRoutines = routines.where((r) => r.appliesOn(logicalDay)).toList()
-        ..sort((a, b) => (a.timeOn(dateStr) ?? '99:99')
-            .compareTo(b.timeOn(dateStr) ?? '99:99'));
+        ..sort(
+          (a, b) => (a.timeOn(dateStr) ?? '99:99').compareTo(
+            b.timeOn(dateStr) ?? '99:99',
+          ),
+        );
       _todayLogs = logs;
       // A helper is trusted with the hard moments too — that is the whole
       // point of level 3 ("the frustration IS the signal").
@@ -170,8 +196,8 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
       _lastSync = trusted.isEmpty
           ? null
           : trusted
-              .map((d) => d.lastSyncedAt)
-              .reduce((a, b) => a.isAfter(b) ? a : b);
+                .map((d) => d.lastSyncedAt)
+                .reduce((a, b) => a.isAfter(b) ? a : b);
       _asks = captures.where(isAskedHelpCapture).toList()
         ..sort((a, b) => b.at.compareTo(a.at));
       _loading = false;
@@ -187,8 +213,10 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         cs.errorContainer,
         cs.onErrorContainer,
         Icons.link_off,
-        L.t('No device is paired yet — nothing here comes from them.',
-            'עדיין לא מחובר אף מכשיר — שום דבר כאן לא מגיע מהם.'),
+        L.t(
+          'No device is paired yet — nothing here comes from them.',
+          'עדיין לא מחובר אף מכשיר — שום דבר כאן לא מגיע מהם.',
+        ),
         action: TextButton(
           onPressed: () => context.push('/sync'),
           child: Text(L.t('Connect', 'לחבר')),
@@ -211,16 +239,18 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         cs.secondaryContainer,
         cs.onSecondaryContainer,
         Icons.link,
-        L.t('Paired with $who — no sync has completed yet.',
-            'מחוברים ל־$who — עוד לא הושלם סנכרון.'),
+        L.t(
+          'Paired with $who — no sync has completed yet.',
+          'מחוברים ל־$who — עוד לא הושלם סנכרון.',
+        ),
       );
     }
     final stale = age > const Duration(hours: 12);
     final when = age.inMinutes < 60
         ? L.t('${age.inMinutes} minutes ago', 'לפני ${age.inMinutes} דקות')
         : age.inHours < 24
-            ? L.t('${age.inHours} hours ago', 'לפני ${age.inHours} שעות')
-            : L.t('${age.inDays} days ago', 'לפני ${age.inDays} ימים');
+        ? L.t('${age.inHours} hours ago', 'לפני ${age.inHours} שעות')
+        : L.t('${age.inDays} days ago', 'לפני ${age.inDays} ימים');
     return _banner(
       stale ? cs.errorContainer : cs.secondaryContainer,
       stale ? cs.onErrorContainer : cs.onSecondaryContainer,
@@ -230,9 +260,12 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
               'Paired with $who — this picture is from $when, and their '
                   'device has not reached this one since.',
               'מחוברים ל־$who — התמונה הזאת מ$when, והמכשיר שלהם לא הגיע '
-                  'לכאן מאז.')
-          : L.t('Paired with $who — last heard $when.',
-              'מחוברים ל־$who — נשמע לאחרונה $when.'),
+                  'לכאן מאז.',
+            )
+          : L.t(
+              'Paired with $who — last heard $when.',
+              'מחוברים ל־$who — נשמע לאחרונה $when.',
+            ),
     );
   }
 
@@ -243,13 +276,25 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     await IsarService.addRoutine(r.postponeOn(_todayKey, hhmm));
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(L.t('Moved to $hhmm — today only. It will reach them.',
-            'עבר ל־$hhmm — רק היום. זה יגיע אליהם.'))));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          L.t(
+            'Moved to $hhmm — today only. It will reach them.',
+            'עבר ל־$hhmm — רק היום. זה יגיע אליהם.',
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _banner(Color bg, Color fg, IconData icon, String text,
-      {Widget? action}) {
+  Widget _banner(
+    Color bg,
+    Color fg,
+    IconData icon,
+    String text, {
+    Widget? action,
+  }) {
     return Container(
       width: double.infinity,
       color: bg,
@@ -258,7 +303,9 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
         children: [
           Icon(icon, color: fg, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: fg))),
+          Expanded(
+            child: Text(text, style: TextStyle(color: fg)),
+          ),
           if (action != null) action,
         ],
       ),
@@ -273,20 +320,26 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   }
 
   Widget _speak(String words) => IconButton(
-        icon: const Icon(Icons.volume_up, size: 20),
-        tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
-        onPressed: () => TtsService.speak(words),
-      );
+    icon: const Icon(Icons.volume_up, size: 20),
+    tooltip: L.t('Hear it read aloud', 'להקריא בקול'),
+    onPressed: () => TtsService.speak(words),
+  );
 
   Future<void> _play(String path) async {
     try {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(L.t(
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            L.t(
               'That recording is not on this device.',
-              'ההקלטה הזאת לא נמצאת במכשיר הזה.'))));
+              'ההקלטה הזאת לא נמצאת במכשיר הזה.',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -325,34 +378,46 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
               for (final p in _profiles)
                 PopupMenuItem(
                   value: p.id,
-                  child: Row(children: [
-                    Icon(
+                  child: Row(
+                    children: [
+                      Icon(
                         p.id == _sitting?.id
                             ? Icons.meeting_room
                             : Icons.door_front_door_outlined,
-                        size: 20),
-                    const SizedBox(width: 10),
-                    Text(p.name),
-                  ]),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(p.name),
+                    ],
+                  ),
                 ),
               const PopupMenuDivider(),
               PopupMenuItem(
                 value: '_new',
-                child: Row(children: [
-                  const Icon(Icons.add, size: 20),
-                  const SizedBox(width: 10),
-                  Text(L.t('Someone new...', 'אדם חדש...')),
-                ]),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add, size: 20),
+                    const SizedBox(width: 10),
+                    Text(L.t('Someone new...', 'אדם חדש...')),
+                  ],
+                ),
               ),
             ],
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(L.t('People', 'אנשים'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    L.t('People', 'אנשים'),
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
-                const Icon(Icons.arrow_drop_down),
-              ]),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_drop_down),
+                ],
+              ),
             ),
           ),
           IconButton(
@@ -372,13 +437,16 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                     child: Text(
-                      L.t('$who — ${DateFormat.MMMMEEEEd().format(DateTime.now())}',
-                          '$who — ${DateFormat.MMMMEEEEd().format(DateTime.now())}'),
+                      L.t(
+                        '$who — ${DateFormat.MMMMEEEEd().format(DateTime.now())}',
+                        '$who — ${DateFormat.MMMMEEEEd().format(DateTime.now())}',
+                      ),
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w600),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-
 
                   if (_asks.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -393,7 +461,9 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                             Text(
                               L.t('They asked for help', 'הם ביקשו עזרה'),
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 18),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 18,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
@@ -406,7 +476,10 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: Text(
                                   '• ${memoryWords(a).isEmpty ? (a.contextNote ?? '') : memoryWords(a)}',
-                                  style: const TextStyle(fontSize: 16, height: 1.3),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    height: 1.3,
+                                  ),
                                 ),
                               ),
                           ],
@@ -420,10 +493,11 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       L.t(
-                          '${_feed?.doneCount ?? 0} done · '
-                              '${_todayRoutines.length} on the list today',
-                          '${_feed?.doneCount ?? 0} נעשו · '
-                              '${_todayRoutines.length} ברשימה היום'),
+                        '${_feed?.doneCount ?? 0} done · '
+                            '${_todayRoutines.length} on the list today',
+                        '${_feed?.doneCount ?? 0} נעשו · '
+                            '${_todayRoutines.length} ברשימה היום',
+                      ),
                       style: TextStyle(color: cs.onSurfaceVariant),
                     ),
                   ),
@@ -439,9 +513,12 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(L.t('Worth knowing', 'כדאי לדעת'),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
+                            Text(
+                              L.t('Worth knowing', 'כדאי לדעת'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             for (final line in _glance!.lines)
                               Padding(
@@ -451,10 +528,13 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                             if (_glance!.aboutTitles.isNotEmpty)
                               Text(
                                 L.t(
-                                    'Mostly around: ${_glance!.aboutTitles.join(', ')}',
-                                    'בעיקר סביב: ${_glance!.aboutTitles.join(', ')}'),
+                                  'Mostly around: ${_glance!.aboutTitles.join(', ')}',
+                                  'בעיקר סביב: ${_glance!.aboutTitles.join(', ')}',
+                                ),
                                 style: TextStyle(
-                                    fontSize: 13, color: cs.onSurfaceVariant),
+                                  fontSize: 13,
+                                  color: cs.onSurfaceVariant,
+                                ),
                               ),
                           ],
                         ),
@@ -467,15 +547,20 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                   const SizedBox(height: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(L.t('Their list today', 'הרשימה שלהם היום'),
-                        style: Theme.of(context).textTheme.titleMedium),
+                    child: Text(
+                      L.t('Their list today', 'הרשימה שלהם היום'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
                   if (_todayRoutines.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(L.t(
+                      child: Text(
+                        L.t(
                           'Nothing on their list today. You can build it below.',
-                          'אין כלום ברשימה שלהם היום. אפשר לבנות אותה למטה.')),
+                          'אין כלום ברשימה שלהם היום. אפשר לבנות אותה למטה.',
+                        ),
+                      ),
                     )
                   else
                     ..._todayRoutines.map((r) {
@@ -490,66 +575,82 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                        ListTile(
-                          leading: Icon(
-                            done
-                                ? Icons.check_circle
-                                : skipped
+                            ListTile(
+                              leading: Icon(
+                                done
+                                    ? Icons.check_circle
+                                    : skipped
                                     ? Icons.wb_twilight
                                     : Icons.schedule,
-                            color: done
-                                ? cs.primary
-                                : skipped
+                                color: done
+                                    ? cs.primary
+                                    : skipped
                                     ? cs.tertiary
                                     : cs.outline,
-                          ),
-                          title: Text(r.title),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Today's actual clock — a later-today move
-                              // shows the moved hour, not the usual one.
-                              Text(RecurrenceUtils.describe(r,
-                                  dayKey: _todayKey)),
-                              if (movedToday)
-                                Text(
-                                  L.t('Moved for today — usually ${r.time}',
-                                      'הועבר להיום — בדרך כלל ${r.time}'),
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: cs.onSurfaceVariant),
-                                ),
-                              if (skipped)
-                                Text(
-                                  why.isEmpty
-                                      ? L.t('Didn\'t happen — no reason kept',
-                                          'לא קרה — לא נשמרה סיבה')
-                                      : L.t('Didn\'t happen — “$why”',
-                                          'לא קרה — ״$why״'),
-                                  style: TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      color: cs.tertiary),
-                                ),
-                            ],
-                          ),
-                          trailing: (skipped && why.isNotEmpty)
-                              ? _speak(why)
-                              : null,
-                        ),
-                        // THE INSPECTOR MOVES THE CLOCK (tester, 2026-08-16:
-                        // "in the L4 pair nobody can postpone"). Day-building
-                        // stays the helper's hand; the ✓ stays the person's.
-                        if (!done && !skipped && r.time != null)
-                          Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                            child: LaterTodayDoor(
-                              now: DateTime.now(),
-                              rolloverHour: _rolloverHour,
-                              startHour: _dayStartHour,
-                              onPicked: (hhmm) => _postponeTheirs(r, hhmm),
+                              ),
+                              title: Text(r.title),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Today's actual clock — a later-today move
+                                  // shows the moved hour, not the usual one.
+                                  Text(
+                                    RecurrenceUtils.describe(
+                                      r,
+                                      dayKey: _todayKey,
+                                    ),
+                                  ),
+                                  if (movedToday)
+                                    Text(
+                                      L.t(
+                                        'Moved for today — usually ${r.time}',
+                                        'הועבר להיום — בדרך כלל ${r.time}',
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  if (skipped)
+                                    Text(
+                                      why.isEmpty
+                                          ? L.t(
+                                              'Didn\'t happen — no reason kept',
+                                              'לא קרה — לא נשמרה סיבה',
+                                            )
+                                          : L.t(
+                                              'Didn\'t happen — “$why”',
+                                              'לא קרה — ״$why״',
+                                            ),
+                                      style: TextStyle(
+                                        fontStyle: FontStyle.italic,
+                                        color: cs.tertiary,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              trailing: (skipped && why.isNotEmpty)
+                                  ? _speak(why)
+                                  : null,
                             ),
-                          ),
+                            // THE INSPECTOR MOVES THE CLOCK (tester, 2026-08-16:
+                            // "in the L4 pair nobody can postpone"). Day-building
+                            // stays the helper's hand; the ✓ stays the person's.
+                            if (!done && !skipped && r.time != null)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  16,
+                                  10,
+                                ),
+                                child: LaterTodayDoor(
+                                  now: DateTime.now(),
+                                  rolloverHour: _rolloverHour,
+                                  startHour: _dayStartHour,
+                                  onPicked: (hhmm) => _postponeTheirs(r, hhmm),
+                                ),
+                              ),
                           ],
                         ),
                       );
@@ -559,63 +660,83 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                   const SizedBox(height: 20),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(L.t('What they told today', 'מה הם סיפרו היום'),
-                        style: Theme.of(context).textTheme.titleMedium),
+                    child: Text(
+                      L.t('What they told today', 'מה הם סיפרו היום'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                  Builder(builder: (_) {
-                    final said = (_feed?.items ?? [])
-                        .where((i) =>
-                            i.kind == DayFeedKind.needHelp ||
-                            i.kind == DayFeedKind.diary ||
-                            i.kind == DayFeedKind.thought ||
-                            i.kind == DayFeedKind.madVent)
-                        .toList();
-                    if (said.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(L.t('Nothing said yet today.',
-                            'עדיין לא נאמר כלום היום.')),
-                      );
-                    }
-                    return Column(
-                      children: [
-                        for (final i in said)
-                          ListTile(
-                            leading: Icon(
-                              i.kind == DayFeedKind.madVent
-                                  ? Icons.air
-                                  : i.hasAudio
-                                      ? Icons.mic
-                                      : Icons.notes,
-                              color: i.kind == DayFeedKind.needHelp ||
-                                      i.kind == DayFeedKind.madVent
-                                  ? cs.tertiary
-                                  : null,
-                            ),
-                            title: Text(i.hasWords
-                                ? i.words!
-                                : L.t('A voice-only moment (no words yet)',
-                                    'רגע קולי בלבד (עדיין בלי מילים)')),
-                            subtitle: Text(
-                                '${DateFormat.Hm().format(i.at)}  ·  ${i.headline}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (i.hasWords) _speak(i.words!),
-                                if (i.hasAudio)
-                                  IconButton(
-                                    icon: const Icon(Icons.play_circle_filled,
-                                        size: 28),
-                                    tooltip: L.t('Hear their voice',
-                                        'לשמוע את הקול שלהם'),
-                                    onPressed: () => _play(i.audioPath!),
-                                  ),
-                              ],
+                  Builder(
+                    builder: (_) {
+                      final said = (_feed?.items ?? [])
+                          .where(
+                            (i) =>
+                                i.kind == DayFeedKind.needHelp ||
+                                i.kind == DayFeedKind.diary ||
+                                i.kind == DayFeedKind.thought ||
+                                i.kind == DayFeedKind.madVent,
+                          )
+                          .toList();
+                      if (said.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            L.t(
+                              'Nothing said yet today.',
+                              'עדיין לא נאמר כלום היום.',
                             ),
                           ),
-                      ],
-                    );
-                  }),
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (final i in said)
+                            ListTile(
+                              leading: Icon(
+                                i.kind == DayFeedKind.madVent
+                                    ? Icons.air
+                                    : i.hasAudio
+                                    ? Icons.mic
+                                    : Icons.notes,
+                                color:
+                                    i.kind == DayFeedKind.needHelp ||
+                                        i.kind == DayFeedKind.madVent
+                                    ? cs.tertiary
+                                    : null,
+                              ),
+                              title: Text(
+                                i.hasWords
+                                    ? i.words!
+                                    : L.t(
+                                        'A voice-only moment (no words yet)',
+                                        'רגע קולי בלבד (עדיין בלי מילים)',
+                                      ),
+                              ),
+                              subtitle: Text(
+                                '${DateFormat.Hm().format(i.at)}  ·  ${i.headline}',
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (i.hasWords) _speak(i.words!),
+                                  if (i.hasAudio)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.play_circle_filled,
+                                        size: 28,
+                                      ),
+                                      tooltip: L.t(
+                                        'Hear their voice',
+                                        'לשמוע את הקול שלהם',
+                                      ),
+                                      onPressed: () => _play(i.audioPath!),
+                                    ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
 
                   // The helper's doors: build the day, read the whole thread.
                   const SizedBox(height: 24),
@@ -626,29 +747,33 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                         FilledButton.icon(
                           onPressed: () => context.push('/routines'),
                           icon: const Icon(Icons.list_alt),
-                          label: Text(L.t('Build their day',
-                              'לבנות את היום שלהם')),
+                          label: Text(
+                            L.t('Build their day', 'לבנות את היום שלהם'),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: () => context.push('/day'),
                           icon: const Icon(Icons.menu_book_outlined),
-                          label: Text(L.t('Read the whole day',
-                              'לקרוא את כל היום')),
+                          label: Text(
+                            L.t('Read the whole day', 'לקרוא את כל היום'),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: () => context.push('/calendar'),
                           icon: const Icon(Icons.event_note),
-                          label: Text(L.t('Appointments & plans',
-                              'פגישות ותוכניות')),
+                          label: Text(
+                            L.t('Appointments & plans', 'פגישות ותוכניות'),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         TextButton.icon(
                           onPressed: () => context.push('/sync'),
                           icon: const Icon(Icons.settings_outlined),
-                          label: Text(L.t('Connection & settings',
-                              'חיבור והגדרות')),
+                          label: Text(
+                            L.t('Connection & settings', 'חיבור והגדרות'),
+                          ),
                         ),
                       ],
                     ),

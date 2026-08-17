@@ -72,10 +72,13 @@ important things — appointments, chosen moments — without seeing the
 private texture of their days.
 
 **What leaves the device.** Only what was chosen, item by item: events
-marked "family can know" (`shareWithFamily`) + moments tagged `family`
-(their voice notes ride along) + opened Need-help asks. Nothing else
-exists in the family file, no matter how it's opened
-(`BnsExporter.exportFamilyShare` — a filtered EXPORT, never a filtered
+marked "family can know" (`shareWithFamily`) + routines tagged `family`
+or `need-help` (the person's day, the parts they chose — their ✓ / skip
+logs ride along so a paired Care inspector can see what happened) +
+moments tagged `family` (their voice notes ride along) + opened
+Need-help asks. Untagged routines stay home. Nothing else exists in the
+family file / care window, no matter how it's opened
+(`BnsExporter.exportCareWindow` — a filtered EXPORT, never a filtered
 view). A `mad-vent` NEVER enters a filtered share even if tagged — a
 rage-moment decision to share must not outlive the rage; while a storm
 is being vented, capture doesn't even offer the family switch. A

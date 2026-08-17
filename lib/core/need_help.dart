@@ -24,7 +24,8 @@ bool isMadVentTag(Iterable<String> tags) =>
     tags.any((t) => t.toLowerCase().replaceAll('#', '').trim() == 'mad-vent');
 
 bool _has(Iterable<String> tags, String name) => tags.any(
-    (t) => t.toLowerCase().replaceAll('#', '').trim() == name.toLowerCase());
+  (t) => t.toLowerCase().replaceAll('#', '').trim() == name.toLowerCase(),
+);
 
 /// True when this capture is an opened Need-help ask (Level 1 share).
 bool isAskedHelpCapture(QuickCapture c) {
@@ -64,11 +65,22 @@ List<QuickCapture> newAskedHelpCaptures({
   required Iterable<QuickCapture> after,
 }) {
   final seen = before.where(isAskedHelpCapture).map((c) => c.id).toSet();
-  return after.where(isAskedHelpCapture).where((c) => !seen.contains(c.id)).toList();
+  return after
+      .where(isAskedHelpCapture)
+      .where((c) => !seen.contains(c.id))
+      .toList();
 }
 
 /// What Level 1 may put in a family file: only opened asks.
 bool level1ShareAllows(QuickCapture c) => isAskedHelpCapture(c);
+
+/// Level 2: a routine the person chose to share, or opened an ask on.
+/// Private untagged routines stay home. A mad-vent tag never rides along.
+bool level2ShareAllowsRoutine(Routine r) {
+  if (isMadVentTag(r.tags)) return false;
+  if (routineNeedsHelp(r)) return true;
+  return _has(r.tags, 'family');
+}
 
 /// Build the capture that rides the family file and the LAN notify.
 QuickCapture buildAskedHelpCapture({
@@ -97,7 +109,7 @@ QuickCapture buildAskedHelpCapture({
 List<String> toggleNeedHelpTag(List<String> tags, {required bool on}) {
   final next = [
     for (final t in tags)
-      if (t.toLowerCase().replaceAll('#', '').trim() != kNeedHelpTag) t
+      if (t.toLowerCase().replaceAll('#', '').trim() != kNeedHelpTag) t,
   ];
   if (on) next.add(kNeedHelpTag);
   return next;
@@ -116,7 +128,10 @@ enum FamilyShareLevel {
   fullCare,
 }
 
-FamilyShareLevel familyShareLevelFor(int careLevel, {required bool fullCareMode}) {
+FamilyShareLevel familyShareLevelFor(
+  int careLevel, {
+  required bool fullCareMode,
+}) {
   if (careLevel >= 3 || fullCareMode) return FamilyShareLevel.fullCare;
   if (careLevel == 2) return FamilyShareLevel.chosenFamily;
   return FamilyShareLevel.asksOnly;

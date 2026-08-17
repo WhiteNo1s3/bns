@@ -93,6 +93,19 @@ harness from this tree before re-testing.
 Each knock reads one line or 600ms and always closes — a hung old door (stock / L4) must not hide a same-Mac sibling, including 127.0.0.1.
 `start()` must not wait for UDP before the knock or before Sync listens; לחבר / חפש שוב re-reads peers already found. Rebuild the L2 harness (not L4, not הגדרות).
 
+## 2026-08-17 ~06:37 IDT — L2 live (Caregiver watched, did not write the day)
+
+Person (L2 isolated, paired to L2 Care, last sync 06:37):
+- עוד היום stuck: water timeByDay 2026-08-17 → 17:30 (usual 16:00 stays)
+- Skip reason stuck on eat: log 06:35 «משהו הפריע. שכחתי באמצע ולא חזרתי.»
+- Tomorrow book they only LOOKED at (event 2026-08-18 16:00 still there)
+
+Need-help they named: could not reach the doors on the screen. Too many steps. Had to write it into the day. Still open.
+
+Care miss (pair holds, trusted רמה 2, last sync 06:37): Care still has 0 routines. Inspector cannot see their day. Receive-first is empty. Not L4. Not הגדרות.
+
+**Fixed same morning (rebuild L2 Person + L2 Care, then sync — do not unpair, do not open הגדרות, do not write the day).** Root cause: the L2 care window hard-coded an empty `routines` list, so family-tagged / need-help routines (6 + 1 of the 8) never left Person; events and family moments did arrive. A leftover empty Care-profile door (minted from a seed thought) is no longer treated as a person and cannot block adopting the real one. The inspector now repaints when sync revises the store. Private untagged routines stay on Person. Care-empty merge cannot wipe Person (additive). Trust is not copied the wrong way.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

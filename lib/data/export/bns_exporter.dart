@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:bns/core/models/calendar_event.dart';
+import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/need_help.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
@@ -70,8 +71,11 @@ class BnsExporter {
   ///  - [FamilyShareLevel.asksOnly] (level 1): ONLY opened Need-help asks.
   ///    No plans, no routines, no logs — a skip or a mood is never an ask.
   ///  - [FamilyShareLevel.chosenFamily] (level 2): chosen plans +
-  ///    family-tagged moments (asks ride along — they carry the family
-  ///    tag). Mad-vents never, even tagged.
+  ///    family-tagged / need-help routines (the person's day, the parts
+  ///    they chose) + family-tagged moments (asks ride along). Their
+  ///    ✓ / skip logs ride with those routines so the inspector can
+  ///    see what happened. Untagged routines stay home. Mad-vents never,
+  ///    even tagged.
   ///  - [FamilyShareLevel.fullCare] (levels 3–4): everything active,
   ///    rants included — the frustration IS the signal.
   ///
@@ -90,17 +94,17 @@ class BnsExporter {
     final events = fullCare
         ? snapshot.events
         : asksOnly
-            ? const <CalendarEvent>[]
-            : snapshot.events.where((e) => e.shareWithFamily).toList();
+        ? const <CalendarEvent>[]
+        : snapshot.events.where((e) => e.shareWithFamily).toList();
     final captures = fullCare
         ? snapshot.captures.where((c) => c.deletedAt == null).toList()
         : asksOnly
-            ? snapshot.captures
-                .where((c) => c.deletedAt == null && level1ShareAllows(c))
-                .toList()
-            : snapshot.captures
-                .where((c) => c.deletedAt == null && isFamilyTagged(c.tags))
-                .toList();
+        ? snapshot.captures
+              .where((c) => c.deletedAt == null && level1ShareAllows(c))
+              .toList()
+        : snapshot.captures
+              .where((c) => c.deletedAt == null && isFamilyTagged(c.tags))
+              .toList();
 
     // Voice notes belonging to the shared moments travel along — hearing
     // "super annoyed at the elevator" in his own voice IS the information.
@@ -118,6 +122,19 @@ class BnsExporter {
       }
     }
 
+    // Level 2 used to ship an empty routines list even when the person
+    // had tagged the day `family`. The Care inspector's day IS those
+    // routines — receive-first looked empty, the pair looked haunted.
+    final routines = fullCare
+        ? snapshot.routines
+        : asksOnly
+        ? const <Routine>[]
+        : snapshot.routines.where(level2ShareAllowsRoutine).toList();
+    final sharedIds = {for (final r in routines) r.id};
+    final logs = fullCare
+        ? snapshot.logs
+        : snapshot.logs.where((l) => sharedIds.contains(l.routineId)).toList();
+
     final manifest = {
       'formatVersion': 2,
       'mediaType': BnsZipPacker.mediaType,
@@ -131,19 +148,16 @@ class BnsExporter {
       'careWindow': width.name,
       if (fullCare) 'fullCare': true,
       'audioCount': audioEntries.length,
-      'totalItems': events.length + captures.length,
+      'totalItems': events.length + captures.length + routines.length,
       'dataCompressed': true,
       'dataFormat': 'gzip+json',
     };
+
     final data = {
-      'routines': fullCare
-          ? snapshot.routines.map((e) => e.toJson()).toList()
-          : const <Object>[],
+      'routines': routines.map((e) => e.toJson()).toList(),
       'events': events.map((e) => e.toJson()).toList(),
       'captures': captures.map((e) => e.toJson()).toList(),
-      'completionLogs': fullCare
-          ? snapshot.logs.map((e) => e.toJson()).toList()
-          : const <Object>[],
+      'completionLogs': logs.map((e) => e.toJson()).toList(),
       // Only the share identity — no keybinds, no preferences, no secrets.
       'settings': {'shareName': settings.effectiveShareName},
     };
@@ -199,7 +213,8 @@ class BnsExporter {
       'appVersion': '0.12a',
       'schema': 'bns/v2',
       'audioCount': audioPaths.length,
-      'totalItems': snapshot.routines.length +
+      'totalItems':
+          snapshot.routines.length +
           snapshot.events.length +
           snapshot.captures.length +
           snapshot.logs.length,
@@ -224,9 +239,12 @@ class BnsExporter {
     final exportsDir = Directory('${home.path}/exports');
     await exportsDir.create(recursive: true);
 
-    final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '').substring(0, 15);
-    final fileName = fixedFileName ??
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '')
+        .substring(0, 15);
+    final fileName =
+        fixedFileName ??
         'BNS_Backup_${snapshot.settings.deviceName.replaceAll(' ', '_')}_$timestamp.bns';
     final outPath = '${exportsDir.path}/$fileName';
 

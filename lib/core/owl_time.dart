@@ -128,3 +128,90 @@ bool offersCompleteOrSkip({
 }) =>
     !lookOnly(day: day, now: now, rolloverHour: rolloverHour,
         startHour: startHour);
+
+/// The first moment that is no longer this person-day: next logical
+/// date at the border hour. With border 0 that is next midnight; with
+/// border 05:00, Aug 17 ends at Aug 18 05:00 — 02:00 is still tonight.
+DateTime personDayEndExclusive(DateTime now, int rolloverHour) {
+  final logical = logicalDateOf(now, rolloverHour);
+  return DateTime(
+      logical.year, logical.month, logical.day + 1, _clampRollover(rolloverHour));
+}
+
+/// True when this clock sits inside the person-day entity
+/// (start → owl end). After a 15:00 start, 07:30 is the next morning —
+/// not tonight — unless [now] is still before the day begins.
+bool inPersonDayWindow({
+  required int hour,
+  required int minute,
+  required DateTime now,
+  required int startHour,
+  required int rolloverHour,
+}) {
+  final logical = logicalDateOf(now, rolloverHour);
+  final actual = actualMomentOf(logical, hour, minute, rolloverHour);
+  final start = personDayStart(now, startHour, rolloverHour);
+  final end = personDayEndExclusive(now, rolloverHour);
+  return !actual.isBefore(start) && actual.isBefore(end);
+}
+
+/// True when [now] has reached this person-day's start.
+bool personDayHasStarted(DateTime now, int startHour, int rolloverHour) =>
+    !now.isBefore(personDayStart(now, startHour, rolloverHour));
+
+/// Parse "HH:mm" — null when there is no clock (timeless / all-day).
+({int hour, int minute})? parseHhmm(String? hhmm) {
+  if (hhmm == null || !hhmm.contains(':')) return null;
+  final p = hhmm.split(':');
+  return (hour: int.tryParse(p[0]) ?? 0, minute: int.tryParse(p[1]) ?? 0);
+}
+
+/// After the day has started, a slot in the owl hole (between the
+/// border and the start — 05:00–15:00 for Ben) is the *next* morning,
+/// not tonight's הבא. A 04:00 owl slot is still this day. Before the
+/// day starts, the hole is just this calendar morning and may be next.
+///
+/// [usualHhmm] is the routine's ordinary clock. A leftover evening
+/// override on a morning stack must not become tonight's הבא.
+bool isNextMorningSlot({
+  String? usualHhmm,
+  String? todayHhmm,
+  required DateTime now,
+  required int startHour,
+  required int rolloverHour,
+}) {
+  if (!personDayHasStarted(now, startHour, rolloverHour)) return false;
+  final raw = usualHhmm ?? todayHhmm;
+  final parsed = parseHhmm(raw);
+  if (parsed == null) return false;
+  return !inPersonDayWindow(
+    hour: parsed.hour,
+    minute: parsed.minute,
+    now: now,
+    startHour: startHour,
+    rolloverHour: rolloverHour,
+  );
+}
+
+/// "What's next" rank inside one person-day.
+/// 0 = still ahead tonight (nearest first)
+/// 1 = earlier today (nearest / latest first — evening beats 07:30)
+/// 2 = timeless
+/// 3 = next-morning hole after the day started (visible, never הבא)
+int nextPersonDayRank({
+  required int? owlMinutes,
+  required int nowOwl,
+  required bool isNextMorning,
+}) {
+  if (owlMinutes == null || owlMinutes >= 24 * 60) return 2;
+  if (isNextMorning) return 3;
+  return owlMinutes >= nowOwl ? 0 : 1;
+}
+
+/// Sort two next-rank keys. Rank 1 (earlier today) prefers the latest
+/// clock — the thing still in front of the person, not the most overdue.
+int compareNextPersonDay(int am, int bm, int ra, int rb) {
+  if (ra != rb) return ra.compareTo(rb);
+  if (ra == 1) return bm.compareTo(am);
+  return am.compareTo(bm);
+}

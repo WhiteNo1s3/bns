@@ -29,11 +29,8 @@ String formatHhmm(DateTime t) =>
 /// The first moment that is no longer this person-day: the next logical
 /// date at the border hour. With border 0 that is next midnight; with
 /// border 04:00, Aug 9 ends at Aug 10 04:00 — 02:00 is still tonight.
-DateTime laterTodayEndExclusive(DateTime now, int rolloverHour) {
-  final logical = logicalDateOf(now, rolloverHour);
-  return DateTime(
-      logical.year, logical.month, logical.day + 1, rolloverHour, 0);
-}
+DateTime laterTodayEndExclusive(DateTime now, int rolloverHour) =>
+    personDayEndExclusive(now, rolloverHour);
 
 /// Later quarter-hours still belonging to this person-day.
 ///

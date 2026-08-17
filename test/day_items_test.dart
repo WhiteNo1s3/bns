@@ -93,4 +93,20 @@ void main() {
     expect(reopened.isAnswered, isFalse);
     expect(reopened.answerReason, isNull);
   });
+
+  test('at 21:32, a 22:00 plan is Next — not 07:30 morning meds', () {
+    final now = DateTime(2026, 8, 17, 21, 32);
+    final open = openDayItemsInNextOrder(
+      routines: [r('meds', '07:45'), r('breakfast', '07:30')],
+      plans: [p('evening', '22:00')],
+      doneRoutineIds: const {},
+      skippedRoutineIds: const {},
+      now: now,
+      rolloverHour: 5,
+      startHour: 15,
+    );
+    expect(ids(open), 'evening,breakfast,meds',
+        reason: 'plans-in-Next walk the person-day; morning stays visible');
+    expect(open.first, isA<CalendarEvent>());
+  });
 }

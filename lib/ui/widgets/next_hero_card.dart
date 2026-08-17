@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/routine.dart';
+import 'package:bns/core/owl_time.dart';
 import 'package:bns/ui/widgets/later_today_door.dart';
 
 /// Big, calm "what's next" for Today.
@@ -278,7 +279,15 @@ class ComingUpStrip extends StatelessWidget {
   }
 }
 
-/// Pick open (not done, not skipped) routines in "what's next" clock order.
+/// Pick open (not done, not skipped) routines in "what's next" order
+/// on the person-day — not the next clock time that already passed
+/// this calendar morning.
+///
+/// After the day starts (15:00 on a 15:00–05:00 day), a 07:30 breakfast
+/// is the next morning: it stays on the list (missed / too late) and
+/// must not steal הבא while evening/night is still ahead. A leftover
+/// evening override on that morning stack does not change that. A 04:00
+/// owl slot is still tonight.
 List<Routine> openRoutinesInNextOrder({
   required List<Routine> todays,
   required Set<String> doneIds,
@@ -291,15 +300,18 @@ List<Routine> openRoutinesInNextOrder({
   // The person's logical day — so a later-today override (17:30 instead
   // of the usual 15:00) queues by TODAY'S clock. Null keeps usual times.
   String? dayKey,
+  int rolloverHour = 0,
+  int startHour = 0,
 }) {
   final n = now ?? DateTime.now();
-  final nowMin = n.hour * 60 + n.minute;
+  final key = dayKey ?? logicalDayKey(n, rolloverHour);
+  final nowMin = owlNowMinutes(n, rolloverHour);
 
   int minutes(Routine r) {
-    final t = r.timeOn(dayKey);
-    if (t == null) return 24 * 60;
-    final p = t.split(':');
-    return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+    final t = r.timeOn(key);
+    final p = parseHhmm(t);
+    if (p == null) return 24 * 60;
+    return owlMinutesOf(p.hour, p.minute, rolloverHour);
   }
 
   final open = todays
@@ -311,10 +323,29 @@ List<Routine> openRoutinesInNextOrder({
 
   open.sort((a, b) {
     final am = minutes(a), bm = minutes(b);
-    int rank(int m) => m >= 24 * 60 ? 2 : (m >= nowMin ? 0 : 1);
-    final ra = rank(am), rb = rank(bm);
-    if (ra != rb) return ra.compareTo(rb);
-    return am.compareTo(bm);
+    final ra = nextPersonDayRank(
+      owlMinutes: am,
+      nowOwl: nowMin,
+      isNextMorning: isNextMorningSlot(
+        usualHhmm: a.time,
+        todayHhmm: a.timeOn(key),
+        now: n,
+        startHour: startHour,
+        rolloverHour: rolloverHour,
+      ),
+    );
+    final rb = nextPersonDayRank(
+      owlMinutes: bm,
+      nowOwl: nowMin,
+      isNextMorning: isNextMorningSlot(
+        usualHhmm: b.time,
+        todayHhmm: b.timeOn(key),
+        now: n,
+        startHour: startHour,
+        rolloverHour: rolloverHour,
+      ),
+    );
+    return compareNextPersonDay(am, bm, ra, rb);
   });
   return open;
 }

@@ -202,4 +202,91 @@ void main() {
           0);
     });
   });
+
+  group('person-day hole — 15:00 → 05:00', () {
+    final night = DateTime(2026, 8, 17, 21, 32);
+    test('07:30 is outside tonight after the day has started', () {
+      expect(
+        inPersonDayWindow(
+          hour: 7,
+          minute: 30,
+          now: night,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isFalse,
+      );
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '07:30',
+          todayHhmm: '21:45',
+          now: night,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isTrue,
+        reason: 'leftover 21:45 on a morning stack is still next morning',
+      );
+    });
+
+    test('21:45 and 02:00 belong to tonight', () {
+      expect(
+        inPersonDayWindow(
+          hour: 21,
+          minute: 45,
+          now: night,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isTrue,
+      );
+      expect(
+        inPersonDayWindow(
+          hour: 2,
+          minute: 0,
+          now: night,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isTrue,
+      );
+    });
+
+    test('04:00 owl is still this day; 07:30 is not', () {
+      final owl = DateTime(2026, 8, 18, 3, 30);
+      expect(
+        inPersonDayWindow(
+          hour: 4,
+          minute: 0,
+          now: owl,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isTrue,
+      );
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '07:30',
+          now: owl,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isTrue,
+      );
+    });
+
+    test('before the day starts, 07:30 is this calendar morning', () {
+      final afternoon = DateTime(2026, 8, 17, 14, 0);
+      expect(personDayHasStarted(afternoon, 15, 5), isFalse);
+      expect(
+        isNextMorningSlot(
+          usualHhmm: '07:30',
+          now: afternoon,
+          startHour: 15,
+          rolloverHour: 5,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

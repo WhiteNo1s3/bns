@@ -2050,6 +2050,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         nextFirst: _nextFirstOrder,
                         now: DateTime.now(),
                         rolloverHour: _rolloverHour,
+                        startHour: _dayStartHour,
                       );
                       // LATE WAKE-UPS ARE WELCOME (owner QA, 2026-08-14:
                       // "I woke up today at 15:30... I had no clue what to
@@ -2082,13 +2083,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           .whereType<Routine>()
                           .toList(); // for the keyboard handler
 
-                      // Hero always uses clock "what's next" order — the
-                      // list below can still follow the person's preference.
+                      // Hero walks the person-day from now — not the
+                      // next clock time that already passed this morning.
+                      // The list below can still follow the person's order.
                       final openNext = openRoutinesInNextOrder(
                         todays: todaysRoutines,
                         doneIds: _doneTodayIds,
                         skippedIds: _skippedTodayIds,
                         snoozedIds: _snoozedUntil.keys.toSet(),
+                        now: DateTime.now(),
+                        dayKey: _todayKey,
+                        rolloverHour: _rolloverHour,
+                        startHour: _dayStartHour,
                       );
                       // ALWAYS RETURN: something already started outranks
                       // the clock. Half-done work is the easiest thing in

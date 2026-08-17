@@ -106,6 +106,32 @@ Care miss (pair holds, trusted רמה 2, last sync 06:37): Care still has 0 rout
 
 **Fixed same morning (rebuild L2 Person + L2 Care, then sync — do not unpair, do not open הגדרות, do not write the day).** Root cause: the L2 care window hard-coded an empty `routines` list, so family-tagged / need-help routines (6 + 1 of the 8) never left Person; events and family moments did arrive. A leftover empty Care-profile door (minted from a seed thought) is no longer treated as a person and cannot block adopting the real one. The inspector now repaints when sync revises the store. Private untagged routines stay on Person. Care-empty merge cannot wipe Person (additive). Trust is not copied the wrong way.
 
+## 2026-08-17 ~06:50 IDT — L2 live (Empty-Care-day fix 49281ac)
+
+Empty-Care-day fix 49281ac worked. Isolated L2 only. Pair held. Person 8 routines; private ישיבה שקטה 20:00 untagged on Person only. Care sitting רמה 2 has 7 family + need-help; eat skip + water timeByDay 17:30 came through. Inspector: Mon 17 Aug, 0 נעשו · 7 ברשימה היום. Not L4. Not הגדרות.
+
+REQUIRED, not shipped: **One Care / few people** (switcher, sit the right person). After 49281ac the L2 Care inspector shows an אנשים dropdown sitting on רמה 2. Early profile chrome, not a switcher. Still one Care / one trusted[] / one list. Multiprofile stays REQUIRED until one seat can follow a few people without a cloned app. Do not claim the dropdown is the switcher. Care boot sits on a profile (רמה 2) while caregiver/bns_data.json itself is empty. Do not start the switcher.
+
+## 2026-08-17 ~21:32 IDT — L1 live on S23 (Caregiver watched, did not write the list)
+
+APK still **0.11.0**. No pair. No extra BNS. No Guided/Full care. Sync friend still named Care, offline since 15 Aug 23:50 — do not tap לחבר. Do not send them to הגדרות. S23 still needs a current APK.
+
+- הבא at night still תרופות הבוקר 21:45 part 1/3 (drink water before the pill), labeled "too late". Soft morning stack all still open (breakfast 07:30 through evening). Night and the next-goal rank are lying. Open.
+- משהו הפריע still the old multi-door (later-remind + brown Save-this). Empty סגירה correctly did not skip.
+- Calendar next day (Tue 18): banner «היום הזה עוד לא הגיע», no tick on that view. That door behaved.
+- Keep: short note "peach 17" landed first on Memories.
+- Menu ☰: 3 cards (מילות היום / השגרות שלי / הגדרות וסנכרון). Fine.
+- They did not second-Done.
+
+Known pile still live on this APK (expected old — do not claim skip Close is lived on S23): Close-with-reason does not skip, no «לא קרה» in the shade, Done asking again, too many Save doors. Skip Close / shade «לא קרה» not lived on this 0.11.0 APK.
+
+## 2026-08-17 ~21:45 IDT — הבא walks the person-day (tree; needs a new APK)
+
+Root cause: Next ranked by raw clock / most-overdue, so morning meds stole הבא at 21:32 while evening/night were still the real next. The 15:00-05:00 owl hole was already in the tree and unused by the hero.
+
+After the day starts, a 07:30 breakfast is the next morning — visible, not הבא. A 04:00 owl slot is still tonight. No Settings door. Caregiver/L1 need a new APK (phone is still 0.11.0). Not L4.
+
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

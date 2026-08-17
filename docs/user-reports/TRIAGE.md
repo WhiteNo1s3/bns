@@ -417,9 +417,9 @@ Open / recorded:
   every new field. Future hardening: unknown-key passthrough in models.
 - **Pruned captures orphan their audio files** on disk — cleanup pass
   wanted alongside the garden work.
-- **dayStartHour setting has no picker yet** (model + logic in; the
-  person's day start defaults to midnight until a settings door lands).
-  Alpha rule meanwhile: kill stale builds after a schema wave.
+- **dayStartHour picker is on Sync** (not הגדרות): «מתי היום שלך מתחיל?».
+  15 survives save+reload and a Care merge; a helper 0 cannot midnight
+  a set start. Rebuild isolated L2 to see it.
 - Windows person build shares the live Mac Documents store; Windows
   rebuild broken (MSBuild VCTargetsPath / ARM64). Alpha-env only.
 - Ctrl+R once landed on /sync — unreproduced.

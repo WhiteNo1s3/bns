@@ -11,8 +11,9 @@
 ///    routines (and their ✓ / skip logs) + family-tagged moments, vents
 ///    never, even tagged; untagged routines stay home;
 ///  - levels 3–4 get everything active, rants included (the law);
-///  - EVERY window ships a settings stub — shareName only, no identity,
-///    no keys: a hat cannot travel inside a care window.
+///  - EVERY window ships a settings stub — shareName + the person-day
+///    clock, no identity, no keys: a hat cannot travel inside a care
+///    window. 15:00 is the day, not a preference.
 library;
 
 import 'dart:io';
@@ -134,7 +135,8 @@ void main() {
     Future<void> seedStore() async {
       final now = DateTime(2026, 8, 16, 12);
       final s = await IsarService.getSettings();
-      await IsarService.updateSettings(s.copyWith(shareName: 'Ben'));
+      await IsarService.updateSettings(s.copyWith(
+          shareName: 'Ben', dayStartHour: 15, dayRolloverHour: 5));
       await IsarService.addRoutine(
         Routine(
           id: 'r1',
@@ -254,6 +256,9 @@ void main() {
       );
       expect(parsed.settings.effectiveShareName, 'Ben');
       expect(parsed.settings.careLockHash, isEmpty);
+      expect(parsed.settings.dayStartHour, 15,
+          reason: 'the person-day clock IS the day — it rides the window');
+      expect(parsed.settings.dayRolloverHour, 5);
     });
 
     test('level 2: chosen family + family moments, vents never', () async {
@@ -352,6 +357,42 @@ void main() {
         isEmpty,
         reason: 'the learn guard (deviceId match) can never pass on a stub',
       );
+    });
+
+    test('Care learns 15:00 from the window; a 0 stub cannot eat it', () async {
+      await seedStore();
+      final window = await BnsExporter.exportCareWindow(
+        FamilyShareLevel.chosenFamily,
+      );
+      // Pretend we are Care: midnight clock, helper hat.
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(s.copyWith(
+          caregiverDevice: true, dayStartHour: 0, dayRolloverHour: 0));
+      await BnsImporter.importMerge(window);
+      final learned = await IsarService.getSettings();
+      expect(learned.dayStartHour, 15,
+          reason: 'receive-first must teach Care the person\'s day start');
+      expect(learned.dayRolloverHour, 5);
+      expect(learned.caregiverDevice, isTrue,
+          reason: 'the clock travels; the hat does not');
+
+      // An empty / default stub (the old shareName-only copy) must not
+      // put 15 back to midnight.
+      await BnsImporter.importMerge(
+        await BnsExporter.exportCareWindow(FamilyShareLevel.asksOnly),
+      );
+      // asksOnly from THIS store now has 15 (we are Care, clock already
+      // learned). Simulate the eater: a stub that never knew the field.
+      await IsarService.mergeData(
+        routines: [],
+        events: [],
+        captures: [],
+        logs: [],
+        incomingSettings: const AppSettings(),
+      );
+      final kept = await IsarService.getSettings();
+      expect(kept.dayStartHour, 15);
+      expect(kept.dayRolloverHour, 5);
     });
   });
 

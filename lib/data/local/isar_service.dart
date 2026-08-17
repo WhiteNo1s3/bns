@@ -12,6 +12,7 @@ import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/core/day_ideas.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/keybinds.dart';
+import 'package:bns/core/owl_time.dart';
 
 /// Central persistence for routines, events, captures, logs, settings.
 ///
@@ -579,6 +580,18 @@ class IsarService {
       careLevel: keepRole ? local.careLevel : null,
       shareName: keepRole ? local.shareName : null,
       careLockHash: keepRole ? local.careLockHash : null,
+      // The person-day clock is the person's. A helper copy / default 0
+      // must not midnight a set 15:00.
+      dayStartHour: adoptPersonDayHour(
+        incoming: settings.dayStartHour,
+        local: local.dayStartHour,
+        incomingIsHelper: settings.caregiverDevice,
+      ),
+      dayRolloverHour: adoptPersonDayHour(
+        incoming: settings.dayRolloverHour,
+        local: local.dayRolloverHour,
+        incomingIsHelper: settings.caregiverDevice,
+      ),
     );
     await _persist();
   }
@@ -624,6 +637,23 @@ class IsarService {
     // that stub would reset the helper's care hat and language. Leave local
     // settings; the person's name already lives on the trusted device card.
     if (incomingSettings.deviceId.isEmpty) {
+      // Care window stub: no identity, no hats — but the person's DAY
+      // includes their clock. 0 stays unset so an empty copy cannot
+      // midnight a set 15:00.
+      final start = adoptPersonDayHour(
+        incoming: incomingSettings.dayStartHour,
+        local: local.dayStartHour,
+      );
+      final end = adoptPersonDayHour(
+        incoming: incomingSettings.dayRolloverHour,
+        local: local.dayRolloverHour,
+      );
+      if (start != local.dayStartHour || end != local.dayRolloverHour) {
+        d.settings = local.copyWith(
+          dayStartHour: start,
+          dayRolloverHour: end,
+        );
+      }
       await _persist();
       return;
     }
@@ -658,6 +688,19 @@ class IsarService {
       careLevel: hatsStay ? local.careLevel : null,
       shareName: hatsStay ? local.shareName : null,
       careLockHash: hatsStay ? local.careLockHash : null,
+      // Person-day clock: a helper's 0 (or an old file that never knew
+      // the field) must not eat a set start. Care learns 15 from the
+      // person; the person keeps 15 when Care sends midnight back.
+      dayStartHour: adoptPersonDayHour(
+        incoming: incomingSettings.dayStartHour,
+        local: local.dayStartHour,
+        incomingIsHelper: incomingIsHelper,
+      ),
+      dayRolloverHour: adoptPersonDayHour(
+        incoming: incomingSettings.dayRolloverHour,
+        local: local.dayRolloverHour,
+        incomingIsHelper: incomingIsHelper,
+      ),
     );
     await _persist();
   }

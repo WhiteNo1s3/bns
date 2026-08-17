@@ -60,8 +60,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   int _eventReminderMinutes = 30;
   // How long an untouched reminder waits in the shade (0 = until seen).
   int _reminderTimeoutMinutes = 120;
-  // Owl time: the hour the person's day ends (0 = midnight).
+  // Owl time: the person's 24-hour day entity (start + end).
   int _dayRolloverHour = 0;
+  int _dayStartHour = 0;
   bool _sttEnabled = true;
   bool _autoImage = true;
   String _homePath = '';
@@ -105,6 +106,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _eventReminderMinutes = settings.eventReminderMinutes;
     _reminderTimeoutMinutes = settings.reminderTimeoutMinutes;
     _dayRolloverHour = settings.dayRolloverHour;
+    _dayStartHour = settings.dayStartHour;
     _sttEnabled = settings.sttEnabled;
     _autoImage = settings.autoImageEnabled;
     _keybinds = Map<String, String>.from(settings.keybinds);
@@ -163,6 +165,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         _eventReminderMinutes = s.eventReminderMinutes;
         _reminderTimeoutMinutes = s.reminderTimeoutMinutes;
         _dayRolloverHour = s.dayRolloverHour;
+        _dayStartHour = s.dayStartHour;
         _sttEnabled = s.sttEnabled;
         _autoImage = s.autoImageEnabled;
         _fullCareMode = s.fullCareMode;
@@ -307,6 +310,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.updateSettings(s.copyWith(reminderTimeoutMinutes: v));
     await NotificationsService.rescheduleAll(force: true);
     await _loadRetention();
+  }
+
+  /// Same day entity: when the person begins. Later-today, the list,
+  /// Next, and reminders all read this start with the end below.
+  Future<void> _setDayStartHour(int v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(dayStartHour: v));
+    await NotificationsService.rescheduleAll(force: true);
+    AndroidBnsWidget.updateWidget();
+    await _loadRetention();
+    if (!mounted) return;
+    final hh = v.toString().padLeft(2, '0');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v == 0
+            ? L.t('Your day starts at midnight — the classic way.',
+                'היום שלך מתחיל בחצות — הדרך הקלאסית.')
+            : L.t(
+                'Your day now starts at $hh:00. Later today follows '
+                'your day, not the calendar\'s midnight.',
+                'היום שלך מתחיל עכשיו ב-$hh:00. עוד היום הולך לפי '
+                'היום שלך, לא לפי חצות של הלוח.'))));
   }
 
   /// Owl time: move the border of the day. Reminders reschedule (weekly
@@ -1688,6 +1712,43 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   // (owner, 2026-08-10: "my day isn't done in 00:00...
                   // I cannot set pills at 2:00 and be normal like
                   // everyone" — now they can, and they are). ----
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.wb_twilight_outlined),
+                    title: Text(
+                        L.t('When does your day start?',
+                            'מתי היום שלך מתחיל?'),
+                        style: Theme.of(context).textTheme.titleSmall),
+                    subtitle: Text(
+                        L.t(
+                            'Your own day. If you wake at 15:00, pick '
+                            '15:00 — later today and the list follow '
+                            'that day, not midnight.',
+                            'היום שלך. אם אתם קמים ב-15:00, בחרו '
+                            '15:00 — עוד היום והרשימה הולכים לפי '
+                            'היום הזה, לא לפי חצות.'),
+                        style: const TextStyle(fontSize: 12)),
+                  ),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final h in ({
+                        0, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                        _dayStartHour,
+                      }.toList()
+                        ..sort()))
+                        ChoiceChip(
+                          label: Text(h == 0
+                              ? L.t('Midnight', 'חצות')
+                              : '${h.toString().padLeft(2, '0')}:00'),
+                          selected: _dayStartHour == h,
+                          onSelected: (_) => _setDayStartHour(h),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,

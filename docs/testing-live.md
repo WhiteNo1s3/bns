@@ -123,7 +123,7 @@ APK still **0.11.0**. No pair. No extra BNS. No Guided/Full care. Sync friend st
 - Menu ☰: 3 cards (מילות היום / השגרות שלי / הגדרות וסנכרון). Fine.
 - They did not second-Done.
 
-Known pile still live on this APK (expected old — do not claim skip Close is lived on S23): Close-with-reason does not skip, no «לא קרה» in the shade, Done asking again, too many Save doors. Skip Close / shade «לא קרה» not lived on this 0.11.0 APK.
+Known pile still live on this APK at 21:32 (expected old): Close-with-reason did not skip that pass, no «לא קרה» in the shade, Done asking again, too many Save doors. Later same night (~23:28–23:31) skip-Close lived — see 23:28 block.
 
 ## 2026-08-17 ~21:45 IDT — הבא walks the person-day (tree; needs a new APK)
 
@@ -131,6 +131,37 @@ Root cause: Next ranked by raw clock / most-overdue, so morning meds stole הב�
 
 After the day starts, a 07:30 breakfast is the next morning — visible, not הבא. A 04:00 owl slot is still tonight. No Settings door. Caregiver/L1 need a new APK (phone is still 0.11.0). Not L4.
 
+## 2026-08-17 ~23:40 IDT — L2 person-day start 15:00 sticks
+
+Lived on tonight's 0.11.0: day and pair stayed, עוד היום water 02:00→02:30 stuck, skip reason stuck, **dayStartHour 15:00 still showed 0**. They did not open הגדרות. A Care copy had already eaten 15:00 once today.
+
+Root cause: the care window stub shipped shareName only (empty deviceId → merge ignored the clock), so Care stayed at midnight; Care then sent a full snapshot with `dayStartHour: 0` and last-write ate Person's 15. 0 meant unset and was treated as a real midnight.
+
+Now: Sync has «מתי היום שלך מתחיל?» (not הגדרות). 15 survives save+reload. A helper / empty stub cannot midnight a set 15. The window carries the clock so Care learns 15 and עוד היום follows 15:00–end. Rebuild isolated L2 Person + L2 Care (not L4, not stock). Do not unpair. Do not write their day. Do not send them to הגדרות.
+
+**L1 S23 ~23:28 IDT (APK 0.11.0, lastUpdate 22:07):** a8b1205 not enough on this device, or leftover 21:45. הבא still morning pills at night. Still open.
+
+## 2026-08-17 ~23:28–23:31 IDT — L1 live on S23 (0.11.0 lastUpdate 22:07; Caregiver watched, did not write the list)
+
+APK still **0.11.0** (lastUpdate 22:07). No pair. No extra BNS. No Guided/Full care. Do not tap לחבר. Do not send them to הגדרות. Not L4. Not הגדרות.
+
+- הבא at 23:28 still 21:45 תרופות הבוקר — חלק 1/3 לשתות כוס מים / לפני הכדור, labeled "too late". Morning pills still Next at night. Midnight big card still morning pills. a8b1205 not enough on this device, or leftover 21:45. Open.
+- משהו הפריע still the old multi-door (later-remind + brown Save-this + זה לא קרה היום + סגירה). Four miss doors when they only wanted write-why-and-close. Open.
+- סגירה + "too late": skipped off Next. Words saved: לא קרה היום — נרשם + "too late" · 23:31. **Skip-Close lived on this 0.11.0** (left Next).
+- New הבא jumped backward to 21:30 הכנה לשינה / לכבות מסכים while evening meds and family call still open. After skip the morning row still said הבא: לשתות כוס מים. Tile stayed; part line still drink water. Jump-back open.
+
+## 2026-08-17 ~23:33 IDT — L2 live on 0.11.0 (Caregiver watched, did not write the day)
+
+Day and pair stayed. Did not open הגדרות. Stayed on Today. Not L4. Not הגדרות.
+
+- עוד היום: last water 02:00 → 02:30 today only. Override DID stick.
+- Skip: desk, reason stuck — «התבלבלתי. יותר מדי שלבים. לא סיימתי.»
+- Capture: kept words. Save / capture on screen still feels far. Still open.
+- Tomorrow book: look-only, did not touch.
+- Need-help maze: still cannot reach the doors on the screen. Too many steps. Have to write into the day. Still open.
+- dayStartHour 15:00 still does not stick (shows 0). Day is supposed to start at 15:00. Open.
+
+Caregiver same pass: they did not write the day. Family saw water → 02:30 and desk skip «התבלבלתי. יותר מדי שלבים. לא סיימתי.» Tomorrow look-only. Need-help still cannot reach the doors on 0.11.0. After isolated relaunch they will only look whether Care רמה 2 shows the skip and 02:30. This morning's 17:30 on water often failed to save — watch 02:30.
 
 ## Kubuntu laptop — install Flutter once
 ```bash

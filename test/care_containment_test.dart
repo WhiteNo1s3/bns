@@ -20,6 +20,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 import 'package:bns/core/care_lock.dart';
+import 'package:bns/core/models/models.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 
@@ -186,6 +187,81 @@ void main() {
           reason: 'a level chosen together reaches the person\'s other device');
       expect(after.careLevel, 3);
       expect(after.shareName, 'Ben');
+    });
+  });
+
+  group('person-day 15:00 survives save, reload, and a Care copy', () {
+    test('15 lives through updateSettings and a pretend restart', () async {
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(
+          s.copyWith(dayStartHour: 15, dayRolloverHour: 5));
+      await IsarService.debugResetForTest();
+      final after = await IsarService.getSettings();
+      expect(after.dayStartHour, 15);
+      expect(after.dayRolloverHour, 5);
+    });
+
+    test('a helper full snapshot with 0 cannot midnight the person', () async {
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(s.copyWith(
+          caregiverDevice: false, dayStartHour: 15, dayRolloverHour: 5));
+      final helper = (await IsarService.getSettings()).copyWith(
+          deviceId: 'care-1',
+          deviceName: 'BNS Care',
+          caregiverDevice: true,
+          dayStartHour: 0,
+          dayRolloverHour: 0);
+      await IsarService.mergeData(
+          routines: [],
+          events: [],
+          captures: [],
+          logs: [],
+          incomingSettings: helper);
+      final after = await IsarService.getSettings();
+      expect(after.dayStartHour, 15,
+          reason: 'Care receive-first / a helper copy must not eat 15:00');
+      expect(after.dayRolloverHour, 5);
+      expect(after.caregiverDevice, isFalse);
+    });
+
+    test('Care learns 15 from the person\'s own store', () async {
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(s.copyWith(
+          caregiverDevice: true, dayStartHour: 0, dayRolloverHour: 0));
+      final person = (await IsarService.getSettings()).copyWith(
+          deviceId: 'person-1',
+          deviceName: 'BNS Phone',
+          caregiverDevice: false,
+          dayStartHour: 15,
+          dayRolloverHour: 5);
+      await IsarService.mergeData(
+          routines: [],
+          events: [],
+          captures: [],
+          logs: [],
+          incomingSettings: person);
+      final after = await IsarService.getSettings();
+      expect(after.dayStartHour, 15,
+          reason: 'the inspector\'s clock is the person\'s day');
+      expect(after.dayRolloverHour, 5);
+      expect(after.caregiverDevice, isTrue);
+    });
+
+    test('an empty care-window stub cannot midnight a set 15', () async {
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(
+          s.copyWith(dayStartHour: 15, dayRolloverHour: 5));
+      const stub = AppSettings(); // empty deviceId, hours 0
+      expect(stub.deviceId, isEmpty);
+      await IsarService.mergeData(
+          routines: [],
+          events: [],
+          captures: [],
+          logs: [],
+          incomingSettings: stub);
+      final after = await IsarService.getSettings();
+      expect(after.dayStartHour, 15);
+      expect(after.dayRolloverHour, 5);
     });
   });
 }

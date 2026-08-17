@@ -79,9 +79,10 @@ class BnsExporter {
   ///  - [FamilyShareLevel.fullCare] (levels 3–4): everything active,
   ///    rants included — the frustration IS the signal.
   ///
-  /// Every width ships a settings STUB (shareName only): the helper gets
-  /// the person's DAY, never their identity, keys, or preferences —
-  /// hats cannot travel inside a care window at all.
+  /// Every width ships a settings STUB: shareName plus the person-day
+  /// clock (start + owl end). The helper gets the person's DAY — the
+  /// clock IS the day — never their identity, keys, or other
+  /// preferences. Hats cannot travel inside a care window at all.
   static Future<File> exportCareWindow(
     FamilyShareLevel width, {
     String filePrefix = 'BNS_CareWindow',
@@ -158,8 +159,13 @@ class BnsExporter {
       'events': events.map((e) => e.toJson()).toList(),
       'captures': captures.map((e) => e.toJson()).toList(),
       'completionLogs': logs.map((e) => e.toJson()).toList(),
-      // Only the share identity — no keybinds, no preferences, no secrets.
-      'settings': {'shareName': settings.effectiveShareName},
+      // Share identity + the person-day clock. No keybinds, no other
+      // preferences, no secrets. 15:00 is the day, not a preference.
+      'settings': {
+        'shareName': settings.effectiveShareName,
+        'dayStartHour': settings.dayStartHour,
+        'dayRolloverHour': settings.dayRolloverHour,
+      },
     };
 
     final home = await BnsHome.dir();

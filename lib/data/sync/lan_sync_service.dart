@@ -934,8 +934,9 @@ class LanSyncService {
   /// wearing the helper hat gets the care window the person's level
   /// allows — level 1 opened asks only, level 2 chosen family, levels
   /// 3–4 everything (the rants included, by law). The window also ships
-  /// only a shareName settings stub, so nothing about identity, keys or
-  /// preferences ever crosses toward a helper.
+  /// a settings stub (shareName + the person-day clock), so identity,
+  /// keys and other preferences never cross toward a helper. The clock
+  /// is the day — 15:00 must arrive or Care midnights עוד היום.
   Future<File> _snapshotForPeer(TrustedDevice trusted) async {
     final me = await IsarService.getSettings();
     final window = careWindowFor(

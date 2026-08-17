@@ -342,10 +342,8 @@ class AppSettings {
                 RelaxingPalette.clay,
         notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
         reminderStyle: json['reminderStyle'] as String? ?? 'gentle',
-        dayRolloverHour:
-            ((json['dayRolloverHour'] as num?)?.toInt() ?? 0).clamp(0, 6),
-        dayStartHour:
-            ((json['dayStartHour'] as num?)?.toInt() ?? 0).clamp(0, 23),
+        dayRolloverHour: _hourFromJson(json['dayRolloverHour'], 6),
+        dayStartHour: _hourFromJson(json['dayStartHour'], 23),
         notificationColor: json['notificationColor'] as String? ?? 'auto',
         eventReminderMinutes:
             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,
@@ -385,4 +383,14 @@ class AppSettings {
         serverUrl: json['serverUrl'] as String?,
         serverToken: json['serverToken'] as String?,
       );
+}
+
+int _hourFromJson(Object? value, int max) {
+  final n = value is num
+      ? value.toInt()
+      : value is String
+          ? int.tryParse(value)
+          : null;
+  final h = n ?? 0;
+  return h < 0 ? 0 : (h > max ? max : h);
 }

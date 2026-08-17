@@ -203,6 +203,42 @@ void main() {
     });
   });
 
+  group('AppSettings.dayStartHour', () {
+    test('roundtrips, clamps, and reads a string 15 as 15 not 0', () {
+      final s = const AppSettings().copyWith(dayStartHour: 15);
+      expect(AppSettings.fromJson(s.toJson()).dayStartHour, 15);
+      expect(
+          AppSettings.fromJson(const {'id': 'singleton', 'dayStartHour': 30})
+              .dayStartHour,
+          23);
+      expect(AppSettings.fromJson(const {'id': 'singleton'}).dayStartHour, 0);
+      expect(
+          AppSettings.fromJson(const {'id': 'singleton', 'dayStartHour': '15'})
+              .dayStartHour,
+          15,
+          reason: 'a written "15" must not become midnight after reload');
+    });
+  });
+
+  group('adoptPersonDayHour — 0 is unset, a helper cannot midnight 15', () {
+    test('a set 15 survives a Care / default 0', () {
+      expect(
+        adoptPersonDayHour(incoming: 0, local: 15, incomingIsHelper: true),
+        15,
+      );
+      expect(adoptPersonDayHour(incoming: 0, local: 15), 15);
+    });
+    test('Care learns 15 from the person', () {
+      expect(adoptPersonDayHour(incoming: 15, local: 0), 15);
+    });
+    test('a set incoming hour wins between own devices', () {
+      expect(adoptPersonDayHour(incoming: 12, local: 15), 12);
+    });
+    test('both unset stay midnight', () {
+      expect(adoptPersonDayHour(incoming: 0, local: 0), 0);
+    });
+  });
+
   group('person-day hole — 15:00 → 05:00', () {
     final night = DateTime(2026, 8, 17, 21, 32);
     test('07:30 is outside tonight after the day has started', () {

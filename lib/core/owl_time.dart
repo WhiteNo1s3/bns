@@ -215,3 +215,19 @@ int compareNextPersonDay(int am, int bm, int ra, int rb) {
   if (ra == 1) return bm.compareTo(am);
   return am.compareTo(bm);
 }
+
+/// The person-day clock across a copy / Care merge.
+///
+/// 0 means unset (midnight, the old world, or a file that never knew
+/// the field). A helper's 0 must not eat a set 15. A set incoming
+/// hour always wins — Care learns the person's day; the person keeps
+/// it when Care sends the default back.
+int adoptPersonDayHour({
+  required int incoming,
+  required int local,
+  bool incomingIsHelper = false,
+}) {
+  if (incomingIsHelper) return local;
+  if (incoming == 0 && local != 0) return local;
+  return incoming;
+}

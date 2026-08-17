@@ -171,6 +171,14 @@ Root cause: startHour 0 was treated as midnight so the owl hole never fired, and
 
 Now: unset start still treats a morning usual time as next-morning once evening has begun; leftover evening clocks on morning stacks cannot be הבא; Next walks the person-day forward (evening / family before 21:30); a skipped row drops the הבא part line. 04:00 owl is still tonight. L1 needs a new APK (emulator can take it). Not L4. Not הגדרות.
 
+## 2026-08-17 ~23:52 IDT — person-day start door on Today
+
+L2 after dce029b stayed on Today. «מתי היום שלך מתחיל?» lived only on Sync. They did not open הגדרות. Did not set 15:00. dayStartHour still 0. The door was too far from Today.
+
+Now: the same kind line sits on Today under «היום שלך.» when dayStartHour is still 0 (the wiped default, not a chosen midnight). One tap 15:00 uses the same save as dce029b. After a real hour the door quiets — the day is 15:00, not a maze. No Settings. No Sync. No extra confirm.
+
+Rebuild isolated L2 Person (Care only if the clock share needs it). They set 15. Do not write 15 for them. Not L4. Not הגדרות.
+
 ## Kubuntu laptop — install Flutter once
 ```bash
 sudo apt install git curl unzip xz-utils zip clang cmake ninja-build \

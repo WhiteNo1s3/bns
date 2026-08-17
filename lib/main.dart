@@ -19,6 +19,7 @@ import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/postpone_sheet.dart';
 import 'package:bns/ui/widgets/bns_menu_screen.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
+import 'package:bns/ui/widgets/day_start_door.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
 import 'package:bns/core/day_feed.dart';
@@ -1050,6 +1051,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             'עבר ל־$hhmm — עדיין היום.'))));
   }
 
+  /// Same persist as Sync / dce029b. Today never sends them to Sync.
+  Future<void> _setDayStartHour(int v) async {
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(s.copyWith(dayStartHour: v));
+    await NotificationsService.rescheduleAll(force: true);
+    AndroidBnsWidget.updateWidget();
+    if (!mounted) return;
+    setState(() => _dayStartHour = v);
+    final hh = v.toString().padLeft(2, '0');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(v == 0
+            ? L.t('Your day starts at midnight — the classic way.',
+                'היום שלך מתחיל בחצות — הדרך הקלאסית.')
+            : L.t(
+                'Your day now starts at $hh:00.',
+                'היום שלך מתחיל עכשיו ב-$hh:00.'))));
+  }
+
   Future<void> _toggleTodayOrder() async {
     final s = await IsarService.getSettings();
     final next = !_nextFirstOrder;
@@ -1947,6 +1966,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
+                  if (_dayStartHour == 0 && !_guidedMode) ...[
+                    const SizedBox(height: 16),
+                    DayStartDoor(
+                      dayStartHour: _dayStartHour,
+                      onPicked: _setDayStartHour,
+                      textScale: _textScale,
+                    ),
+                  ],
                   if (_madActive)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

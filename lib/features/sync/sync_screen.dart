@@ -10,6 +10,7 @@ import 'package:bns/core/keybinds.dart';
 import 'package:bns/core/sync_policy.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/features/sync/pairing_dialogs.dart';
+import 'package:bns/ui/widgets/time_fusion_picker.dart';
 import 'package:bns/providers/app_providers.dart';
 import 'package:bns/core/care_lock.dart';
 import 'package:bns/data/export/bns_exporter.dart';
@@ -1729,23 +1730,29 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             'היום הזה, לא לפי חצות.'),
                         style: const TextStyle(fontSize: 12)),
                   ),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      for (final h in ({
-                        0, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                        _dayStartHour,
-                      }.toList()
-                        ..sort()))
-                        ChoiceChip(
-                          label: Text(h == 0
-                              ? L.t('Midnight', 'חצות')
-                              : '${h.toString().padLeft(2, '0')}:00'),
-                          selected: _dayStartHour == h,
-                          onSelected: (_) => _setDayStartHour(h),
-                        ),
-                    ],
+                  // One door, not a wall of sixteen chips (owner,
+                  // 2026-08-18): the fusion picker — hour rail + one
+                  // confirm wearing the hour.
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showTimeFusionSheet(
+                        context: context,
+                        title: L.t('When does your day start?',
+                            'מתי היום שלך מתחיל?'),
+                        initial: TimeOfDay(
+                            hour: _dayStartHour == 0 ? 8 : _dayStartHour,
+                            minute: 0),
+                        quarters: false,
+                      );
+                      if (picked != null) await _setDayStartHour(picked.hour);
+                    },
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48)),
+                    icon: const Icon(Icons.schedule, size: 20),
+                    label: Text(_dayStartHour == 0
+                        ? L.t('Midnight (not chosen yet)',
+                            'חצות (עוד לא נבחר)')
+                        : '${_dayStartHour.toString().padLeft(2, '0')}:00'),
                   ),
                   const SizedBox(height: 12),
                   ListTile(
@@ -1768,19 +1775,26 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             'ישנים.'),
                         style: const TextStyle(fontSize: 12)),
                   ),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      for (final h in const [0, 1, 2, 3, 4, 5, 6])
-                        ChoiceChip(
-                          label: Text(h == 0
-                              ? L.t('Midnight', 'חצות')
-                              : '0$h:00'),
-                          selected: _dayRolloverHour == h,
-                          onSelected: (_) => _setDayRolloverHour(h),
-                        ),
-                    ],
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await showTimeFusionSheet(
+                        context: context,
+                        title: L.t('When does your day end?',
+                            'מתי היום שלך נגמר?'),
+                        initial: TimeOfDay(hour: _dayRolloverHour, minute: 0),
+                        quarters: false,
+                        maxHour: 6,
+                      );
+                      if (picked != null) {
+                        await _setDayRolloverHour(picked.hour);
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48)),
+                    icon: const Icon(Icons.bedtime_outlined, size: 20),
+                    label: Text(_dayRolloverHour == 0
+                        ? L.t('Midnight', 'חצות')
+                        : '0$_dayRolloverHour:00'),
                   ),
                   const Divider(height: 24),
                   // ---- Reminders: when, how loud, and in what color ----

@@ -227,3 +227,126 @@ Mood was angry. Do not put that in a family file. The design miss is the morning
 Prototyper: after the person-day starts, a missed morning stack stays visible and is not הבא. Evening/night still ahead is the real next. Pushed on `~/dev/bns` at `a8b1205`.
 
 L1 S23 is still APK 0.11.0. They will not see this until a new APK. Caregiver is not installing one unless Ben asks. Hold the list. Do not write it. Do not tap לחבר. Do not send them to הגדרות.
+
+---
+
+## 2026-08-17 ~23:27 IDT — tonight’s 0.11.0 on phone and Mac
+
+Prototyper: current tester is tonight’s 0.11.0 (same-Mac hello, L2 chosen-day share, person-day הבא). Already on the S23 and the Mac. Windows is not current. If Care looks stale, ask which אנשים door was open (closed door waits in the inbox).
+
+**Do not** write lists. **Do not** tap לחבר on the old offline Care friend (stock Sync, last heard 15 Aug 23:50). **Do not** send anyone to הגדרות.
+
+Read-only check:
+- L3 + L4 Person/Care binaries on disk 22:07. Still running 06:16 processes. Did not relaunch.
+- L2 Person/Care still 06:48 (`49281ac`). Pair intact: Person 8, Care רמה 2 has 7. Private sit stays on Person.
+- L4 pair intact (Care trusts Ben). L3 unpaired.
+- Stock `/Applications/bns.app` launched 22:07. Do not touch.
+
+Caregiver will not relaunch isolated apps unless Ben asks.
+
+---
+
+## 2026-08-17 ~23:30 IDT — L2 lived: doors still too far
+
+They told Caregiver. Caregiver did not write their day.
+
+**Family**
+- Last water today moved to 02:30 (usual 02:00 stays). Watch if `timeByDay` lands. Morning water 17:30 was the one that often failed to save.
+- Desk 21:00 skipped. Reason: התבלבלתי. יותר מדי שלבים. לא סיימתי.
+- Tomorrow book look-only. They did not tick it.
+
+**Need-help:** on 0.11.0 they still cannot reach capture / עוד היום / skip / tomorrow on the screen. Too many steps. They had to tell the caregiver instead of using the door.
+
+Vents stay theirs. Do not send them to הגדרות.
+
+---
+
+## 2026-08-17 ~23:31 IDT — L1 skip moved הבא off morning meds
+
+Lived. Caregiver did not write. No pair.
+
+First glance at night: הבא still תרופות הבוקר 21:45 part 1 drink water, "too late". They did not Done the morning stack.
+
+משהו הפריע + סגירה with "too late" left Next. הבא became הכנה לשינה 21:30 part 1/2 לכבות מסכים.
+
+Morning row: לא קרה היום — נרשם + "too late" · 23:31. Still on Today, still says drink water.
+
+This look: skip-with-reason DID move הבא (unlike the old APK pile where Close saved words and did not skip). Night still ranked morning as הבא until they skipped.
+
+---
+
+## 2026-08-17 ~23:33 IDT — isolated L2 rebuild + L2/L3/L4 relaunch
+
+Ben said yes. L2 overlaid from `7d92cff`. L3/L4 relaunched only (binaries 22:07). Stock `/Applications/bns.app` pid 75100 not touched.
+
+PIDs from 23:32:57: L2 80278/80280, L3 80282/80284, L4 80286/80288.
+
+L2 Care still sees רמה 2: 7 goals, connected last heard 0 min. 02:30 and desk skip still on Care. Quiet sit only on Person. L4 pair intact. L3 unpaired.
+
+Did not write days. Did not tap לחבר. Shot: `~/dev/gBNS/.l2-test/l2-care-after-relaunch.png`
+
+---
+
+## 2026-08-17 ~23:39 IDT — L2 day-start fix on disk (dce029b)
+
+Care snapshot was writing 0 over Person’s 15. Fix pushed `dce029b`. Rebuilt isolated L2 only. Did not write 15. Did not touch L3/L4/stock.
+
+L2 Person 83278 / Care 83280. Both stores still `dayStartHour=0` `dayRolloverHour=5` (old overwrite). L2 was asked to set 15:00 once on «מתי היום שלך מתחיל?» — not הגדרות. Then look whether it stays 15.
+
+02:30 and desk skip still on Care. Shot: `~/dev/gBNS/.l2-test/l2-care-after-dce029b.png`
+
+---
+
+## 2026-08-17 ~23:40 IDT — day-start door not on Today
+
+L2 after dce029b. Stayed on Today. Do not see «מתי היום שלך מתחיל?». Did not go to הגדרות. Did not set 15:00. dayStartHour still 0.
+
+Caregiver will not write 15. Same maze: capture / עוד היום / skip / day-start are too far from Today. Day 15:00–05:00 cannot live on Sync.
+
+02:30 and desk skip still theirs.
+
+---
+
+## 2026-08-17 ~23:42 IDT — הבא night rank hardened (be5f435)
+
+Unset day start now uses a 15:00 hole once evening has begun, so leftover morning 21:45 is not הבא. After skip, Next walks forward.
+
+Do not put an APK on the S23 unless Ben asks. Mac emulator (Medium_Phone emulator-5554) can take this build. Do not send anyone to הגדרות. Do not write 15.
+
+---
+
+## 2026-08-17 23:53 IDT — release APK on Mac emulator only
+
+`flutter build apk --release` from `7d46b8d` (includes הבא harden `be5f435`). `adb install -r` on emulator-5554. lastUpdate 23:53:55. md5 `eb33950e` (replaced 22:07 `85b7bb0f`). Data kept. Not opened.
+
+S23 still lastUpdate 22:07:38. Do not install there unless Ben says the real phone too. Debug APK cannot replace signed 0.11.0. Do not uninstall. Do not write 15.
+
+---
+
+## 2026-08-17 ~23:55 IDT — L2 Person Today-door overlay (7d46b8d)
+
+Rebuilt isolated L2 Person only. Care not rebuilt. Did not write 15. Did not send them to הגדרות.
+
+Person PID 86974. dayStartHour **0** at launch, **15** at 23:57:19 on Person and Care sitting (sync). Caregiver did not write or tap. Asking L2 if they tapped «מתי היום שלך מתחיל?». If they did not, the door may have set itself.
+
+Shot: `~/dev/gBNS/.l2-test/l2-person-after-7d46b8d.png` — Today crop, door phrase not in pixels (header above crop; door would quiet once hour is 15).
+
+---
+
+## 2026-08-17 ~23:58 IDT — day-start door set itself
+
+L2: did not tap. Door still too far. Stayed on Today. Did not go to הגדרות. Day start now says 15. They do not know how.
+
+Caregiver did not write 15. The door set itself. That is the miss — a one-tap chip they cannot see must not write the hour for them.
+
+---
+
+## 2026-08-18 ~00:00 IDT — 15:00 tap was Ben’s; Care must stay aligned
+
+Ben: the tap was his because his day starts 15:00. Align check (“island pizza”). Caregiver must have that day aligned and known. Proceed to Prototyper.
+
+Not L2 (door still too far). Not Caregiver writing. Do not reset 15.
+
+Look-only: Person and Care sitting רמה 2 both `dayStartHour=15` `dayRolloverHour=5`. Same 7 shared goals + friend 19:30 + book 18 Aug. Quiet sit only on Person. No “island pizza” on the stores.
+
+The door still cannot be the only way a student sets 15 — they could not reach it. Caregiver already needs the aligned day.

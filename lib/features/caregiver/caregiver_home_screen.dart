@@ -17,6 +17,7 @@ import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/later_today_door.dart';
+import 'package:bns/ui/widgets/time_fusion_picker.dart';
 
 /// THE HELPER'S HOME (owner, 2026-07-27: "we also want to have a caregiver
 /// interface").
@@ -110,6 +111,48 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     await CareProfiles.enter(p);
     await _loadProfiles();
     await _load();
+  }
+
+  /// THEIR CLOCK, IN THE INSPECTOR'S HAND (owner, 2026-08-18: level 3–4
+  /// "are not really feeling time the same as regular humans" — the
+  /// caregiver holds the aligned day). Two fusion sheets — start, then
+  /// end — written into the SITTING profile's store; the next sync round
+  /// carries it, and the person's device adopts it only under full
+  /// care/guided (adoptPersonDayHour — the inspector's hand, no one
+  /// else's).
+  Future<void> _setTheirClock() async {
+    final who = _sitting?.name ?? _personName;
+    final start = await showTimeFusionSheet(
+      context: context,
+      title: who.isEmpty
+          ? L.t('When does their day start?', 'מתי היום שלהם מתחיל?')
+          : L.t('When does $who\'s day start?', 'מתי היום של $who מתחיל?'),
+      initial: TimeOfDay(hour: _dayStartHour == 0 ? 8 : _dayStartHour,
+          minute: 0),
+      quarters: false,
+    );
+    if (start == null || !mounted) return;
+    final end = await showTimeFusionSheet(
+      context: context,
+      title: who.isEmpty
+          ? L.t('When does their day end?', 'מתי היום שלהם נגמר?')
+          : L.t('When does $who\'s day end?', 'מתי היום של $who נגמר?'),
+      initial: TimeOfDay(hour: _rolloverHour, minute: 0),
+      quarters: false,
+      maxHour: 6,
+    );
+    if (end == null || !mounted) return;
+    final s = await IsarService.getSettings();
+    await IsarService.updateSettings(
+        s.copyWith(dayStartHour: start.hour, dayRolloverHour: end.hour));
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(L.t(
+            'Their clock is set: ${start.hour.toString().padLeft(2, '0')}:00'
+            '–0${end.hour}:00. It reaches them on the next sync.',
+            'השעון שלהם נקבע: ${start.hour.toString().padLeft(2, '0')}:00'
+            '–0${end.hour}:00. יגיע אליהם בסנכרון הבא.'))));
   }
 
   /// A new named door. The name can be spoken — voice-first everywhere.
@@ -434,6 +477,25 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
               child: ListView(
                 children: [
                   _freshness(context),
+                  // Their clock, visible and settable from the seat —
+                  // never a reason to send anyone to הגדרות.
+                  if (_sitting != null)
+                    ListTile(
+                      leading: const Icon(Icons.schedule),
+                      title: Text(L.t('Their clock', 'השעון שלהם')),
+                      subtitle: Text(_dayStartHour == 0 &&
+                              _rolloverHour == 0
+                          ? L.t('Not set — midnight to midnight',
+                              'לא נקבע — מחצות עד חצות')
+                          : L.t(
+                              'Day starts ${_dayStartHour.toString().padLeft(2, '0')}:00 · ends 0$_rolloverHour:00',
+                              'היום מתחיל ${_dayStartHour.toString().padLeft(2, '0')}:00 · נגמר 0$_rolloverHour:00')),
+                      trailing: TextButton(
+                        onPressed: _setTheirClock,
+                        child: Text(L.t('Set', 'לקבוע')),
+                      ),
+                      onTap: _setTheirClock,
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                     child: Text(

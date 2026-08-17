@@ -260,8 +260,18 @@ int adoptPersonDayHour({
   required int incoming,
   required int local,
   bool incomingIsHelper = false,
+  bool localUnderFullCare = false,
 }) {
-  if (incomingIsHelper) return local;
+  if (incomingIsHelper) {
+    // THE INSPECTOR'S HAND (owner, 2026-08-18: level 3–4 "are not really
+    // feeling time the same as regular humans" — the caregiver holds
+    // their clock). A helper's CHOSEN hour reaches a person under full
+    // care / guided — moving the clock is day-building, and the ✓ stays
+    // the person's. A helper's 0 is never a choice (the 0-sentinel means
+    // unset), and outside full care the person's clock is theirs alone.
+    if (localUnderFullCare && incoming != 0) return incoming;
+    return local;
+  }
   if (incoming == 0 && local != 0) return local;
   return incoming;
 }

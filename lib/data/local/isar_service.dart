@@ -586,11 +586,13 @@ class IsarService {
         incoming: settings.dayStartHour,
         local: local.dayStartHour,
         incomingIsHelper: settings.caregiverDevice,
+        localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
       dayRolloverHour: adoptPersonDayHour(
         incoming: settings.dayRolloverHour,
         local: local.dayRolloverHour,
         incomingIsHelper: settings.caregiverDevice,
+        localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
     );
     await _persist();
@@ -695,11 +697,13 @@ class IsarService {
         incoming: incomingSettings.dayStartHour,
         local: local.dayStartHour,
         incomingIsHelper: incomingIsHelper,
+        localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
       dayRolloverHour: adoptPersonDayHour(
         incoming: incomingSettings.dayRolloverHour,
         local: local.dayRolloverHour,
         incomingIsHelper: incomingIsHelper,
+        localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
     );
     await _persist();

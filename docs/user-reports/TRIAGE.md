@@ -1,5 +1,35 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## The clock without the wall (2026-08-18, fifth pass)
+
+Owner: "the picker of hours states all the times... less nightmare to
+look at a long list... a fusion of our extra-15-minutes wonderful ui
+and the time on the side to scroll... the caregiver should have the
+knowledge and the option to set times for level 3–4 users as they are
+not really feeling time the same."
+
+- **TimeFusionPicker** (`lib/ui/widgets/time_fusion_picker.dart`): the
+  chosen time BIG in the middle, an hour rail beside it to scroll and
+  tap, postpone-style ±15 buttons for the quarter step, one confirm
+  wearing the time. Replaces every hour-chip wall: the Today day-start
+  door (now one worded button; once set it quiets to a small tappable
+  line — changeable without הגדרות), and Sync's two walls (day start /
+  day end — the end rail shows only 00–06).
+- **THE INSPECTOR'S HAND**: the Care home (per sitting profile) shows
+  «השעון שלהם» — set start + end in two sheets, written into the
+  profile store, carried by the next round. `adoptPersonDayHour` now
+  lets a helper's CHOSEN hour through **only when the person is under
+  full care/guided** (L3–4 — moving the clock is day-building); a
+  helper's 0 is never a choice, and an L1–2 person's clock stays
+  theirs alone. The caregiver holds the aligned day the midnight
+  report asked for ("Caregiver must have that day aligned and known").
+- test/inspector_clock_test.dart (rule edges, merge end-to-end, sheet
+  widget tests).
+
+Still open from the night reports: the student's reach (capture / עוד
+היום / skip too far from Today at L2), the four-door miss sheet on old
+builds, S23 needed this build (deployed this pass).
+
 ## Care profiles, wave 1 (2026-08-17, fourth pass)
 
 Owner: "we need profiling system for the caregiver... flawless diamond

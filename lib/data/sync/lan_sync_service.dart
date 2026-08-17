@@ -189,6 +189,9 @@ class LanSyncService {
   /// Who is on the network right now — for a screen that opens after
   /// discovery has already been running, so it shows devices immediately
   /// instead of an empty list waiting for the next hello.
+  /// Includes 127.0.0.1 / same-Mac siblings. The devices list must
+  /// never hide loopback — that is how Person+Care find each other
+  /// when UDP 42424 never binds.
   List<BnsPeer> get currentPeers => _peers.values.toList();
 
   Stream<List<BnsPeer>> get peersStream => _peersController.stream;
@@ -304,7 +307,8 @@ class LanSyncService {
       if (!isRunning) return;
       _broadcastHello();
       _pokeMissingTrusted();
-      unawaited(_knockLocalSiblings());
+      // לחבר / חפש שוב must knock even if a wave is already in flight.
+      unawaited(_knockLocalSiblings(force: true));
       Timer(const Duration(milliseconds: 700), () {
         if (isRunning) _broadcastHello();
       });
@@ -564,11 +568,20 @@ class LanSyncService {
 
   bool _knocking = false;
 
+  /// How long one knock waits for a WHO line. Old binaries (stock, L4)
+  /// accept TCP, do not understand WHO, and keep the socket open —
+  /// `fold` until they CLOSE is what emptied לחבר (lived 2026-08-17).
+  static const Duration whoReadTimeout = Duration(milliseconds: 600);
+
   /// Connect to TCP 42425..42432 on loopback and this machine's IPv4s,
   /// except our own door. A sibling that answers WHO is added as a
   /// BnsPeer so Sync can offer לחבר / a code. Trust is never copied.
-  Future<void> _knockLocalSiblings() async {
-    if (_knocking || _tcpServer == null) return;
+  ///
+  /// [force] is for לחבר / חפש שוב: a wave already waiting on a dead
+  /// door must not make the person's tap do nothing.
+  Future<void> _knockLocalSiblings({bool force = false}) async {
+    if (_tcpServer == null) return;
+    if (_knocking && !force) return;
     _knocking = true;
     try {
       final hosts = <String>{'127.0.0.1'};
@@ -590,43 +603,122 @@ class LanSyncService {
           jobs.add(_knockWho(host, port));
         }
       }
-      await Future.wait(jobs);
+      // Catch per job so Future.wait never fails — a hung old door
+      // must not drop a sibling that already answered.
+      await Future.wait([
+        for (final job in jobs)
+          job.catchError((Object _, StackTrace __) {}),
+      ]);
     } catch (_) {
     } finally {
       _knocking = false;
     }
   }
 
-  Future<void> _knockWho(String host, int port) async {
+  /// One isolated knock: connect, send `WHO\n`, read one line or
+  /// [whoReadTimeout], ALWAYS close. Header-only — no pair, no data.
+  static Future<WhoIdentity?> knockWhoOnce(String host, int port,
+      {Duration? readTimeout}) async {
+    Socket? socket;
     try {
-      final s = await Socket.connect(
+      socket = await Socket.connect(
         host,
         port,
         timeout: const Duration(milliseconds: 280),
       );
-      s.add(utf8.encode('WHO\n'));
-      await s.flush();
-      final raw = utf8.decode(
-        await s
-            .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk))
-            .timeout(const Duration(seconds: 2)),
-        allowMalformed: true,
+      socket.add(utf8.encode('WHO\n'));
+      await socket.flush();
+      final raw = await readWhoLine(
+        socket,
+        timeout: readTimeout ?? whoReadTimeout,
       );
+      socket = null; // readWhoLine always closes
+      return parseWhoReply(raw ?? '');
+    } catch (_) {
+      return null;
+    } finally {
+      if (socket != null) {
+        try {
+          socket.destroy();
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Read until the first newline, or [timeout], then always close.
+  static Future<String?> readWhoLine(
+    Socket socket, {
+    Duration timeout = whoReadTimeout,
+  }) async {
+    final buf = BytesBuilder();
+    final done = Completer<String?>();
+    StreamSubscription<Uint8List>? sub;
+    try {
+      sub = socket.listen(
+        (chunk) {
+          buf.add(chunk);
+          final bytes = buf.toBytes();
+          final nl = bytes.indexOf(10);
+          if (nl != -1 && !done.isCompleted) {
+            done.complete(
+              utf8.decode(bytes.sublist(0, nl + 1), allowMalformed: true),
+            );
+          }
+        },
+        onError: (_) {
+          if (!done.isCompleted) done.complete(null);
+        },
+        onDone: () {
+          if (!done.isCompleted) {
+            final left = buf.takeBytes();
+            done.complete(left.isEmpty
+                ? null
+                : utf8.decode(left, allowMalformed: true));
+          }
+        },
+        cancelOnError: true,
+      );
+      return await done.future.timeout(timeout, onTimeout: () => null);
+    } catch (_) {
+      return null;
+    } finally {
       try {
-        await s.close();
+        await sub?.cancel();
       } catch (_) {}
-      final who = parseWhoReply(raw);
+      try {
+        socket.destroy();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _knockWho(String host, int port) async {
+    try {
+      final who = await knockWhoOnce(host, port);
       if (who == null) return;
       if (who.deviceId.isEmpty || who.deviceId == _myDeviceId) return;
       _rememberWhoPeer(host, who);
     } catch (_) {}
   }
 
+  /// Same-Mac knocks often land on 127.0.0.1. That is a real sibling
+  /// and MUST stay on the devices list. A later LAN address may replace
+  /// loopback; loopback is never discarded just for being loopback.
+  static String visiblePeerAddress(String? existing, String incoming) {
+    if (existing == null || existing.isEmpty) return incoming;
+    if (_isLoopbackHost(existing) && !_isLoopbackHost(incoming)) {
+      return incoming;
+    }
+    return existing;
+  }
+
+  static bool _isLoopbackHost(String host) =>
+      host == '127.0.0.1' || host == '::1' || host == 'localhost';
+
   void _rememberWhoPeer(String host, WhoIdentity who) {
     final existing = _peers[who.deviceId];
     final peer = BnsPeer(
       deviceName: who.deviceName,
-      address: existing?.address ?? host,
+      address: visiblePeerAddress(existing?.address, host),
       port: who.port,
       lastSeen: DateTime.now(),
       lastExportTime: existing?.lastExportTime,

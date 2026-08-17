@@ -90,6 +90,7 @@ without). A failed hello is not fatal — the app stays up and knocks
 A sibling answers `WHO <id> <port> <name>` and appears for לחבר / a
 code. Trust is never copied; L2 is not paired onto L4. Rebuild the L2
 harness from this tree before re-testing.
+Each knock reads one line or 600ms and always closes — a hung old door (stock / L4) must not hide a same-Mac sibling, including 127.0.0.1.
 
 ## Kubuntu laptop — install Flutter once
 ```bash

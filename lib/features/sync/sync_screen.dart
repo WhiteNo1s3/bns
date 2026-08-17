@@ -738,6 +738,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   /// it never stands between the person and everyday syncing.
   Widget _addDeviceCard() {
     final theme = Theme.of(context);
+    // 127.0.0.1 is a real same-Mac sibling when UDP hello never binds.
+    // Never filter loopback — לחבר must show Person sitting on this Mac.
     final unknown = _discovered
         .where((p) => !_trusted.any((t) => t.id == p.deviceId))
         .toList();

@@ -4,6 +4,11 @@
 /// The wire line is `WHO <deviceId> <boundPort> <deviceName>`.
 library;
 
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bns/data/sync/lan_sync_service.dart';
 
@@ -39,5 +44,86 @@ void main() {
     expect(line, 'WHO id1 42425 Ben Phon\n');
     final who = LanSyncService.parseWhoReply(line);
     expect(who!.deviceName, 'Ben Phon');
+  });
+
+  test('same-Mac loopback stays a visible peer address', () {
+    expect(LanSyncService.visiblePeerAddress(null, '127.0.0.1'), '127.0.0.1');
+    expect(LanSyncService.visiblePeerAddress('', '127.0.0.1'), '127.0.0.1');
+    expect(
+      LanSyncService.visiblePeerAddress('127.0.0.1', '192.168.31.241'),
+      '192.168.31.241',
+    );
+    expect(
+      LanSyncService.visiblePeerAddress('192.168.31.241', '127.0.0.1'),
+      '192.168.31.241',
+    );
+  });
+
+  test('one hung door does not drop a good sibling', () async {
+    final hungSockets = <Socket>[];
+    final hung = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    hung.listen(hungSockets.add); // accept, never reply, never close
+
+    final good = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    good.listen((s) async {
+      try {
+        final b = BytesBuilder();
+        await for (final c in s) {
+          b.add(c);
+          if (b.toBytes().contains(10)) break;
+        }
+        s.add(utf8.encode(LanSyncService.formatWhoReply(
+          deviceId: 'sibling-l2',
+          boundPort: good.port,
+          deviceName: 'BNS L2',
+        )));
+        await s.flush();
+      } finally {
+        try {
+          await s.close();
+        } catch (_) {}
+      }
+    });
+
+    addTearDown(() async {
+      for (final s in hungSockets) {
+        try {
+          s.destroy();
+        } catch (_) {}
+      }
+      await hung.close();
+      await good.close();
+    });
+
+    final started = DateTime.now();
+    // Same isolation as production: catch per job so wait never fails.
+    WhoIdentity? hungWho;
+    WhoIdentity? goodWho;
+    await Future.wait([
+      () async {
+        try {
+          hungWho = await LanSyncService.knockWhoOnce(
+            '127.0.0.1',
+            hung.port,
+          );
+        } catch (_) {}
+      }(),
+      () async {
+        try {
+          goodWho = await LanSyncService.knockWhoOnce(
+            '127.0.0.1',
+            good.port,
+          );
+        } catch (_) {}
+      }(),
+    ]);
+    final elapsed = DateTime.now().difference(started);
+
+    expect(goodWho, isNotNull, reason: 'a live sibling must still be seen');
+    expect(goodWho!.deviceId, 'sibling-l2');
+    expect(goodWho!.deviceName, 'BNS L2');
+    expect(hungWho, isNull, reason: 'old door never answers WHO');
+    expect(elapsed.inMilliseconds, lessThan(1500),
+        reason: 'hung door must time out in ~600ms, not fold-until-close');
   });
 }

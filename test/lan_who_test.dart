@@ -35,6 +35,15 @@ void main() {
     expect(LanSyncService.parseWhoReply('WHO id notaport name'), isNull);
   });
 
+  test('WHO parse keeps extra spaces and an empty name', () {
+    final who = LanSyncService.parseWhoReply('WHO  sib-l2  42428  רמה 2\n');
+    expect(who, isNotNull);
+    expect(who!.deviceId, 'sib-l2');
+    expect(who.port, 42428);
+    expect(who.deviceName, 'רמה 2');
+    expect(LanSyncService.parseWhoReply('WHO sib 42428')!.deviceName, 'BNS');
+  });
+
   test('WHO format strips newlines from the name', () {
     final line = LanSyncService.formatWhoReply(
       deviceId: 'id1',
@@ -125,5 +134,25 @@ void main() {
     expect(hungWho, isNull, reason: 'old door never answers WHO');
     expect(elapsed.inMilliseconds, lessThan(1500),
         reason: 'hung door must time out in ~600ms, not fold-until-close');
+  });
+
+  test('a WHO line is enough — the sibling need not close', () async {
+    final open = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    open.listen((s) async {
+      s.add(utf8.encode(LanSyncService.formatWhoReply(
+        deviceId: 'loop-l2',
+        boundPort: open.port,
+        deviceName: 'רמה 2',
+      )));
+      await s.flush();
+      // stay open — old fold waited here and לחבר stayed empty
+    });
+    addTearDown(open.close);
+
+    final who = await LanSyncService.knockWhoOnce('127.0.0.1', open.port);
+    expect(who, isNotNull);
+    expect(who!.deviceId, 'loop-l2');
+    expect(who.deviceName, 'רמה 2');
+    expect(who.port, open.port);
   });
 }

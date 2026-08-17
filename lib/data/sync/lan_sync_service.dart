@@ -137,20 +137,20 @@ class LanSyncService {
 
   static WhoIdentity? parseWhoReply(String raw) {
     final line = raw.trim();
-    if (!line.startsWith('WHO ')) return null;
-    final rest = line.substring(4).trim();
-    final sp1 = rest.indexOf(' ');
-    if (sp1 <= 0) return null;
-    final deviceId = rest.substring(0, sp1);
-    final afterId = rest.substring(sp1 + 1).trim();
-    final sp2 = afterId.indexOf(' ');
-    if (sp2 <= 0) return null;
-    final port = int.tryParse(afterId.substring(0, sp2));
-    final name = afterId.substring(sp2 + 1).trim();
-    if (port == null || port <= 0 || deviceId.isEmpty || name.isEmpty) {
-      return null;
-    }
-    return WhoIdentity(deviceId: deviceId, port: port, deviceName: name);
+    if (!line.startsWith('WHO')) return null;
+    final parts = line.split(RegExp(r'\s+'));
+    // WHO <id> <port> [name...] — extra spaces / a missing name
+    // must not drop a sibling we already heard.
+    if (parts.length < 3 || parts[0] != 'WHO') return null;
+    final deviceId = parts[1];
+    final port = int.tryParse(parts[2]);
+    final name = parts.length > 3 ? parts.sublist(3).join(' ').trim() : 'BNS';
+    if (port == null || port <= 0 || deviceId.isEmpty) return null;
+    return WhoIdentity(
+      deviceId: deviceId,
+      port: port,
+      deviceName: name.isEmpty ? 'BNS' : name,
+    );
   }
 
   /// Bring sync up for the whole app: discover, and quietly catch up with
@@ -271,7 +271,9 @@ class LanSyncService {
     // (lived 2026-08-17: every BNS had TCP 42425..428, UDP 42424 unbound,
     // no Local Network prompt, Sync said no devices). Hello is best-effort.
     if (!isTcpUp) await _startTcpServer();
-    if (!isUdpUp) await _bindDiscoveryUdp();
+    // Hello can sit on the Local Network prompt. Never block the
+    // knock — or the Sync screen's listener — on that wait.
+    if (!isUdpUp) unawaited(_bindDiscoveryUdp());
 
     await _refreshBroadcastTargets();
     _broadcastTimer ??= Timer.periodic(const Duration(seconds: 5), (_) async {
@@ -512,11 +514,27 @@ class LanSyncService {
     _tcpServer!.listen((s) => _handleIncoming(s));
   }
 
+  bool _udpBindInFlight = false;
+
   /// Bind UDP 42424 so hellos can leave. On POSIX, reusePort lets a
   /// second instance keep listening (Person + Care on one Mac). If the
   /// bind throws or the OS hands back a different port, we keep going
   /// with TCP only — the same-Mac WHO knock still finds siblings.
   Future<void> _bindDiscoveryUdp() async {
+    if (_udpSocket != null || _udpBindInFlight) return;
+    _udpBindInFlight = true;
+    try {
+      await _bindDiscoveryUdpBody()
+          .timeout(const Duration(milliseconds: 900));
+    } on TimeoutException {
+      _emitHelloCouldNotOpen();
+    } catch (_) {
+    } finally {
+      _udpBindInFlight = false;
+    }
+  }
+
+  Future<void> _bindDiscoveryUdpBody() async {
     if (_udpSocket != null) return;
     final posix =
         Platform.isMacOS || Platform.isLinux || Platform.isAndroid;
@@ -608,7 +626,7 @@ class LanSyncService {
       await Future.wait([
         for (final job in jobs)
           job.catchError((Object _, StackTrace __) {}),
-      ]);
+      ]).timeout(const Duration(seconds: 2), onTimeout: () => <void>[]);
     } catch (_) {
     } finally {
       _knocking = false;

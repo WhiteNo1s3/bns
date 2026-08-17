@@ -117,6 +117,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     // (Receiver-side pairing prompts are app-wide now — main.dart installs
     // the handler, so a request lands even when this screen is closed.)
 
+    // Listen FIRST. peersStream is broadcast and does not replay;
+    // a WHO reply can land in the gap after start() and never paint.
+    _peersSub = _service.peersStream.listen((p) {
+      if (mounted) setState(() => _discovered = p);
+    });
+    _discovered = _service.currentPeers;
+
     await _service.start(
         deviceName: settings.effectiveShareName, autoSync: _autoSync);
 
@@ -124,10 +131,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     // and knock right now so known devices light up without the 5s wait.
     _discovered = _service.currentPeers;
     _service.pokeDiscovery();
-
-    _peersSub = _service.peersStream.listen((p) {
-      if (mounted) setState(() => _discovered = p);
-    });
 
     _progressSub = _service.progressStream.listen((p) {
       if (!mounted) return;
@@ -643,10 +646,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   Future<void> _seekAgain() async {
-    setState(() => _seekBusy = true);
+    setState(() {
+      _seekBusy = true;
+      _discovered = _service.currentPeers;
+    });
     _service.pokeDiscovery();
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _seekBusy = false);
+    if (mounted) {
+      setState(() {
+        _seekBusy = false;
+        _discovered = _service.currentPeers;
+      });
+    }
   }
 
   /// One paired device: always visible (online or not), status at a glance,

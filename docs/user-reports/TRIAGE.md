@@ -686,3 +686,8 @@ harness apps pin their sibling person/ store; Today paints the clock
 door from the first settings read). Stray :TEMPkos files removed.
 
 v0.15a. Tests 339. Lived next: the ring → popup → snooze loop on the S23.
+
+**Lived, 2026-08-19 (owner, on the S23): the ring popup WORKED — snooze
+too.** Fire → popup → עוד 10 דקות → return ring → קמתי, end to end.
+The alarm story is closed as a person feature. Still unlived: the Care
+seat's צלצול לכולם landing on a person's device over LAN.

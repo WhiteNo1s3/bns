@@ -1,14 +1,11 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show MethodChannel;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
-import 'package:bns/core/wake_words.dart';
+import 'package:bns/features/wake/wake_controls.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -45,7 +42,6 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
   bool _loading = true;
   bool _guided = false;
   bool _caregiverDevice = false;
-  String _wakeTime = '';
   int _rolloverHour = 0;
 
   String get _tomorrowKey => DateFormat('yyyy-MM-dd').format(_tomorrow);
@@ -61,7 +57,6 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
     final settings = await IsarService.getSettings();
     _guided = settings.guidedMode;
     _caregiverDevice = settings.caregiverDevice;
-    _wakeTime = settings.wakeAlarmTime;
     _rolloverHour = settings.dayRolloverHour;
     // Tomorrow on the PERSON'S clock: at 01:30 with border 04:00 the
     // calendar already says a new date, but "tomorrow" is still the day
@@ -242,73 +237,6 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
     }
   }
 
-  // ---- THE WAKE (owner as user, 2026-08-18: "many days have nothing to
-  // wake up for and I do have") ----
-
-  /// What the morning ring will say — tomorrow's opening, visible tonight.
-  String get _wakePreview => wakeBodyFor(
-      routines: _routines,
-      events: _events,
-      day: _tomorrow,
-      rolloverHour: _rolloverHour,
-      t: L.t);
-
-  Future<void> _setWake() async {
-    final parsed = parseHhmm(_wakeTime);
-    final t = await showTimeFusionSheet(
-      context: context,
-      title: L.t('When do you wake tomorrow?', 'מתי מתעוררים מחר?'),
-      initial: parsed == null
-          ? const TimeOfDay(hour: 7, minute: 30)
-          : TimeOfDay(hour: parsed.hour, minute: parsed.minute),
-    );
-    if (t == null) return;
-    final hhmm = '${t.hour.toString().padLeft(2, '0')}:'
-        '${t.minute.toString().padLeft(2, '0')}';
-    final s = await IsarService.getSettings();
-    await IsarService.updateSettings(s.copyWith(wakeAlarmTime: hhmm));
-    await NotificationsService.rescheduleAll(force: true);
-    await _load();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(L.t('The wake is set — $hhmm, every day.',
-            'ההשכמה נקבעה — $hhmm, כל יום.'))));
-  }
-
-  Future<void> _clearWake() async {
-    final s = await IsarService.getSettings();
-    await IsarService.updateSettings(s.copyWith(wakeAlarmTime: ''));
-    await NotificationsService.rescheduleAll(force: true);
-    await _load();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:
-            Text(L.t('The wake is off.', 'ההשכמה כבויה.'))));
-  }
-
-  /// Hands the wake to the phone's own clock — pre-filled, the reason as
-  /// its label. The clock opens so the person sees it land and can pick
-  /// the song they like there; a clock alarm survives everything.
-  Future<void> _plantInClock() async {
-    final parsed = parseHhmm(_wakeTime);
-    if (parsed == null) return;
-    bool ok = false;
-    try {
-      ok = await const MethodChannel('bns/wake_clock').invokeMethod('plant', {
-            'hour': parsed.hour,
-            'minutes': parsed.minute,
-            'message': 'BNS · $_wakePreview',
-          }) ==
-          true;
-    } catch (_) {}
-    if (!mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(L.t('No clock app answered on this device.',
-              'שעון הטלפון לא נענה במכשיר הזה.'))));
-    }
-  }
-
   Widget _clock(String? hhmm, TextTheme text, ColorScheme cs) => SizedBox(
         width: 56,
         child: Text(
@@ -482,70 +410,14 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
                           'להוסיף תוכנית למחר')),
                     ),
                   ],
-                  // THE WAKE lives where the day is built (owner as user,
-                  // 2026-08-18: "I need an alarm clock... many days have
-                  // nothing to wake up for and I do have"). Tomorrow ends
-                  // with choosing when it begins. Not on a Care seat —
-                  // the seat's wake belongs on the person's nightstand —
-                  // and not in guided mode (window, not workbench).
+                  // THE WAKE keeps its seat where the day is built —
+                  // tomorrow ends with choosing when it begins. Same
+                  // controls as the wake room (menu door); one
+                  // implementation, two doors. Not on a Care seat, not
+                  // in guided mode (the host gate stands).
                   if (!_caregiverDevice && !_guided) ...[
                     const SizedBox(height: 24),
-                    Text(L.t('The wake', 'השכמה'),
-                        style: text.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                        _wakeTime.isEmpty
-                            ? L.t(
-                                'A morning that starts with a reason. The ring '
-                                'carries what waits for you.',
-                                'בוקר שמתחיל עם סיבה. הצלצול נושא את מה שמחכה לך.')
-                            : L.t('The ring will carry: $_wakePreview',
-                                'הצלצול יישא: $_wakePreview'),
-                        style: text.bodySmall
-                            ?.copyWith(color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: _setWake,
-                      style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48)),
-                      icon: const Icon(Icons.alarm, size: 20),
-                      label: Text(_wakeTime.isEmpty
-                          ? L.t('Set a wake time', 'לקבוע שעת השכמה')
-                          : L.t('Wake — $_wakeTime, every day',
-                              'השכמה — $_wakeTime, כל יום')),
-                    ),
-                    if (_wakeTime.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          if (Platform.isAndroid)
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _plantInClock,
-                                style: OutlinedButton.styleFrom(
-                                    minimumSize:
-                                        const Size.fromHeight(44)),
-                                child: Text(
-                                    L.t('Put it in the phone\'s clock too',
-                                        'לשתול גם בשעון של הטלפון'),
-                                    style:
-                                        const TextStyle(fontSize: 13.5)),
-                              ),
-                            ),
-                          if (Platform.isAndroid) const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: _clearWake,
-                            style: TextButton.styleFrom(
-                                minimumSize: const Size(48, 44)),
-                            child: Text(
-                                L.t('Turn off', 'לכבות'),
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    color: cs.onSurfaceVariant)),
-                          ),
-                        ],
-                      ),
-                    ],
+                    const WakeControls(),
                   ],
                   const SizedBox(height: 12),
                 ],

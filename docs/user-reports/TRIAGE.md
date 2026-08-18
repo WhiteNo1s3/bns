@@ -579,3 +579,16 @@ derives dist names from pubspec wearing the `a`;
 `test/version_law_test.dart` welds constant↔pubspec so drift goes red.
 Full scheme in docs/versioning.md: +0.01 per wave, `+N` versionCode
 ever-climbing, the `a` falls only at 1.0. Tests 295.
+
+### Wake door pass (owner, 2026-08-19 morning): "we didn't update the phone... its own button"
+
+Two truths in one line. (1) The wake was buried — only reachable at the
+bottom of the Tomorrow room; a feature you cannot find IS "not updated".
+It now has its own door: «השכמה» in the menu map → /wake room (WakeScreen),
+and the Tomorrow-room seat stays. One implementation (WakeControls) in
+both doors so they can never drift; on a Care seat the room says where
+the wake lives («ההשכמה גרה אצלם») instead of hiding. (2) Deploy proof
+tightened: adb "Success" is claim, not proof — from now the loop verifies
+`dumpsys package | versionName` on-device and the person-visible check is
+the menu footer version line. v0.13a (+0.01 by the alpha law). Tests 298
+(+3: wake room person/seat, menu door).

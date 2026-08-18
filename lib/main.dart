@@ -33,6 +33,7 @@ import 'package:bns/ui/widgets/bns_desktop_shell.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/calendar/tomorrow_screen.dart';
+import 'package:bns/features/wake/wake_screen.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
@@ -261,6 +262,13 @@ final _router = GoRouter(
       path: '/tomorrow',
       builder: (context, state) => _wrapForDesktop(
           context, const TomorrowScreen(), state.uri.toString()),
+    ),
+    GoRoute(
+      // THE WAKE'S OWN DOOR (owner, 2026-08-19: "it can be its own
+      // button... whatever you see fits") — opened from the menu map.
+      path: '/wake',
+      builder: (context, state) => _wrapForDesktop(
+          context, const WakeScreen(), state.uri.toString()),
     ),
     GoRoute(
       path: '/capture',

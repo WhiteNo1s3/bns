@@ -57,6 +57,15 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
         L.t('Today\'s words', 'מילות היום'),
         L.t('Everything said and done today', 'כל מה שנאמר ונעשה היום')
       ),
+      // The wake's own door (owner, 2026-08-19) — the morning that
+      // starts with a reason gets a named room on the map.
+      (
+        '/wake',
+        Icons.alarm,
+        L.t('The wake', 'השכמה'),
+        L.t('When the morning starts, and what it carries',
+            'מתי הבוקר מתחיל, ומה הוא נושא')
+      ),
       if (!_guided)
         (
           '/routines',

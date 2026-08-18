@@ -22,6 +22,8 @@ import 'package:bns/core/wake_words.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/calendar/tomorrow_screen.dart';
+import 'package:bns/features/wake/wake_screen.dart';
+import 'package:bns/ui/widgets/bns_menu_screen.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   _FakePathProvider(this.root);
@@ -165,6 +167,45 @@ void main() {
 
       expect(find.text('השכמה'), findsNothing);
       expect(find.text('לקבוע שעת השכמה'), findsNothing);
+    });
+
+    testWidgets('the wake room: the person gets the controls, a pinned way '
+        'back, and the same one implementation', (tester) async {
+      L.lang = 'he';
+      await seed(tester);
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: WakeScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('לקבוע שעת השכמה'), findsOneWidget);
+      expect(find.text('חזרה'), findsOneWidget);
+    });
+
+    testWidgets('the wake room on a Care seat says where the wake lives '
+        'instead of offering doors', (tester) async {
+      L.lang = 'he';
+      await seed(tester, caregiver: true);
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: WakeScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('לקבוע שעת השכמה'), findsNothing);
+      expect(find.textContaining('ההשכמה גרה אצלם'), findsOneWidget,
+          reason: 'a quiet word beats a silently missing door');
+    });
+
+    testWidgets('the menu map names the wake door', (tester) async {
+      L.lang = 'he';
+      await seed(tester);
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: BnsMenuScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('השכמה'), findsOneWidget);
+      expect(find.text('מתי הבוקר מתחיל, ומה הוא נושא'), findsOneWidget);
     });
   });
 }

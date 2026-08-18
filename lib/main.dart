@@ -19,6 +19,7 @@ import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/postpone_sheet.dart';
 import 'package:bns/ui/widgets/bns_menu_screen.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
+import 'package:bns/ui/widgets/day_quiet_row.dart';
 import 'package:bns/ui/widgets/day_start_door.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
@@ -1010,7 +1011,65 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   /// selection follows the routine's position among ROUTINES (the arrows
   /// walk steps; plans answer to taps), so the highlight index counts only
   /// them.
+  ///
+  /// LEVELS 1–2 GET THE QUIET LIST (owner, 2026-08-19: "so crumbed out
+  /// with things inside it so I cannot tell what is next is what
+  /// isn't"): one line per thing — clock, name, state. Tap = quiet ✓,
+  /// pencil = the miss door, long-press = later today, backpack = the
+  /// bag. Steps ride the hero, kept words live in the day's words.
+  /// Guided (level 4) keeps its big tiles — that flow was tuned on its
+  /// own lived reports and stays whole.
   List<Widget> _dayTiles(List<Object> dayList) {
+    if (!_guidedMode) {
+      final tiles = <Widget>[];
+      var routineIndex = 0;
+      for (final item in dayList) {
+        if (item is Routine) {
+          final r = item;
+          final i = routineIndex++;
+          final done = _doneTodayIds.contains(r.id);
+          final skipped = _skippedTodayIds.contains(r.id);
+          final stepsDone = _stepProgress[r.id] ?? 0;
+          tiles.add(DayQuietRow(
+            time: r.timeOn(_todayKey),
+            title: r.title,
+            done: done,
+            skipped: skipped,
+            stepNote: (!done &&
+                    r.steps.isNotEmpty &&
+                    stepsDone > 0 &&
+                    stepsDone < r.steps.length)
+                ? L.t('part ${stepsDone + 1} of ${r.steps.length}',
+                    'חלק ${stepsDone + 1} מתוך ${r.steps.length}')
+                : null,
+            selected: _routinesFocus.hasFocus && i == _kbSelected,
+            textScale: _textScale,
+            onTap: () => _toggleComplete(r),
+            onSkip:
+                (done || skipped) ? null : () => _openDidntHappenSheet(r),
+            onLongPress: r.time == null ? null : () => _laterTodayFor(r),
+          ));
+        } else if (item is CalendarEvent) {
+          final e = item;
+          tiles.add(DayQuietRow(
+            time: e.isAllDay ? null : e.time,
+            title: e.title,
+            done: e.isDone,
+            skipped: e.isSkipped,
+            textScale: _textScale,
+            onTap: () => _togglePlanDone(e),
+            onSkip: e.isAnswered
+                ? null
+                : () => _openPlanDidntHappenSheet(e),
+            onGather: e.gather.isNotEmpty ? () => _openGather(e) : null,
+            onLongPress: (e.time == null || e.isAllDay)
+                ? null
+                : () => _laterTodayFor(e),
+          ));
+        }
+      }
+      return tiles;
+    }
     final tiles = <Widget>[];
     var routineIndex = 0;
     for (final item in dayList) {
@@ -1064,6 +1123,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       }
     }
     return tiles;
+  }
+
+  /// Long-press on a quiet row: the fusion sheet, floored at now.
+  Future<void> _laterTodayFor(Object item) async {
+    final now = DateTime.now();
+    final t = await showTimeFusionSheet(
+      context: context,
+      title: L.t('Later today — when?', 'עוד היום — מתי?'),
+      initial: nextQuarterFrom(now),
+      minHour: now.hour,
+    );
+    if (t == null) return;
+    await _postponeItem(item,
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
   }
 
   /// LATER TODAY — still this day, a later clock (tester, 2026-08-16: "a
@@ -1967,52 +2040,49 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       );
                     },
                   ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _madActive
-                              ? L.t('Furious is allowed here.',
-                                  'מותר לכעוס כאן.')
-                              : L.t('Your day.', 'היום שלך.'),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 22 * _textScale),
-                        ),
+                  // NO PEP TALK ABOVE THE WORK (owner, 2026-08-19: "so
+                  // crumbed out... it attacked me with confusing
+                  // information"). The day opens on the day. Anger keeps
+                  // its banner only while it is ON — a mode earns words;
+                  // a calm morning earns quiet. The vent chip stays one
+                  // small tap (vents are sacred), alone in its corner.
+                  if (_madActive) ...[
+                    Text(
+                      L.t('Furious is allowed here.', 'מותר לכעוס כאן.'),
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 22 * _textScale),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      L.t('Deciding to skip today counts too.',
+                          'גם להחליט לדלג היום — נחשב.'),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                    ),
+                  ] else if (!_guidedMode)
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton.icon(
+                        onPressed: _toggleMad,
+                        icon: const Icon(Icons.whatshot_outlined, size: 18),
+                        label: Text(L.t('I\'m mad', 'אני כועס/ת')),
                       ),
-                      // Level 4 gets the list, not a control panel
-                      // (tester, 2026-08-16: "Today is not only a list.
-                      // Many words. 'I am angry.' Extra buttons"). Rage
-                      // still has its door — the long-press telling flow —
-                      // without a standing button to decode.
-                      if (!_madActive && !_guidedMode)
-                        TextButton.icon(
-                          onPressed: _toggleMad,
-                          icon: const Icon(Icons.whatshot_outlined, size: 18),
-                          label: Text(L.t('I\'m mad', 'אני כועס/ת')),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _madActive
-                        ? L.t('Deciding to skip today counts too.',
-                            'גם להחליט לדלג היום — נחשב.')
-                        : L.t('What gets done, gets done. The rest waits.',
-                            'מה שנעשה — נעשה. השאר יחכה.'),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                  // Always on Today (not guided). Hiding it once 15 is set
-                  // left L2 with a thin line they could not use
-                  // (lived 2026-08-18: "too small to use").
-                  if (!_guidedMode) ...[
-                    const SizedBox(height: 16),
+                    ),
+                  // The day-start question stands here only while it is
+                  // UNANSWERED. Once chosen, the door lives in the quiet
+                  // footer below the day (still big, still worded — the
+                  // L2 lived fix holds; it just stops crumbing the top).
+                  if (!_guidedMode && _dayStartHour == 0) ...[
+                    const SizedBox(height: 12),
                     DayStartDoor(
                       dayStartHour: _dayStartHour,
                       onPicked: (h) => _setDayStartHour(h),
@@ -2081,21 +2151,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       ),
                     ),
 
-                  // Gentle awareness of sync status (helps memory).
-                  // Cached in state — rebuilds must stay synchronous.
-                  // Level 4: fewer words — the machinery line stays out.
-                  if (_lastSyncLine != null && !_guidedMode)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4, bottom: 12),
-                      child: Text(
-                        _lastSyncLine!,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ),
-                  const SizedBox(height: 20),
+                  // The sync line lives in the quiet footer now — the top
+                  // of Today belongs to the day.
+                  const SizedBox(height: 16),
 
                   routinesAsync.when(
                     // SILK: every ✓ invalidates the provider, and a reload
@@ -2132,6 +2190,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       final nowMinutes =
                           owlNowMinutes(DateTime.now(), _rolloverHour);
                       var openFromEarlier = 0;
+                      // "What left in my day", as one number on the list.
+                      var leftCount = 0;
                       for (final item in dayList) {
                         String? t;
                         if (item is Routine) {
@@ -2139,11 +2199,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                               _skippedTodayIds.contains(item.id)) {
                             continue;
                           }
+                          leftCount++;
                           // Today's own clock — a thing moved to 18:00
                           // is not "open from earlier" at 17:00.
                           t = item.timeOn(_todayKey);
                         } else if (item is CalendarEvent) {
-                          if (item.isAnswered || item.isAllDay) continue;
+                          if (item.isAnswered) continue;
+                          leftCount++;
+                          if (item.isAllDay) continue;
                           t = item.time;
                         }
                         if (t == null || !t.contains(':')) continue;
@@ -2195,10 +2258,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           ? started.first
                           : (openNext.isNotEmpty ? openNext.first : null);
                       final resuming = started.isNotEmpty;
-                      final coming = openNext
-                          .where((r) => r.id != hero?.id)
-                          .take(2)
-                          .toList();
 
                       if (dayList.isEmpty) {
                         return Padding(
@@ -2288,25 +2347,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             DayClearCard(
                                 guided: _guidedMode, textScale: _textScale),
 
-                          if (coming.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            ComingUpStrip(
-                              textScale: _textScale,
-                              items: coming
-                                  .map((r) => (
-                                        routine: r,
-                                        timeLabel: r.time,
-                                      ))
-                                  .toList(),
-                            ),
-                          ],
-
+                          // The ComingUp strip is gone (owner, 2026-08-19:
+                          // the day appeared THREE times — hero, strip,
+                          // list. One list below is the truth; the hero is
+                          // its one spotlight).
                           const SizedBox(height: 28),
-                          Text(
-                              L.t('Today\'s gentle steps',
-                                  'הצעדים הרכים של היום'),
-                              style:
-                                  Theme.of(context).textTheme.titleMedium),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                    L.t('Today\'s list', 'הרשימה של היום'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium),
+                              ),
+                              // "All I wanted is to check what left in my
+                              // day" — the answer, as a number, always on.
+                              Text(
+                                L.t('$leftCount left', '$leftCount נשארו'),
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant),
+                              ),
+                            ],
+                          ),
                           if (isDesktopWide)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
@@ -2557,6 +2623,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                   ],
 
+                  // THE QUIET FOOTER — the machinery under the day, never
+                  // above it (owner, 2026-08-19). The set day-start door
+                  // stays big and worded (the L2 lived fix); it just
+                  // stopped standing between the person and their list.
+                  if (!_guidedMode) ...[
+                    const SizedBox(height: 24),
+                    if (_dayStartHour != 0)
+                      DayStartDoor(
+                        dayStartHour: _dayStartHour,
+                        onPicked: (h) => _setDayStartHour(h),
+                        textScale: _textScale,
+                      ),
+                    if (_lastSyncLine != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          _lastSyncLine!,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                        ),
+                      ),
+                  ],
+
                   // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26;
                   // again from the level-4 tester, 2026-08-16: "a list
                   // opened over the Save button — hard to press"). The
@@ -2585,13 +2677,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           ),
         ],
       ),
-      // Shorter words on the floating button (owner's phone, 2026-07-26):
-      // the long label made a WIDE pill that sat on top of the last row.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _markNextDone,
-        label: Text(L.t('Mark next ✓', 'לסמן את הבא ✓')),
-        icon: const Icon(Icons.check_rounded),
-      ),
+      // The floating pill sat ON the list (owner, 2026-08-19: "FAB
+      // sitting on the list") and duplicated the hero's own ✓. Guided
+      // keeps it — level 4's one-big-answer flow leans on it; everyone
+      // else answers on the hero or the row itself.
+      floatingActionButton: _guidedMode
+          ? FloatingActionButton.extended(
+              onPressed: _markNextDone,
+              label: Text(L.t('Mark next ✓', 'לסמן את הבא ✓')),
+              icon: const Icon(Icons.check_rounded),
+            )
+          : null,
     );
   }
 }

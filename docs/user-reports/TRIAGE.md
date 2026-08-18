@@ -720,3 +720,39 @@ Two finds on the way, both fixed before the pass went green:
 Leftover (cosmetic): the wake preview line shows the day's opening even
 when a note will replace it in the actual ring. Machine 0.15.1+8
 (human 0.15a). Tests 339.
+
+## Quiet-Today pass (owner: "lets get the level 1 today screen fixed, its crumbed out", 2026-08-19)
+
+The founding complaint (2026-08-19 morning): "I am seeing all the daily
+on my phone so crumbed out... I cannot tell what is next is what
+isn't... all I wanted is to check what left in my day it attacked me
+with confusing information." The anatomy showed the day painted THREE
+times (hero + ComingUp strip + full heavy tiles) under six pieces of
+chrome, with a FAB floating on top. Rebuilt for levels 1–2; guided
+(L4) keeps its own tuned flow untouched:
+
+- **No pep talk above the work** — «היום שלך.» + subtitle gone; the
+  mad banner appears only while mad mode is ON; the vent chip stands
+  alone, small (vents stay sacred and one tap away).
+- **The chrome moved down**: sync line + the SET day-start door live in
+  a quiet footer under the day (the L2 "too small to use" fix holds —
+  the door is still big and worded, it just stopped standing between
+  the person and their list). An UNSET day-start still stands on top —
+  a question that needs answering may interrupt.
+- **The day appears once**: ComingUp strip deleted; the hero is the one
+  spotlight; below it «הרשימה של היום» with «N נשארו» — his "what
+  left" as a number, always on.
+- **DayQuietRow** (levels 1–2): one line per thing — clock, name,
+  state. Tap = quiet ✓; pencil = the one miss door (gone once
+  answered); long-press = עוד היום (fusion, floored at now);
+  backpack only when the plan has a bag; «חלק 2 מתוך 3» only while
+  mid-steps. Steps advance on the hero; kept words live in מילות
+  היום; skip reasons one door away. THE DAY STAYS STEADY: answered
+  rows dim IN PLACE.
+- **FAB removed** for 1–2 (it sat on the list and duplicated the
+  hero's ✓); guided keeps it — level 4 leans on the one big answer.
+
+Evidence: hunt-shots/today-quiet-*.png (lived on the L3 person
+harness). v0.16a. Tests 343 (+4 quiet-row).
+Next in the L1 queue: the four-door miss sheet count, hero wrong-goal
+confirm, and the full Hebrew copy audit.

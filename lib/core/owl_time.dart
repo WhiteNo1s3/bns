@@ -119,6 +119,21 @@ bool hasNotCome({
     lookOnly(day: day, now: now, rolloverHour: rolloverHour,
         startHour: startHour);
 
+/// A day already WRITTEN — it passed, on the person's clock. The past is
+/// memory: looked at, remembered into, never PLANNED into (owner as user,
+/// 2026-08-18: "I can go to the days before and insert useless
+/// information"). At 02:00 with border 04:00, yesterday's calendar date
+/// is still THIS day — not past.
+bool alreadyWritten({
+  required DateTime day,
+  required DateTime now,
+  required int rolloverHour,
+  required int startHour,
+}) {
+  final logical = logicalDateOf(now, rolloverHour);
+  return DateTime(day.year, day.month, day.day).isBefore(logical);
+}
+
 /// Complete / didn't-happen doors exist only on days that have come.
 bool offersCompleteOrSkip({
   required DateTime day,

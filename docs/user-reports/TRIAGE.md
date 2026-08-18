@@ -482,3 +482,43 @@ Open / recorded:
 - Windows person build shares the live Mac Documents store; Windows
   rebuild broken (MSBuild VCTargetsPath / ARM64). Alpha-env only.
 - Ctrl+R once landed on /sync — unreproduced.
+
+## Three-days pass (owner as user, 2026-08-18)
+
+"I can go to the days before and insert useless information... the plan
+for tomorrow should have its own screen showing the next day's plan
+including addons... a proper dropdown instead of showing all hours the
+day have including the past." Calendar-integrity work — inside the L1
+stabilization queue, not new sync scope (that stays frozen).
+
+- **The past is written** — `alreadyWritten` joined owl time (person's
+  clock: at 02:00 with border 04:00, yesterday's date is still this
+  day). The day view's plan door exists only on days still coming; a
+  past day shows «יום שעבר נשאר כמו שהיה.» instead of a silently
+  missing button. `_addEvent` guards for every hat. The three-days law:
+  past = memory (look, remember), today = workbench (✓, skip, add,
+  hours from now), future = plan room (add, build bags — the ✓ waits).
+- **Tomorrow is one entity in its own room** — `/tomorrow`
+  (TomorrowScreen): the next person-day woven into ONE list in owl
+  order (02:00 night things close the list, timeless rows last),
+  routines wearing their steps right on the tile ("stick to their
+  entity with the steps to achieve things"), add-ons at their chosen
+  hour with gather bags built tonight. Add door (fusion sheet, mic on
+  the title), «להסיר» with a put-back snackbar (accept-less, his "done
+  with thinking" temper), pinned «חזרה». Doors: Today's tomorrow door
+  now routes here (was a raw push to the generic day view — now guided
+  containment holds it), and Care's sitting home got «התוכנית למחר»
+  beside «השעון שלהם» — the helper builds the next day from the seat,
+  the ✓ stays the person's. Guided sees a window, not a workbench.
+- **No wall of hours, no gone hours** — the fusion sheet learned
+  `minHour`: hours that passed are simply not on the rail, ±15 clamps
+  at the floor (and no longer wraps past midnight). Both plan doors
+  (Today's «תוכנית להיום», day view's add) now open the fusion sheet
+  floored at NOW with the next quarter preselected; the Material
+  all-hours clock is gone from planning. `deleteEvent` joined the store
+  (same merge caveat as deleteRoutine: no tombstones — a paired peer
+  can resurrect; sync-wave item, frozen with the rest).
+
+Tests 287 (+7: owl past-day, fusion floor, day-view three-days,
+tomorrow-room weave + guided window). L1 queue continues: reach on
+Today, miss-door count, hero confirm, FAB seat.

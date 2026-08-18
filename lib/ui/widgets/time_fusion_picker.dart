@@ -17,11 +17,17 @@ import 'package:bns/core/i18n/l.dart';
 ///
 /// [quarters] false = whole hours only (day start / day end) — the rail
 /// alone picks, the ±15 row stays home.
+///
+/// [minHour] cuts the rail's floor: planning TODAY must not offer hours
+/// that already passed (owner as user, 2026-08-18: "show all hours the
+/// day have including the past which is another bug"). Gone hours are
+/// simply not on the rail, and the ±15 steps cannot walk below them.
 Future<TimeOfDay?> showTimeFusionSheet({
   required BuildContext context,
   required String title,
   TimeOfDay? initial,
   bool quarters = true,
+  int minHour = 0,
   int maxHour = 23,
   double textScale = 1.0,
 }) {
@@ -32,16 +38,26 @@ Future<TimeOfDay?> showTimeFusionSheet({
       title: title,
       initial: initial ?? const TimeOfDay(hour: 10, minute: 0),
       quarters: quarters,
+      minHour: minHour,
       maxHour: maxHour,
       textScale: textScale,
     ),
   );
 }
 
+/// The next quarter-hour at or after [now] — where a today-plan can begin.
+/// 23:50 stays inside the day (23:45), never wrapping into tomorrow.
+TimeOfDay nextQuarterFrom(DateTime now) {
+  var total = ((now.hour * 60 + now.minute + 14) ~/ 15) * 15;
+  if (total > 23 * 60 + 45) total = 23 * 60 + 45;
+  return TimeOfDay(hour: total ~/ 60, minute: total % 60);
+}
+
 class _TimeFusionSheet extends StatefulWidget {
   final String title;
   final TimeOfDay initial;
   final bool quarters;
+  final int minHour;
   final int maxHour;
   final double textScale;
 
@@ -49,6 +65,7 @@ class _TimeFusionSheet extends StatefulWidget {
     required this.title,
     required this.initial,
     required this.quarters,
+    required this.minHour,
     required this.maxHour,
     required this.textScale,
   });
@@ -62,15 +79,18 @@ class _TimeFusionSheetState extends State<_TimeFusionSheet> {
 
   late int _hour;
   late int _minute;
+  late int _minHour;
   late final ScrollController _rail;
 
   @override
   void initState() {
     super.initState();
-    _hour = widget.initial.hour.clamp(0, widget.maxHour);
+    _minHour = widget.minHour.clamp(0, widget.maxHour);
+    _hour = widget.initial.hour.clamp(_minHour, widget.maxHour);
     _minute = widget.quarters ? (widget.initial.minute ~/ 15) * 15 : 0;
     // Land with the chosen hour in view — a JUMP at build, never a glide.
-    final target = (_hour - 2).clamp(0, widget.maxHour) * _rowHeight;
+    final target =
+        ((_hour - 2).clamp(_minHour, widget.maxHour) - _minHour) * _rowHeight;
     _rail = ScrollController(initialScrollOffset: target);
   }
 
@@ -85,9 +105,12 @@ class _TimeFusionSheetState extends State<_TimeFusionSheet> {
 
   void _nudge(int minutes) {
     setState(() {
-      var total = (_hour * 60 + _minute + minutes) % (24 * 60);
-      if (total < 0) total += 24 * 60;
-      _hour = (total ~/ 60).clamp(0, widget.maxHour);
+      // Clamped, never wrapped: 23:45 +15 stays 23:45 (a today-plan must
+      // not slip into tomorrow), and the floor holds against gone hours.
+      final lo = _minHour * 60;
+      final hi = widget.maxHour * 60 + (widget.quarters ? 45 : 0);
+      final total = (_hour * 60 + _minute + minutes).clamp(lo, hi);
+      _hour = total ~/ 60;
       _minute = total % 60;
     });
   }
@@ -109,8 +132,9 @@ class _TimeFusionSheetState extends State<_TimeFusionSheet> {
               child: ListView.builder(
                 controller: _rail,
                 itemExtent: _rowHeight,
-                itemCount: widget.maxHour + 1,
-                itemBuilder: (c, h) {
+                itemCount: widget.maxHour - _minHour + 1,
+                itemBuilder: (c, i) {
+                  final h = _minHour + i;
                   final on = h == _hour;
                   return InkWell(
                     onTap: () => setState(() => _hour = h),

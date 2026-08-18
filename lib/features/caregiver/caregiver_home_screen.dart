@@ -496,6 +496,21 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                       ),
                       onTap: _setTheirClock,
                     ),
+                  // Building the next day is the helper's evening work
+                  // (owner, 2026-08-18: tomorrow as its own entity).
+                  // Opens the sitting person's Tomorrow room; what is
+                  // built here reaches them on the next sync. The ✓
+                  // stays theirs — this room has none.
+                  if (_sitting != null)
+                    ListTile(
+                      leading: const Icon(Icons.wb_twilight),
+                      title:
+                          Text(L.t('The plan for tomorrow', 'התוכנית למחר')),
+                      subtitle: Text(L.t(
+                          'Build their next day from tonight — plans, hours, what to take.',
+                          'לבנות להם את היום הבא מהערב — תוכניות, שעות, מה לוקחים.')),
+                      onTap: () => context.push('/tomorrow'),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                     child: Text(

@@ -16,6 +16,7 @@ import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/day_look_tile.dart';
 import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
+import 'package:bns/ui/widgets/time_fusion_picker.dart';
 
 /// Day detail view.
 /// Shows:
@@ -137,6 +138,15 @@ class _DayViewState extends State<DayView> {
       rolloverHour: _rolloverHour,
       startHour: _startHour);
 
+  /// A day already written is MEMORY (owner as user, 2026-08-18: "I can
+  /// go to the days before and insert useless information"). Plans belong
+  /// to days that are still coming; remembering stays open here forever.
+  bool get _isPastDay => alreadyWritten(
+      day: _date,
+      now: DateTime.now(),
+      rolloverHour: _rolloverHour,
+      startHour: _startHour);
+
   Future<void> _toggleRoutine(Routine r) async {
     if (_caregiverDevice) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -230,6 +240,14 @@ class _DayViewState extends State<DayView> {
   }
 
   Future<void> _addEvent() async {
+    // The past holds no new plans — for anyone, any hat.
+    if (_isPastDay) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(L.t(
+              'A day that passed stays as it was. Plans belong to days still coming.',
+              'יום שעבר נשאר כמו שהיה. תוכניות שייכות לימים שעוד באים.'))));
+      return;
+    }
     // Level 4: the day is built by the inspector, not here.
     final settings = await IsarService.getSettings();
     if (settings.guidedMode) {
@@ -244,10 +262,16 @@ class _DayViewState extends State<DayView> {
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
     final controller =
         TextEditingController(text: L.t('Appointment', 'פגישה'));
-    // A CLOCK, NOT A TEXT FIELD (level-1 tester, 2026-08-16: typing into
-    // the prefilled field APPENDED — "08:00 saved as 10:15"). The time is
-    // picked on a clock face; nothing can smash into nothing.
-    TimeOfDay picked = const TimeOfDay(hour: 10, minute: 0);
+    // THE FUSION SHEET, NOT A WALL OF HOURS (owner as user, 2026-08-18:
+    // "a proper dropdown... instead of to show all hours the day have
+    // including the past"). Planning TODAY starts at the next quarter
+    // from now — gone hours are not offered at all.
+    final nowMoment = DateTime.now();
+    final planningToday = dateStr == logicalDayKey(nowMoment, _rolloverHour);
+    final minHour = planningToday ? nowMoment.hour : 0;
+    TimeOfDay picked = planningToday
+        ? nextQuarterFrom(nowMoment)
+        : const TimeOfDay(hour: 10, minute: 0);
     var shareWithFamily = false;
 
     await showDialog(
@@ -269,8 +293,11 @@ class _DayViewState extends State<DayView> {
                     minimumSize: const Size.fromHeight(48)),
                 label: Text(picked.format(ctx)),
                 onPressed: () async {
-                  final t = await showTimePicker(
-                      context: ctx, initialTime: picked);
+                  final t = await showTimeFusionSheet(
+                      context: ctx,
+                      title: L.t('What time?', 'באיזו שעה?'),
+                      initial: picked,
+                      minHour: minHour);
                   if (t != null) setDialogState(() => picked = t);
                 },
               ),
@@ -574,16 +601,33 @@ class _DayViewState extends State<DayView> {
                   // The add-door lives WITH the list it adds to — worded,
                   // full-width, in the body (a third word in the bar
                   // overflowed phone width; the bar keeps two doors max).
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: OutlinedButton(
-                      onPressed: _addEvent,
-                      style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48)),
-                      child: Text(L.t('Add a plan for this day',
-                          'להוסיף אירוע ליום הזה')),
+                  // On a day already WRITTEN there is no door at all —
+                  // the past takes no plans (owner as user, 2026-08-18);
+                  // a quiet line says why, so nothing feels broken.
+                  if (!_isPastDay)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: OutlinedButton(
+                        onPressed: _addEvent,
+                        style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48)),
+                        child: Text(L.t('Add a plan for this day',
+                            'להוסיף אירוע ליום הזה')),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        L.t('A day that passed stays as it was.',
+                            'יום שעבר נשאר כמו שהיה.'),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant),
+                      ),
                     ),
-                  ),
 
                   const SizedBox(height: 24),
                   Row(

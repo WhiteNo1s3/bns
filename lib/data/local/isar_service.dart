@@ -359,6 +359,12 @@ class IsarService {
     await _persist();
   }
 
+  static Future<void> deleteEvent(String id) async {
+    final d = await _load();
+    d.events.removeWhere((e) => e.id == id);
+    await _persist();
+  }
+
   // ---- Calendar Events ----
 
   static Future<List<CalendarEvent>> getEventsForDate(String date) async {

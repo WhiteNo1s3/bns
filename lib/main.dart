@@ -32,7 +32,8 @@ import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/bns_desktop_shell.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
-import 'package:bns/features/calendar/day_view.dart';
+import 'package:bns/features/calendar/tomorrow_screen.dart';
+import 'package:bns/ui/widgets/time_fusion_picker.dart';
 import 'package:bns/features/sync/sync_screen.dart';
 import 'package:bns/features/routines/routines_screen.dart';
 import 'package:bns/features/memory/memories_screen.dart';
@@ -252,6 +253,14 @@ final _router = GoRouter(
       path: '/calendar',
       builder: (context, state) => _wrapForDesktop(
           context, const CalendarScreen(), state.uri.toString()),
+    ),
+    GoRoute(
+      // TOMORROW AS ITS OWN ROOM (owner, 2026-08-18: "the plan for
+      // tomorrow should have its own screen"). Routed — so guided
+      // containment holds it like every other door.
+      path: '/tomorrow',
+      builder: (context, state) => _wrapForDesktop(
+          context, const TomorrowScreen(), state.uri.toString()),
     ),
     GoRoute(
       path: '/capture',
@@ -1691,16 +1700,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   /// TOMORROW, SET UP TONIGHT (owner, 2026-08-15: "planning tomorrow the
-  /// night before so I wake into a ready day"). Waking with no idea what
-  /// the day holds is the thing that costs a whole morning — and the
-  /// evening is when there is calm to decide. This opens tomorrow itself,
-  /// where plans and their gather lists are built in advance.
+  /// night before so I wake into a ready day"; 2026-08-18: "the plan for
+  /// tomorrow should have its own screen"). Opens the Tomorrow room —
+  /// the next day as one entity: routines with their steps, add-ons at
+  /// their hours, gather bags built in advance. Routed (not a raw push)
+  /// so guided containment holds this door like every other.
   Future<void> _planTomorrow() async {
-    final tomorrow = _logicalToday.add(const Duration(days: 1));
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => DayView(date: tomorrow)),
-    );
+    await context.push('/tomorrow');
     await _refreshDoneToday();
   }
 
@@ -1740,10 +1746,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     label: Text(picked == null
                         ? L.t('Pick a time (optional)', 'לבחור שעה (רשות)')
                         : picked!.format(c)),
+                    // The fusion sheet, floored at NOW — a plan for today
+                    // is never offered hours that already passed (owner
+                    // as user, 2026-08-18).
                     onPressed: () async {
-                      final t = await showTimePicker(
+                      final nowMoment = DateTime.now();
+                      final t = await showTimeFusionSheet(
                           context: c,
-                          initialTime: picked ?? TimeOfDay.now());
+                          title: L.t('What time today?', 'באיזו שעה היום?'),
+                          initial: picked ?? nextQuarterFrom(nowMoment),
+                          minHour: nowMoment.hour);
                       if (t != null) setDlg(() => picked = t);
                     },
                   ),

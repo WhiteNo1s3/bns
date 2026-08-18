@@ -75,6 +75,16 @@ and so does an environment variable:
 BNS_DATA_DIR=~/bns-test-l4 open /Applications/bns.app   # macOS
 ```
 
+`open` on macOS does **not** hand Dart `BNS_DATA_DIR` or `--data-dir`.
+A dressed harness app (`.l2-test/BNS-L2.app`, bundle
+`com.whiteno1se.bns.l2person`) finds its sibling store by itself:
+`.l2-test/person/` for Person, `.l2-test/caregiver/` for Care. Overlay
++ dock relaunch must keep opening that folder — not the bundle's
+Application Support (lived 2026-08-18 ~19:16: Person disk had
+`dayStartHour=15`, Today still asked «מתי היום שלך מתחיל?»). Prefer
+`open --args --data-dir=...` when you want a pin; the sibling is the
+relaunch door when args never arrive.
+
 A pinned instance never reads or writes the live `bns_home.txt` pointer
 — the harness is isolated by structure, not by care.
 

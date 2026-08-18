@@ -42,6 +42,7 @@ void main() {
     final home = Directory(p.join(root.path, 'home'))
       ..createSync(recursive: true);
     await IsarService.debugResetForTest();
+    BnsHome.debugClearForcedForTest();
     await BnsHome.setDir(home);
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(
@@ -50,6 +51,7 @@ void main() {
 
   tearDown(() async {
     await IsarService.debugResetForTest();
+    BnsHome.debugClearForcedForTest();
     try {
       await root.delete(recursive: true);
     } catch (_) {}
@@ -151,4 +153,110 @@ void main() {
       expect((await IsarService.getSettings()).dayStartHour, 15);
     });
   });
+
+  testWidgets('store 15: Today door shows set words, never the question',
+      (tester) async {
+    await tester.runAsync(() async {
+      final s = await IsarService.getSettings();
+      await IsarService.updateSettings(s.copyWith(dayStartHour: 15));
+    });
+
+    await tester.pumpWidget(const MaterialApp(home: _TodayClockDoor()));
+    // First paint may still be 0 — refresh must not leave the question
+    // sitting on a loaded 15.
+    await tester.pumpAndSettle();
+    expect(find.text('מתי היום שלך מתחיל?'), findsNothing);
+    expect(find.textContaining('היום מתחיל 15:00'), findsOneWidget);
+    await tester.runAsync(() async {
+      expect((await IsarService.getSettings()).dayStartHour, 15,
+          reason: 'refresh must not auto-write; 15 was already chosen');
+    });
+  });
+
+  testWidgets('store 0: Today door stays the question', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: _TodayClockDoor()));
+    await tester.pumpAndSettle();
+    expect(find.text('מתי היום שלך מתחיל?'), findsOneWidget);
+    expect(find.textContaining('היום מתחיל'), findsNothing);
+  });
+
+  testWidgets('L2 Person disk 15 is the door; Documents 0 is not',
+      (tester) async {
+    // Lived 2026-08-18 ~19:16: .l2-test/person had 15, the running
+    // bundle opened Application Support (0) and asked the question.
+    late Directory harness;
+    await tester.runAsync(() async {
+      await IsarService.debugResetForTest();
+      BnsHome.debugClearForcedForTest();
+      harness = Directory(p.join(root.path, '.l2-test'))
+        ..createSync(recursive: true);
+      final person = Directory(p.join(harness.path, 'person'))
+        ..createSync();
+      File(p.join(person.path, 'bns_data.json')).writeAsStringSync(
+        '{"version":1,"seeded":true,"cleanExit":true,'
+        '"settings":{"dayStartHour":15,"dayRolloverHour":5},'
+        '"routines":[],"events":[],"captures":[],"logs":[],'
+        '"trusted":[],"stepProgress":{}}',
+      );
+      File(p.join(root.path, 'bns_data.json')).writeAsStringSync(
+        '{"version":1,"seeded":true,"cleanExit":true,'
+        '"settings":{"dayStartHour":0,"dayRolloverHour":5},'
+        '"routines":[],"events":[],"captures":[],"logs":[],'
+        '"trusted":[],"stepProgress":{}}',
+      );
+      final exec =
+          p.join(harness.path, 'BNS-L2.app', 'Contents', 'MacOS', 'bns');
+      File(exec).createSync(recursive: true);
+      BnsHome.debugExecutableForTest = exec;
+      BnsHome.applyStartupArgs(const []);
+      await IsarService.debugResetForTest();
+    });
+
+    expect((await tester.runAsync(() => IsarService.getSettings()))!.dayStartHour,
+        15,
+        reason: 'the running Person must read .l2-test/person, not Documents');
+
+    await tester.pumpWidget(const MaterialApp(home: _TodayClockDoor()));
+    await tester.pumpAndSettle();
+    expect(find.text('מתי היום שלך מתחיל?'), findsNothing);
+    expect(find.textContaining('היום מתחיל 15:00'), findsOneWidget);
+  });
+}
+
+/// Today's clock bind: field starts at 0, then getSettings paints the door.
+/// The real screen does the same in _loadUserAdapt / _refreshDoneToday.
+class _TodayClockDoor extends StatefulWidget {
+  const _TodayClockDoor();
+
+  @override
+  State<_TodayClockDoor> createState() => _TodayClockDoorState();
+}
+
+class _TodayClockDoorState extends State<_TodayClockDoor> {
+  int _dayStartHour = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final settings = await IsarService.getSettings();
+    if (!mounted) return;
+    setState(() => _dayStartHour = settings.dayStartHour);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: DayStartDoor(
+        dayStartHour: _dayStartHour,
+        onPicked: (h) async {
+          await IsarService.persistDayStartHour(h);
+          if (mounted) setState(() => _dayStartHour = h);
+        },
+      ),
+    );
+  }
 }

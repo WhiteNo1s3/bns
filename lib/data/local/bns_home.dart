@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 /// WHERE BNS LIVES — asked once, answered here.
@@ -69,7 +71,13 @@ class BnsHome {
       path ??= Platform.environment['BNS_DATA_DIR'];
     } catch (_) {}
     final chosen = (path ?? '').trim();
-    if (chosen.isEmpty) return;
+    if (chosen.isEmpty) {
+      // macOS `open` does not hand Dart the flag or the env. A dressed
+      // .lN-test app must still find its sibling store (lived L2,
+      // 2026-08-18 ~19:16: Person disk had 15, the running .app asked).
+      _pinHarnessSiblingIfNeeded();
+      return;
+    }
     try {
       final d = Directory(chosen)..createSync(recursive: true);
       _forced = d;
@@ -80,11 +88,68 @@ class BnsHome {
     }
   }
 
+  /// Tests may pretend the process lives inside a dressed harness app.
+  @visibleForTesting
+  static String? debugExecutableForTest;
+
+  static String _executablePath() =>
+      debugExecutableForTest ?? Platform.resolvedExecutable;
+
+  /// A dressed harness app sits next to its store:
+  /// `.l2-test/BNS-L2.app` → `.l2-test/person/`
+  /// `.l2-test/BNS-Care.app` → `.l2-test/caregiver/`
+  ///
+  /// `--data-dir` / `BNS_DATA_DIR` still win. This is the relaunch
+  /// door: overlay + dock / `open` without args must not open the
+  /// bundle's Application Support (unset 0) while the file people
+  /// inspect sits at `.lN-test/person` (15). Lived isolated L2 Person
+  /// 2026-08-18 ~19:16 IDT, bundle `com.whiteno1se.bns.l2person`.
+  static final _harnessFolder = RegExp(r'^\.l[2-5]-test$');
+
+  static String? harnessHomeFromExecutable(String executable) {
+    final raw = executable.trim();
+    if (raw.isEmpty) return null;
+    var cursor = File(raw).absolute.parent;
+    final walked = raw.toLowerCase();
+    for (var i = 0; i < 10; i++) {
+      final name = p.basename(cursor.path);
+      if (_harnessFolder.hasMatch(name)) {
+        final sep = p.separator;
+        final isCare = walked.contains('care.app') ||
+            walked.contains('bns-care') ||
+            walked.contains('l2care') ||
+            walked.contains('l3care') ||
+            walked.contains('l4care') ||
+            walked.contains('l5care') ||
+            walked.contains('${sep}caregiver$sep') ||
+            walked.endsWith('${sep}caregiver');
+        final home = p.join(cursor.path, isCare ? 'caregiver' : 'person');
+        return Directory(home).existsSync() ? home : null;
+      }
+      final parent = cursor.parent;
+      if (parent.path == cursor.path) break;
+      cursor = parent;
+    }
+    return null;
+  }
+
+  static void _pinHarnessSiblingIfNeeded() {
+    if (_forced != null || _sitting != null) return;
+    final home = harnessHomeFromExecutable(_executablePath());
+    if (home == null) return;
+    try {
+      final d = Directory(home);
+      _forced = d;
+      _dir = d;
+    } catch (_) {}
+  }
+
   /// Drop the process pin (tests only).
   static void debugClearForcedForTest() {
     _forced = null;
     _sitting = null;
     _dir = null;
+    debugExecutableForTest = null;
   }
 
   /// The current home. Cached after the first read; [setDir] refreshes it.
@@ -95,6 +160,10 @@ class BnsHome {
     if (forced != null) return forced;
     final cached = _dir;
     if (cached != null) return cached;
+    // Same pin as applyStartupArgs: a dressed harness .app finds its
+    // sibling store even when main() never received --data-dir.
+    _pinHarnessSiblingIfNeeded();
+    if (_forced != null) return _forced!;
     final docs = await getApplicationDocumentsDirectory();
     try {
       final pointer = File('${docs.path}/$pointerFileName');

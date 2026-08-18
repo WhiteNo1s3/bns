@@ -769,8 +769,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     // Settings first: the person's day border (owl time) decides which
     // date "today" even is before anything else is fetched.
     final settings = await IsarService.getSettings();
-    _rolloverHour = settings.dayRolloverHour;
-    _dayStartHour = settings.dayStartHour;
+    if (!mounted) return;
+    // Clock on THIS frame. Assigning the field and waiting for logs
+    // left the unset question on a loaded 15 (lived L2 Person
+    // 2026-08-18 ~19:16: disk had 15, Today still asked).
+    setState(() {
+      _rolloverHour = settings.dayRolloverHour;
+      _dayStartHour = settings.dayStartHour;
+    });
     final todayStr = _todayKey;
     final logs = await IsarService.getLogsForDate(todayStr);
     final trusted = await IsarService.getTrustedDevices();
@@ -848,6 +854,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       _stepProgress = steps;
       _snoozedUntil = snoozedRoutines;
       _nextFirstOrder = settings.todayOrder == 'next';
+      _rolloverHour = settings.dayRolloverHour;
+      _dayStartHour = settings.dayStartHour;
       final lastSyncAt = trusted.isEmpty
           ? null
           : trusted

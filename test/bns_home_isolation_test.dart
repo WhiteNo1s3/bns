@@ -90,4 +90,53 @@ void main() {
     BnsHome.applyStartupArgs(['--data-dir=', 'whatever', '--other=x']);
     expect((await BnsHome.dir()).path, root.path);
   });
+
+  test('a dressed L2 Person .app uses sibling person/, not Documents',
+      () async {
+    final harness = Directory(p.join(root.path, '.l2-test'))
+      ..createSync(recursive: true);
+    final person = Directory(p.join(harness.path, 'person'))
+      ..createSync(recursive: true);
+    final exec = p.join(harness.path, 'BNS-L2.app', 'Contents', 'MacOS', 'bns');
+    File(exec).createSync(recursive: true);
+
+    expect(BnsHome.harnessHomeFromExecutable(exec), person.path);
+
+    BnsHome.debugExecutableForTest = exec;
+    BnsHome.applyStartupArgs(const []);
+    expect((await BnsHome.dir()).path, person.path,
+        reason: 'overlay + relaunch must open .l2-test/person, '
+            'not the bundle Application Support');
+  });
+
+  test('a dressed Care .app uses sibling caregiver/', () {
+    final harness = Directory(p.join(root.path, '.l2-test'))
+      ..createSync(recursive: true);
+    final care = Directory(p.join(harness.path, 'caregiver'))
+      ..createSync(recursive: true);
+    final exec =
+        p.join(harness.path, 'BNS-Care.app', 'Contents', 'MacOS', 'bns');
+    File(exec).createSync(recursive: true);
+    expect(BnsHome.harnessHomeFromExecutable(exec), care.path);
+  });
+
+  test('stock /Applications/bns.app is not a harness', () {
+    final exec = p.join(root.path, 'Applications', 'bns.app', 'Contents',
+        'MacOS', 'bns');
+    File(exec).createSync(recursive: true);
+    expect(BnsHome.harnessHomeFromExecutable(exec), isNull);
+  });
+
+  test('--data-dir still wins over a harness sibling', () async {
+    final harness = Directory(p.join(root.path, '.l3-test'))
+      ..createSync(recursive: true);
+    Directory(p.join(harness.path, 'person')).createSync();
+    final exec =
+        p.join(harness.path, 'BNS-Person.app', 'Contents', 'MacOS', 'bns');
+    File(exec).createSync(recursive: true);
+    BnsHome.debugExecutableForTest = exec;
+    final elsewhere = p.join(root.path, 'elsewhere');
+    BnsHome.applyStartupArgs(['--data-dir=$elsewhere']);
+    expect((await BnsHome.dir()).path, elsewhere);
+  });
 }

@@ -99,4 +99,16 @@ void main() {
     await pickViaSheet(tester, '15:00');
     expect(picked, 15);
   });
+
+  testWidgets('English set 15 is the worded door, not the question',
+      (tester) async {
+    L.lang = 'en';
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: DayStartDoor(dayStartHour: 15, onPicked: (_) {}),
+      ),
+    ));
+    expect(find.text('When does your day start?'), findsNothing);
+    expect(find.text('The day starts at 15:00'), findsOneWidget);
+  });
 }

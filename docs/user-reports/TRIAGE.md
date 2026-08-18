@@ -1,5 +1,23 @@
 # Level-1 night triage (reports of 15–16 Aug 2026)
 
+## L2 day-start door saw 15 on disk and still asked (2026-08-18 ~19:16)
+
+Lived isolated L2 Person (0.14a / 04c0bf7). Person
+`~/dev/gBNS/.l2-test/person/bns_data.json` and Care sitting רמה 2 both
+`dayStartHour=15`. Today still showed «מתי היום שלך מתחיל?». No
+הגדרות. No tap. No auto-write.
+
+The running `com.whiteno1se.bns.l2person` .app was opening the bundle
+documents (unset 0). macOS `open` never hands Dart `--data-dir` /
+`BNS_DATA_DIR`. A dressed `.lN-test` app now pins its sibling
+`person/` / `caregiver/`. Today paints `_dayStartHour` on the settings
+frame so a loaded 15 cannot keep the question. Door already worded when
+passed hour != 0. 0 stays unset. Confirm still writes.
+
+test/bns_home_isolation_test.dart, test/day_start_persist_test.dart,
+test/day_start_door_test.dart. docs/testing-live.md, docs/changes.md.
+PROTOTYPER.md / GROK.md / CLAUDE.md are not in this repo (fork-owned).
+
 ## The no-dead-end guarantee (2026-08-18, sixth pass — 280 tests green)
 
 Owner, lived: stuck in routines as caregiver at a narrow window ("no

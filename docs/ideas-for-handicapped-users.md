@@ -1064,3 +1064,12 @@ The proposal — a door that only opens cold:
 
 Until the owner's yes, nothing changes in code: vents stay unshareable
 below level 3, and the level-3–4 full file keeps carrying them.
+
+## Wave 26 — the day-start door sees the store it already has (2026-08-18)
+
+Lived L2 Person: 15 was on disk, Today still asked when the day starts.
+The question is extra steps when the hour is already chosen. The door
+lives on Today (never הגדרות). A dressed harness app must open the
+sibling `person/` store, not a fresh bundle folder. A loaded chosen
+hour paints «היום מתחיל HH:00». Unset 0 still asks. Ranking may use a
+virtual 15:00 hole — that must not persist.

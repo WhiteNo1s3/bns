@@ -16,9 +16,12 @@ import 'package:bns/ui/widgets/time_fusion_picker.dart';
 /// ~23:57: an hour landed without a tap; that is a miss — nothing here
 /// fires from build, init, or a default).
 ///
-/// Once a real hour is set the door goes QUIET — a small tappable line
-/// («היום מתחיל ב־15:00»), so changing it later never needs הגדרות and
-/// never shouts at someone whose day is already settled.
+/// Once a real hour is set the door wears the set words
+/// («היום מתחיל 15:00»), so changing it later never needs הגדרות and
+/// never shouts at someone whose day is already settled. A loaded 15
+/// that still asks the question is a miss (lived L2 2026-08-18 ~19:16)
+/// — the door is already right when it is passed hour != 0; Today
+/// must hand it the store's hour, from the Person home, on this frame.
 class DayStartDoor extends StatelessWidget {
   final int dayStartHour;
   final ValueChanged<int> onPicked;

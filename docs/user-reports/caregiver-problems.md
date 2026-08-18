@@ -368,3 +368,17 @@ Shots: `~/dev/gBNS/.l2-test/l2-person-after-cd50298.png`, `l2-care-after-cd50298
 After 15 is set, Today shows a thin orange line under «היום שלך.» L2 cannot see the window. The line is too small to use.
 
 Prototyper: making the set door worded, not a thin line. Caregiver will not write 15. No הגדרות.
+
+---
+
+## 2026-08-18 ~19:16 IDT — L2 Person disk 15, Today still asked
+
+Isolated L2 Person on 0.14a / 04c0bf7. Look-only, no write.
+
+- Person store `/Users/ben/dev/gBNS/.l2-test/person/bns_data.json` has `settings.dayStartHour = 15` (`dayRolloverHour` 5). Care sitting רמה 2 also 15.
+- After overlay + relaunch, Today still showed the unset pill «מתי היום שלך מתחיל?». Expected worded set door «היום מתחיל 15:00».
+- L2 stayed on Today. Did not open הגדרות. Did not tap. Ben had set 15 earlier so Care's day aligns; L2 did not tap.
+
+Root: the running `com.whiteno1se.bns.l2person` .app was not reading `.l2-test/person`. macOS `open` does not hand Dart `--data-dir` / `BNS_DATA_DIR`, so overlay + relaunch opened the bundle's own documents (unset 0) while the file people inspect sat at 15. Today also assigned `_dayStartHour` outside the first setState and waited on the rest of the day before painting the door.
+
+Fix: a dressed `.lN-test` app pins its sibling `person/` or `caregiver/` (args still win). Today paints the clock on the settings frame. Store 15 → «היום מתחיל 15:00». Store 0 → the question. Confirm still writes. No auto-write of 15. No הגדרות.

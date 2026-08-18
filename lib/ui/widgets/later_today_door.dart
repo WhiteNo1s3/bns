@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:bns/core/i18n/l.dart';
-import 'package:bns/core/later_today.dart';
+import 'package:bns/ui/widgets/time_fusion_picker.dart';
 
 /// Labeled door: Later today / עוד היום.
 ///
-/// STATIC — the picker appears in place, no slide. Quarter-hour chips
-/// only; 48dp floor. A button wears its name (never a lone clock glyph).
-class LaterTodayDoor extends StatefulWidget {
+/// One button → the fusion sheet (owner as user, 2026-08-19: "when you
+/// say עוד היום it opens the whole times in day instead of scroll box
+/// elegant... I done with the long list of numbers"). The rail starts
+/// at NOW — gone hours are simply not offered — and nothing ever lists
+/// the whole day again. STATIC: the sheet appears, nothing glides.
+class LaterTodayDoor extends StatelessWidget {
   final DateTime now;
   final int rolloverHour;
   final int startHour;
@@ -28,98 +31,37 @@ class LaterTodayDoor extends StatefulWidget {
   });
 
   @override
-  State<LaterTodayDoor> createState() => _LaterTodayDoorState();
-}
-
-class _LaterTodayDoorState extends State<LaterTodayDoor> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final slots = laterTodaySlots(
-      now: widget.now,
-      rolloverHour: widget.rolloverHour,
-      startHour: widget.startHour,
-    );
-    final ink = widget.onHero ? cs.onPrimaryContainer : cs.primary;
-    final border = widget.onHero
+    final ink = onHero ? cs.onPrimaryContainer : cs.primary;
+    final border = onHero
         ? cs.onPrimaryContainer.withValues(alpha: 0.35)
         : cs.outline;
 
-    if (!_open) {
-      return OutlinedButton(
-        onPressed: () => setState(() => _open = true),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
-          foregroundColor: ink,
-          side: BorderSide(color: border),
-        ),
-        child: Text(
-          L.t('Later today', 'עוד היום'),
-          style: TextStyle(fontSize: 15 * widget.textScale),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (slots.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              L.t('Nothing later left today. That\'s okay.',
-                  'אין יותר שעות היום. זה בסדר.'),
-              style: TextStyle(
-                fontSize: 15 * widget.textScale,
-                height: 1.35,
-                color: widget.onHero
-                    ? cs.onPrimaryContainer.withValues(alpha: 0.85)
-                    : cs.onSurfaceVariant,
-              ),
-            ),
-          )
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final hhmm in slots)
-                OutlinedButton(
-                  onPressed: () {
-                    widget.onPicked(hhmm);
-                    if (mounted) setState(() => _open = false);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(72, 48),
-                    foregroundColor: ink,
-                    side: BorderSide(color: border),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  child: Text(
-                    hhmm,
-                    style: TextStyle(
-                      fontSize: 16 * widget.textScale,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        const SizedBox(height: 4),
-        TextButton(
-          onPressed: () => setState(() => _open = false),
-          style: TextButton.styleFrom(
-            minimumSize: const Size.fromHeight(48),
-            foregroundColor: ink,
-          ),
-          child: Text(
-            L.t('Close', 'סגירה'),
-            style: TextStyle(fontSize: 15 * widget.textScale),
-          ),
-        ),
-      ],
+    return OutlinedButton(
+      onPressed: () async {
+        // The moment of the TAP decides which hours are still real —
+        // the widget may have been built a while ago.
+        final pressNow = DateTime.now();
+        final t = await showTimeFusionSheet(
+          context: context,
+          title: L.t('Later today — when?', 'עוד היום — מתי?'),
+          initial: nextQuarterFrom(pressNow),
+          minHour: pressNow.hour,
+        );
+        if (t == null) return;
+        onPicked('${t.hour.toString().padLeft(2, '0')}:'
+            '${t.minute.toString().padLeft(2, '0')}');
+      },
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(48),
+        foregroundColor: ink,
+        side: BorderSide(color: border),
+      ),
+      child: Text(
+        L.t('Later today', 'עוד היום'),
+        style: TextStyle(fontSize: 15 * textScale),
+      ),
     );
   }
 }

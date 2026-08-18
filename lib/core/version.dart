@@ -11,4 +11,4 @@
 /// build). This constant is the HUMAN version — the one the app shows,
 /// exports stamp, and dist files wear. A test holds the two together
 /// so the neglect cannot quietly return.
-const String kBnsVersion = '0.13a';
+const String kBnsVersion = '0.14a';

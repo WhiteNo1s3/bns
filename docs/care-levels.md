@@ -55,6 +55,11 @@ wave). Mad-mode, quiet mode, all of it — theirs.
 
 **What the helper sees.** Only an opened ask, if the person opened one.
 
+**What the helper may still give.** Upcoming facts the person can live
+toward — a cousin's birthday this Saturday, a time that moved — arrive
+on their own Today / Calendar by trusted LAN sync. The helper does not
+replace the routine they set. They stay on Today, not Settings.
+
 **Doors.** No guard in any direction. Moving between 1 and 2 is free.
 
 **In the code.** `careLevel = 1` (default), `guidedMode = false`,
@@ -91,6 +96,11 @@ of the window, never the person's own app.
 
 **What the helper sees.** The family file / family view in the
 Explorer and web satellite: the chosen plans and moments, read-only.
+
+**What the helper may still give.** Daily refresh of a chosen upcoming
+thing (Saturday is still Saturday) and a new shared routine if one is
+needed. Private untagged routines stay the person's. They build their
+own day; Care keeps the shared future honest. Sync is not their job.
 
 **Doors.** No guard. Raising from 1 or lowering to 1 is one tap.
 
@@ -226,6 +236,14 @@ UI app-wide.
   pre-fix contamination (`caregiverDevice && guidedMode`) heals at
   load, and flipping a device to caregiver clears `guidedMode` on the
   spot. `test/care_containment_test.dart` holds all of it.
+- **Closed LAN loop (2026-08-18).** Receive first, then send. Trusted
+  devices only; a first unknown still needs a code + accept. Plan
+  fields and answers merge separately (`lib/core/care_sync_merge.dart`)
+  so a ✓ never hides Saturday and a Care edit never eats the ✓.
+  Levels 1–2 own planning; Care may add / refresh upcoming facts.
+  Level 3 can still change the plan (newer write wins). Level 4 takes
+  Care's plan and keeps their answers. Discovery knocks the last known
+  door so nobody is dumped onto Settings to wait.
 - **Every level keeps the non-negotiables.** Adult temperature, no
   punishment language, static screens, labeled doors, 48dp targets,
   LAN-only privacy — the level changes who helps, never how the app

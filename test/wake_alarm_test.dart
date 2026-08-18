@@ -196,7 +196,7 @@ void main() {
           reason: 'a quiet word beats a silently missing door');
     });
 
-    testWidgets('the menu map names the wake door', (tester) async {
+    testWidgets('the menu map names the alarm-clock door', (tester) async {
       L.lang = 'he';
       await seed(tester);
       await tester.binding.setSurfaceSize(const Size(800, 1200));
@@ -204,8 +204,35 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: BnsMenuScreen()));
       await tester.pumpAndSettle();
 
-      expect(find.text('השכמה'), findsOneWidget);
-      expect(find.text('מתי הבוקר מתחיל, ומה הוא נושא'), findsOneWidget);
+      expect(find.text('שעון מעורר'), findsOneWidget);
+      expect(find.text('מה נשאר היום — וצלצול אמיתי לכל משימה'),
+          findsOneWidget);
+    });
+
+    testWidgets('the alarm page shows what is left today, in order',
+        (tester) async {
+      L.lang = 'he';
+      await seed(tester);
+      await tester.runAsync(() async {
+        final now = DateTime.now();
+        await IsarService.addRoutine(Routine(
+          id: 'r-evening-meds',
+          title: 'תרופות ערב',
+          recurrenceType: RecurrenceType.daily,
+          time: '20:00',
+          createdAt: now,
+          updatedAt: now,
+        ));
+      });
+      await tester.binding.setSurfaceSize(const Size(800, 1500));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: WakeScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('מה נשאר היום'), findsOneWidget);
+      expect(find.text('תרופות ערב'), findsOneWidget,
+          reason: 'an unanswered mission is offered to become a ring');
+      expect(find.text('20:00'), findsOneWidget);
     });
   });
 }

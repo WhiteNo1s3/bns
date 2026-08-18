@@ -7,6 +7,8 @@ class TrustedDevice {
   final String id; // deviceId from manifest or generated
   final String name;
   final String lastAddress;
+  /// TCP door last heard — same-Mac siblings often sit on 42426+.
+  final int lastPort;
   final DateTime lastSyncedAt;
   final String?
       sharedSecret; // base64 AES key for this device (stored locally only)
@@ -29,6 +31,7 @@ class TrustedDevice {
     required this.id,
     required this.name,
     required this.lastAddress,
+    this.lastPort = 42425,
     required this.lastSyncedAt,
     this.sharedSecret,
     this.autoSyncEnabled = true,
@@ -40,6 +43,7 @@ class TrustedDevice {
     String? id,
     String? name,
     String? lastAddress,
+    int? lastPort,
     DateTime? lastSyncedAt,
     Object? sharedSecret = _unset,
     bool? autoSyncEnabled,
@@ -50,6 +54,7 @@ class TrustedDevice {
       id: id ?? this.id,
       name: name ?? this.name,
       lastAddress: lastAddress ?? this.lastAddress,
+      lastPort: lastPort ?? this.lastPort,
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       sharedSecret:
           sharedSecret == _unset ? this.sharedSecret : sharedSecret as String?,
@@ -63,6 +68,7 @@ class TrustedDevice {
         'id': id,
         'name': name,
         'lastAddress': lastAddress,
+        'lastPort': lastPort,
         'lastSyncedAt': lastSyncedAt.toIso8601String(),
         'sharedSecret': sharedSecret,
         'autoSyncEnabled': autoSyncEnabled,
@@ -74,6 +80,7 @@ class TrustedDevice {
         id: json['id'] as String? ?? '',
         name: json['name'] as String? ?? 'Device',
         lastAddress: json['lastAddress'] as String? ?? '',
+        lastPort: (json['lastPort'] as num?)?.toInt() ?? 42425,
         lastSyncedAt:
             DateTime.tryParse(json['lastSyncedAt'] as String? ?? '') ??
                 DateTime.now(),

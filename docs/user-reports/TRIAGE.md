@@ -592,3 +592,46 @@ tightened: adb "Success" is claim, not proof — from now the loop verifies
 `dumpsys package | versionName` on-device and the person-visible check is
 the menu footer version line. v0.13a (+0.01 by the alpha law). Tests 298
 (+3: wake room person/seat, menu door).
+
+## Alarm-page pass (owner as user, 2026-08-19 — "I love it" + four cuts)
+
+The clock plant is loved ("working awesome") — and the same report cut
+four wounds. All owned:
+
+- **Recording started TTS/listening uninvited** — after a take with no
+  readable words, the capture screen auto-opened the system speech
+  sheet ("the Waze door opens on its own"). Gone: nothing speaks or
+  listens unless its worded button is pressed.
+- **«עוד היום» was still a wall of numbers** — the last chip-wall in
+  the app. LaterTodayDoor now opens the fusion sheet, floored at the
+  tap's NOW. laterTodaySlots stays as a pure helper for ranking tests.
+- **A moved time didn't move the tile** — _postponeItem wrote the store
+  but left routinesProvider stale (the 400ms revision debounce raced
+  the rebuild). It now invalidates in the same breath; and the
+  "open from earlier" counter reads timeOn(todayKey), not the usual
+  clock, so an 18:00-moved thing stops counting as an earlier miss.
+- **THE ALARM PAGE** («שעון מעורר», the menu door): the wake on top;
+  under it "מה נשאר היום" — the unanswered missions in person-day
+  order (his lived ask: "all I wanted is to check what left in my
+  day"); tap a mission → פעם אחת / כל יום / בימים מסוימים → the
+  phone's clock opens pre-filled (EXTRA_DAYS rides the intent) — his
+  "breach to OS, to make things tick"; plus «צלצול חופשי» from the
+  hip. The nudges wear the person's own hand — "if I shall put alarms
+  on the phone to annoy me to do stuff I would find it like caregiver
+  is". Level 1–2 self-serve; guided/Care-seat see none of it.
+
+**L3–4 over LAN — the owner asked "find if it can go off like this":
+finding.** The alarm CONFIG can ride sync today (wakeAlarmTime already
+lives in settings; mission-alarms would ride the same way) — but the
+OS-clock PLANT cannot happen silently on receive: Android forbids
+background activity launches, and ACTION_SET_ALARM is an activity.
+What CAN go off: (a) BNS's own alarm layer (alarmClock-mode, Doze-
+immune) fires from a sync-received config with no user action — that
+part works headless; (b) the OS-clock plant lands on the person's NEXT
+app-open ("ההשכמה שהמלווה קבע — לשתול בשעון?") — one worded tap, or
+auto with SKIP_UI at open. So: caregiver sets → person's BNS rings
+regardless; the phone-clock copy needs one open. Buildable when the
+sync freeze lifts; recorded here as the design.
+
+v0.14a. Tests 315 (+ alarm-page missions list; menu door renamed).
+Not yet lived: the repeat-days plant on Samsung Clock.

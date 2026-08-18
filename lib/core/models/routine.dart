@@ -155,7 +155,7 @@ class Routine {
   /// Later-today: keep [time], remember [hhmm] for this logical day only.
   /// Replaces any older override — they are not expecting more than a day.
   Routine postponeOn(String dayKey, String hhmm) => copyWith(
-        timeByDay: {dayKey: hhmm},
+        timeByDay: {...timeByDay, dayKey: hhmm},
         updatedAt: DateTime.now(),
       );
 

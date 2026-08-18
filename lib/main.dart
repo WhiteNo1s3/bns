@@ -1060,6 +1060,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       await IsarService.addEvent(
           item.copyWith(time: hhmm, updatedAt: DateTime.now()));
     }
+    // THE LIST FOLLOWS THE MOVE, NOW (owner as user, 2026-08-19: "when
+    // changing time it won't care on the list timing and won't push it
+    // from the update"). Waiting for the debounced revision listener
+    // left the moved tile standing on its old clock — invalidate the
+    // routines source in the same breath as the write.
+    ref.invalidate(routinesProvider);
     await NotificationsService.rescheduleAll();
     await _refreshDoneToday();
     if (!mounted) return;
@@ -1659,8 +1665,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       plan: plan,
       canEdit: !_guidedMode,
       onChanged: (items) async {
-        await IsarService.addEvent(
-            plan.copyWith(gather: items, updatedAt: DateTime.now()));
+        await IsarService.saveGather(plan.id, items);
         await _refreshDoneToday();
         AndroidBnsWidget.updateWidget();
       },
@@ -2117,7 +2122,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                               _skippedTodayIds.contains(item.id)) {
                             continue;
                           }
-                          t = item.time;
+                          // Today's own clock — a thing moved to 18:00
+                          // is not "open from earlier" at 17:00.
+                          t = item.timeOn(_todayKey);
                         } else if (item is CalendarEvent) {
                           if (item.isAnswered || item.isAllDay) continue;
                           t = item.time;

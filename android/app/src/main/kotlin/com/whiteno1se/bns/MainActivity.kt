@@ -71,6 +71,15 @@ class MainActivity : FlutterActivity() {
                                 call.argument<String>("message")?.let {
                                     putExtra(AlarmClock.EXTRA_MESSAGE, it)
                                 }
+                                // Repeat: java.util.Calendar day numbers
+                                // (1=Sunday .. 7=Saturday). Absent/empty =
+                                // a one-time ring at the next occurrence.
+                                call.argument<List<Int>>("days")?.let {
+                                    if (it.isNotEmpty()) {
+                                        putIntegerArrayListExtra(
+                                            AlarmClock.EXTRA_DAYS, ArrayList(it))
+                                    }
+                                }
                                 putExtra(AlarmClock.EXTRA_SKIP_UI, false)
                             }
                             startActivity(intent)

@@ -41,6 +41,15 @@ bool shouldAutoSyncOnSight({
   return now.difference(lastAutoSyncAt) >= cooldown;
 }
 
+/// A local change pushes to a trusted door without anyone opening
+/// Settings. Unauthorized / LAN-off / auto-sync-off never ride this.
+bool shouldPushChangeToTrusted({
+  required bool autoSyncEnabled,
+  required bool trusted,
+  required bool lanAllowed,
+}) =>
+    autoSyncEnabled && trusted && lanAllowed;
+
 /// Is a peer heard at [lastSeen] still "on the network now" at [now]?
 bool peerLooksOnline(DateTime lastSeen, DateTime now,
         {Duration window = kPeerOnlineWindow}) =>

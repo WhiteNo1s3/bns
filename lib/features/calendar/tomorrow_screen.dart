@@ -221,8 +221,7 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
       plan: plan,
       canEdit: !_guided,
       onChanged: (items) async {
-        await IsarService.addEvent(
-            plan.copyWith(gather: items, updatedAt: DateTime.now()));
+        await IsarService.saveGather(plan.id, items);
         await _load();
       },
     );

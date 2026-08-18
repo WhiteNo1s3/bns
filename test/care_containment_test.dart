@@ -60,6 +60,16 @@ void main() {
   });
 
   group('the door-frame rule', () {
+    test('levels 1–2 stay on their own map — calendar is how they plan Saturday',
+        () {
+      CareState.guided.value = false;
+      expect(CareState.containmentRedirect('/'), isNull);
+      expect(CareState.containmentRedirect('/calendar'), isNull);
+      expect(CareState.containmentRedirect('/tomorrow'), isNull);
+      expect(CareState.containmentRedirect('/sync'), isNull,
+          reason: 'they can open Sync; nobody sends them there to wait');
+    });
+
     test('a guided person is contained to the day and the telling door', () {
       CareState.guided.value = true;
       expect(CareState.containmentRedirect('/'), isNull);

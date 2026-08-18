@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
+import 'package:bns/core/care_sync_merge.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/core/day_ideas.dart';
 import 'package:bns/core/models/models.dart';
@@ -405,12 +406,40 @@ class IsarService {
     if (d.settings.caregiverDevice) return;
     final i = d.events.indexWhere((e) => e.id == id);
     if (i < 0) return;
+    // Answering is not a plan edit — [updatedAt] stays the builder's.
+    // Take-back still stamps [answerAt] so a helper's stale ✓ cannot
+    // walk back in on the next receive-first.
     d.events[i] = d.events[i].copyWith(
       answer: answer,
       answerReason: answer == null ? null : reason,
-      answerAt: answer == null ? null : DateTime.now(),
-      updatedAt: DateTime.now(),
+      answerAt: DateTime.now(),
     );
+    await _persist();
+  }
+
+  /// Save a gather bag. Building (ids / words) is a plan edit.
+  /// Answering "לקחנו?" is not — and a helper cannot write takenAt.
+  static Future<void> saveGather(String eventId, List<GatherItem> items) async {
+    final d = await _load();
+    final i = d.events.indexWhere((e) => e.id == eventId);
+    if (i < 0) return;
+    final local = d.events[i];
+    if (d.settings.caregiverDevice) {
+      final kept = {for (final g in local.gather) g.id: g.takenAt};
+      d.events[i] = local.copyWith(
+        gather: [
+          for (final g in items)
+            GatherItem(id: g.id, text: g.text, takenAt: kept[g.id]),
+        ],
+        updatedAt: DateTime.now(),
+      );
+    } else {
+      final built = !sameGatherBag(local.gather, items);
+      d.events[i] = local.copyWith(
+        gather: items,
+        updatedAt: built ? DateTime.now() : local.updatedAt,
+      );
+    }
     await _persist();
   }
 
@@ -604,7 +633,8 @@ class IsarService {
     await _persist();
   }
 
-  /// Merge strategy (last write wins by timestamp where possible).
+  /// Merge across the care wall: Care is what is PLANNED (by level),
+  /// the person is what HAPPENED. See [mergeDirectedEvent].
   static Future<void> mergeData({
     required List<Routine> routines,
     required List<CalendarEvent> events,
@@ -614,28 +644,50 @@ class IsarService {
   }) async {
     final d = await _load();
 
+    final fromHelper = incomingIsFromHelper(incomingSettings);
+    final band = bandForMerge(local: d.settings, incoming: incomingSettings);
+
     for (final r in routines) {
       final i = d.routines.indexWhere((x) => x.id == r.id);
+      final merged = mergeDirectedRoutine(
+        local: i == -1 ? null : d.routines[i],
+        incoming: r,
+        incomingFromHelper: fromHelper,
+        band: band,
+      );
       if (i == -1) {
-        d.routines.add(r);
-      } else if (r.updatedAt.isAfter(d.routines[i].updatedAt)) {
-        d.routines[i] = r;
+        d.routines.add(merged);
+      } else {
+        d.routines[i] = merged;
       }
     }
     for (final e in events) {
       final i = d.events.indexWhere((x) => x.id == e.id);
+      final merged = mergeDirectedEvent(
+        local: i == -1 ? null : d.events[i],
+        incoming: e,
+        incomingFromHelper: fromHelper,
+        band: band,
+      );
       if (i == -1) {
-        d.events.add(e);
-      } else if (e.updatedAt.isAfter(d.events[i].updatedAt)) {
-        d.events[i] = e;
+        d.events.add(merged);
+      } else {
+        d.events[i] = merged;
       }
     }
     for (final c in captures) {
       if (!d.captures.any((x) => x.id == c.id)) d.captures.add(c);
     }
-    for (final l in logs) {
-      if (!d.logs.any((x) => x.id == l.id)) d.logs.add(l);
-    }
+    final mergedLogs = mergeDirectedLogs(
+      local: d.logs,
+      incoming: logs,
+      incomingFromHelper: fromHelper,
+      incomingIsFullPerson:
+          incomingSettings.deviceId.isNotEmpty && !fromHelper,
+    );
+    d.logs
+      ..clear()
+      ..addAll(mergedLogs);
 
     // Keep this device's identity, local preferences, and local secrets
     // (server credentials never travel — see BnsExporter — so incoming
@@ -795,12 +847,13 @@ class IsarService {
   }
 
   static Future<void> updateTrustedDeviceLastSync(
-      String id, String address) async {
+      String id, String address, {int? port}) async {
     final d = await _load();
     final i = d.trusted.indexWhere((t) => t.id == id);
     if (i != -1) {
       d.trusted[i] = d.trusted[i].copyWith(
         lastAddress: address,
+        lastPort: port,
         lastSyncedAt: DateTime.now(),
       );
       await _persist();

@@ -654,6 +654,14 @@ own answer on it. Everything in the design follows from that:
 - ✅ **Tomorrow, tonight**: "לסדר את מחר, כשרגוע" on Today opens tomorrow,
   where plans and their gather lists are built in advance — so waking
   means opening a day that is already laid out, not facing a blank one.
+- ✅ **Closed loop, they keep a life (2026-08-18).** Levels 1–2 make
+  their own day and future plans. Care can still *give* an upcoming
+  fact (cousin birthday Saturday) and *refresh* it daily so they are
+  not shocked — without replacing the routine they set, and without
+  sending them to Settings to wait. Level 3 can still change the plan.
+  Level 4 receives the built day and answers. Trusted LAN only;
+  receive-first then send. `lib/core/care_sync_merge.dart`,
+  `test/care_sync_loop_test.dart`.
 
 ### Parked (don't lose)
 
@@ -671,6 +679,9 @@ own answer on it. Everything in the design follows from that:
 
 - "Set up tomorrow tonight with a doctor appointment and four things to
   take. In the morning, is it all sitting there waiting?"
+- "At level 1 or 2: you put cousin birthday on Saturday. Care updates
+  the time the next day. Do you still see YOUR day, plus Saturday,
+  without opening Settings?"
 - "At level 4, can the person still answer every item — and is the ADD
   field correctly out of reach?"
 - "Does it ever say anything that sounds like 'you forgot'?"

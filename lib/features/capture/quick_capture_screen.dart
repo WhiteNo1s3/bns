@@ -327,12 +327,11 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           TextSelection.collapsed(offset: next.length);
     }
     setState(() => _hearingWords = false);
-    // No file ear on this platform — the Waze door opens on its own,
-    // while the moment is still warm. Declining costs nothing: the
-    // voice is kept, the box stays clean, typing always works.
-    if (heard.trim().isEmpty && SpeechPopup.isSupported && mounted) {
-      await _speakWordsForLastTake();
-    }
+    // NOTHING SPEAKS OR LISTENS UNINVITED (owner as user, 2026-08-19:
+    // "the recording button is making a recording and then it starts
+    // the TTS which is not what I aimed at"). The take is kept, the
+    // room stays quiet. The worded voice-typing door below opens the
+    // system ear only when pressed.
   }
 
   /// Hebrew first: Apple on-device ear, then Whisper (Windows), then Vosk.

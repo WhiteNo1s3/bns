@@ -1,6 +1,6 @@
 name: bns
 description: "BNS — Gentle support for routines, memory, reminders and feeling good. Privacy-first, LAN-sync only, cross-platform (Android, iOS, macOS, Windows, Linux). Built for neurological needs including executive dysfunction and TBI."
-version: 0.13.0+5
+version: 0.14.0+6
 publish_to: 'none'
 
 environment:

@@ -216,6 +216,7 @@ class LanSyncService {
   // waiting for broadcast luck ("why are we seeking for new ones and not
   // syncing the devices").
   final Map<String, String> _trustedAddresses = {};
+  final Map<String, int> _trustedPorts = {};
   // When each device last auto-synced — replaces the old once-per-session
   // latch that froze sync until restart.
   final Map<String, DateTime> _lastAutoSyncAt = {};
@@ -243,6 +244,9 @@ class LanSyncService {
       ..addEntries(trusted
           .where((d) => d.lastAddress.isNotEmpty)
           .map((d) => MapEntry(d.id, d.lastAddress)));
+    _trustedPorts
+      ..clear()
+      ..addEntries(trusted.map((d) => MapEntry(d.id, d.lastPort)));
   }
 
   bool get isUdpUp => _udpSocket != null;
@@ -284,11 +288,13 @@ class LanSyncService {
       if (_broadcastBeat == 0) await _refreshBroadcastTargets();
       _broadcastHello();
       unawaited(_knockLocalSiblings());
+      unawaited(_knockTrustedLastKnown());
       _pokeMissingTrusted();
       _evictStalePeers();
     });
     _broadcastHello();
     unawaited(_knockLocalSiblings());
+    unawaited(_knockTrustedLastKnown());
     _pokeMissingTrusted();
 
     if (isUdpUp) {
@@ -311,6 +317,7 @@ class LanSyncService {
       _pokeMissingTrusted();
       // לחבר / חפש שוב must knock even if a wave is already in flight.
       unawaited(_knockLocalSiblings(force: true));
+      unawaited(_knockTrustedLastKnown());
       Timer(const Duration(milliseconds: 700), () {
         if (isRunning) _broadcastHello();
       });
@@ -467,21 +474,41 @@ class LanSyncService {
   }
 
   /// Something changed locally (a routine edited, a plan answered, a capture
-  /// saved). After a short debounce, every trusted device currently on the
-  /// network receives the update — the silky part: nobody presses anything.
+  /// saved). After a short debounce, every trusted device receives the
+  /// update — on the network now, or at the last door we knew. Nobody
+  /// opens Settings. Unauthorized doors never ride this.
   void noteLocalDataChanged() {
     if (!isRunning || _applyingRemoteData) return;
     _changePushTimer?.cancel();
     _changePushTimer = Timer(kChangePushDebounce, () {
       final now = DateTime.now();
-      for (final peer in _peers.values.toList()) {
-        if (!_autoSyncEnabled) break;
-        if (!_trustedIds.contains(peer.deviceId)) continue;
-        if (!_lanAllowedIds.contains(peer.deviceId)) continue;
-        if (!_autoSyncIds.contains(peer.deviceId)) continue;
-        if (!peerLooksOnline(peer.lastSeen, now)) continue;
-        _lastAutoSyncAt[peer.deviceId] = now;
-        syncWithPeer(peer, isAuto: true);
+      for (final id in _trustedIds.toList()) {
+        if (!shouldPushChangeToTrusted(
+          autoSyncEnabled: _autoSyncEnabled && _autoSyncIds.contains(id),
+          trusted: true,
+          lanAllowed: _lanAllowedIds.contains(id),
+        )) {
+          continue;
+        }
+        final seen = _peers[id];
+        if (seen != null && peerLooksOnline(seen.lastSeen, now)) {
+          _lastAutoSyncAt[id] = now;
+          syncWithPeer(seen, isAuto: true);
+          continue;
+        }
+        final addr = _trustedAddresses[id];
+        if (addr == null || addr.isEmpty) continue;
+        _lastAutoSyncAt[id] = now;
+        syncWithPeer(
+          BnsPeer(
+            deviceName: seen?.deviceName ?? id,
+            address: addr,
+            port: seen?.port ?? _trustedPorts[id] ?? transferPort,
+            lastSeen: now,
+            deviceId: id,
+          ),
+          isAuto: true,
+        );
       }
     });
   }
@@ -718,6 +745,36 @@ class LanSyncService {
     } catch (_) {}
   }
 
+  /// Closed Wi-Fi loop: knock the last door we knew for each trusted
+  /// pair, even when UDP hello never opened. The person stays on Today.
+  Future<void> _knockTrustedLastKnown() async {
+    if (_tcpServer == null) return;
+    final now = DateTime.now();
+    for (final e in _trustedAddresses.entries) {
+      if (!_trustedIds.contains(e.key) || !_lanAllowedIds.contains(e.key)) {
+        continue;
+      }
+      final seen = _peers[e.key];
+      if (seen != null && peerLooksOnline(seen.lastSeen, now)) continue;
+      final preferred = _trustedPorts[e.key] ?? transferPort;
+      try {
+        final who = await knockWhoOnce(e.value, preferred);
+        if (who != null && who.deviceId == e.key) {
+          _rememberWhoPeer(e.value, who);
+          continue;
+        }
+        for (var p = transferPort; p <= transferPort + 7; p++) {
+          if (p == preferred) continue;
+          final w = await knockWhoOnce(e.value, p);
+          if (w != null && w.deviceId == e.key) {
+            _rememberWhoPeer(e.value, w);
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
   /// Same-Mac knocks often land on 127.0.0.1. That is a real sibling
   /// and MUST stay on the devices list. A later LAN address may replace
   /// loopback; loopback is never discarded just for being loopback.
@@ -743,6 +800,10 @@ class LanSyncService {
       deviceId: who.deviceId,
     );
     _peers[who.deviceId] = peer;
+    if (_trustedIds.contains(who.deviceId)) {
+      _trustedAddresses[who.deviceId] = peer.address;
+      _trustedPorts[who.deviceId] = peer.port;
+    }
     _peersController.add(_peers.values.toList());
     // Already-trusted siblings catch up. We never pair from a knock,
     // and we never copy anyone's trusted list.
@@ -1046,7 +1107,8 @@ class LanSyncService {
     AndroidBnsWidget.updateWidget();
 
     await IsarService.updateTrustedDeviceLastSync(
-        senderId, trusted.lastAddress);
+        senderId, trusted.lastAddress,
+        port: _peers[senderId]?.port ?? trusted.lastPort);
     // NOT subtle: data arriving from another device is the moment the
     // person is waiting for ("I didn't see updates on the pc") — say it.
     _emitProgress(SyncProgress(
@@ -1168,7 +1230,10 @@ class LanSyncService {
       await s.close();
 
       await IsarService.updateTrustedDeviceLastSync(
-          peer.deviceId, peer.address);
+          peer.deviceId, peer.address,
+          port: peer.port);
+      _trustedAddresses[peer.deviceId] = peer.address;
+      _trustedPorts[peer.deviceId] = peer.port;
       _lastAutoSyncAt[peer.deviceId] = DateTime.now();
 
       _emitProgress(SyncProgress(
@@ -1425,6 +1490,7 @@ class LanSyncService {
     _lanAllowedIds.remove(id);
     _autoSyncIds.remove(id);
     _trustedAddresses.remove(id);
+    _trustedPorts.remove(id);
     _lastAutoSyncAt.remove(id);
     _peers.remove(id);
     _peersController.add(_peers.values.toList());
@@ -1469,6 +1535,7 @@ class LanSyncService {
     _lanAllowedIds.remove(peerId);
     _autoSyncIds.remove(peerId);
     _trustedAddresses.remove(peerId);
+    _trustedPorts.remove(peerId);
     _lastAutoSyncAt.remove(peerId);
     _peers.remove(peerId);
     _peersController.add(_peers.values.toList());

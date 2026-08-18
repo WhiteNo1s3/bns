@@ -57,14 +57,15 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
         L.t('Today\'s words', 'מילות היום'),
         L.t('Everything said and done today', 'כל מה שנאמר ונעשה היום')
       ),
-      // The wake's own door (owner, 2026-08-19) — the morning that
-      // starts with a reason gets a named room on the map.
+      // The alarm page (owner, 2026-08-19: "its not only to wake up,
+      // its to set real clock to alarm") — the wake, what's left today,
+      // and real rings planted in the phone's own clock.
       (
         '/wake',
         Icons.alarm,
-        L.t('The wake', 'השכמה'),
-        L.t('When the morning starts, and what it carries',
-            'מתי הבוקר מתחיל, ומה הוא נושא')
+        L.t('Alarm clock', 'שעון מעורר'),
+        L.t('What\'s left today — and a real ring for any mission',
+            'מה נשאר היום — וצלצול אמיתי לכל משימה')
       ),
       if (!_guided)
         (

@@ -40,6 +40,33 @@ void main() {
           reason: 'cooldown passed — the device catches up again by itself');
     });
 
+    test('a local change never pushes to an unauthorized door', () {
+      expect(
+        shouldPushChangeToTrusted(
+          autoSyncEnabled: true,
+          trusted: false,
+          lanAllowed: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldPushChangeToTrusted(
+          autoSyncEnabled: true,
+          trusted: true,
+          lanAllowed: false,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldPushChangeToTrusted(
+          autoSyncEnabled: true,
+          trusted: true,
+          lanAllowed: true,
+        ),
+        isTrue,
+      );
+    });
+
     test('untrusted, LAN-off, or auto-sync-off devices never auto-sync', () {
       expect(
         shouldAutoSyncOnSight(

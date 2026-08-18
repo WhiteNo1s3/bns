@@ -370,8 +370,7 @@ class _DayViewState extends State<DayView> {
       plan: plan,
       canEdit: !settings.guidedMode,
       onChanged: (items) async {
-        await IsarService.addEvent(
-            plan.copyWith(gather: items, updatedAt: DateTime.now()));
+        await IsarService.saveGather(plan.id, items);
         await _loadData();
       },
     );

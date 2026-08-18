@@ -480,37 +480,44 @@ class LanSyncService {
   void noteLocalDataChanged() {
     if (!isRunning || _applyingRemoteData) return;
     _changePushTimer?.cancel();
-    _changePushTimer = Timer(kChangePushDebounce, () {
-      final now = DateTime.now();
-      for (final id in _trustedIds.toList()) {
-        if (!shouldPushChangeToTrusted(
-          autoSyncEnabled: _autoSyncEnabled && _autoSyncIds.contains(id),
-          trusted: true,
-          lanAllowed: _lanAllowedIds.contains(id),
-        )) {
-          continue;
-        }
-        final seen = _peers[id];
-        if (seen != null && peerLooksOnline(seen.lastSeen, now)) {
-          _lastAutoSyncAt[id] = now;
-          syncWithPeer(seen, isAuto: true);
-          continue;
-        }
-        final addr = _trustedAddresses[id];
-        if (addr == null || addr.isEmpty) continue;
-        _lastAutoSyncAt[id] = now;
-        syncWithPeer(
-          BnsPeer(
-            deviceName: seen?.deviceName ?? id,
-            address: addr,
-            port: seen?.port ?? _trustedPorts[id] ?? transferPort,
-            lastSeen: now,
-            deviceId: id,
-          ),
-          isAuto: true,
-        );
+    _changePushTimer = Timer(kChangePushDebounce, pushTrustedNow);
+  }
+
+  /// Push the ACTIVE store to its own trusted doors, now. Trust must
+  /// already match this store ([refreshTrustPolicy] after a sit) —
+  /// otherwise a door swap would address the previous person's phone.
+  void pushTrustedNow() {
+    if (!isRunning || _applyingRemoteData) return;
+    _changePushTimer?.cancel();
+    final now = DateTime.now();
+    for (final id in _trustedIds.toList()) {
+      if (!shouldPushChangeToTrusted(
+        autoSyncEnabled: _autoSyncEnabled && _autoSyncIds.contains(id),
+        trusted: true,
+        lanAllowed: _lanAllowedIds.contains(id),
+      )) {
+        continue;
       }
-    });
+      final seen = _peers[id];
+      if (seen != null && peerLooksOnline(seen.lastSeen, now)) {
+        _lastAutoSyncAt[id] = now;
+        syncWithPeer(seen, isAuto: true);
+        continue;
+      }
+      final addr = _trustedAddresses[id];
+      if (addr == null || addr.isEmpty) continue;
+      _lastAutoSyncAt[id] = now;
+      syncWithPeer(
+        BnsPeer(
+          deviceName: seen?.deviceName ?? id,
+          address: addr,
+          port: seen?.port ?? _trustedPorts[id] ?? transferPort,
+          lastSeen: now,
+          deviceId: id,
+        ),
+        isAuto: true,
+      );
+    }
   }
 
   /// The TCP port this instance actually LISTENS on. On a machine running

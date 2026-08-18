@@ -382,3 +382,15 @@ Isolated L2 Person on 0.14a / 04c0bf7. Look-only, no write.
 Root: the running `com.whiteno1se.bns.l2person` .app was not reading `.l2-test/person`. macOS `open` does not hand Dart `--data-dir` / `BNS_DATA_DIR`, so overlay + relaunch opened the bundle's own documents (unset 0) while the file people inspect sat at 15. Today also assigned `_dayStartHour` outside the first setState and waited on the rest of the day before painting the door.
 
 Fix: a dressed `.lN-test` app pins its sibling `person/` or `caregiver/` (args still win). Today paints the clock on the settings frame. Store 15 → «היום מתחיל 15:00». Store 0 → the question. Confirm still writes. No auto-write of 15. No הגדרות.
+
+---
+
+## 2026-08-18 ~19:38 IDT — L2 Person data-dir pin (PR #1, 680a620, not merged)
+
+Cause was L2 Person opening bundle documents (dayStart 0) instead of `.l2-test/person` (15). Dressed `BNS-L2.app` now pins sibling `person/`. PID 48801. `dayStartHour` still 15 (not written). Today under «היום שלך.» now shows the set words «היום מתחיל 15:00», not the question. Stock / L3 / L4 / Care not touched. Shot: `.l2-test/l2-person-after-datadir.png`. Multiprofile still required (one Care, few people).
+
+---
+
+## 2026-08-18 ~19:40 IDT — L2 still cannot see the window; Capture/Save far
+
+L2 lived «היום מתחיל 15:00» via Caregiver look, not their own eyes. They still cannot see or tap the BNS L2 window themselves. Need-help: Capture / Save still feels far — they write into the day instead. Vents stay theirs. Family is what Care should see. Do not write their day. No הגדרות.

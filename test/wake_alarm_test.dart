@@ -16,9 +16,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
+import 'package:go_router/go_router.dart';
+
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
+import 'package:bns/core/reminder_plan.dart';
 import 'package:bns/core/wake_words.dart';
+import 'package:bns/features/wake/wake_ring_screen.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/calendar/tomorrow_screen.dart';
@@ -109,6 +113,50 @@ void main() {
       );
       expect(body, 'היום שלך מחכה לך.');
     });
+
+    test('a firing wake opens its own popup, nothing else', () {
+      expect(routeForReminderPayload('wake'), '/awake');
+    });
+  });
+
+  group('the ring popup: accept or snooze, thats it', () {
+    testWidgets('two huge answers; קמתי lands on Today', (tester) async {
+      L.lang = 'he';
+      await tester.runAsync(() async {
+        final root = Directory.systemTemp.createTempSync('bns_ring_');
+        PathProviderPlatform.instance = _FakePathProvider(root.path);
+        final home = Directory(p.join(root.path, 'home'))
+          ..createSync(recursive: true);
+        await IsarService.debugResetForTest();
+        BnsHome.debugClearForcedForTest();
+        await BnsHome.setDir(home);
+        await IsarService.getSettings();
+      });
+      addTearDown(() async {
+        await tester.runAsync(() => IsarService.debugResetForTest());
+      });
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final router = GoRouter(initialLocation: '/awake', routes: [
+        GoRoute(
+            path: '/',
+            builder: (c, s) => const Scaffold(body: Text('home-room'))),
+        GoRoute(path: '/awake', builder: (c, s) => const WakeRingScreen()),
+      ]);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+
+      expect(find.text('קמתי ✓'), findsOneWidget);
+      expect(find.text('עוד 10 דקות'), findsOneWidget);
+      // The popup is bare on purpose: no menu, no bar, no list.
+      expect(find.byIcon(Icons.menu), findsNothing);
+
+      await tester.tap(find.text('קמתי ✓'));
+      await tester.pumpAndSettle();
+      expect(find.text('home-room'), findsOneWidget,
+          reason: 'accepting the morning opens the day');
+    });
   });
 
   group('the tomorrow room offers the wake', () {
@@ -192,7 +240,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('לקבוע שעת השכמה'), findsNothing);
-      expect(find.textContaining('ההשכמה גרה אצלם'), findsOneWidget,
+      expect(find.textContaining('הצלצול אצלם'), findsOneWidget,
           reason: 'a quiet word beats a silently missing door');
     });
 

@@ -33,6 +33,7 @@ import 'package:bns/ui/widgets/bns_desktop_shell.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/calendar/calendar_screen.dart';
 import 'package:bns/features/calendar/tomorrow_screen.dart';
+import 'package:bns/features/wake/wake_ring_screen.dart';
 import 'package:bns/features/wake/wake_screen.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
 import 'package:bns/features/sync/sync_screen.dart';
@@ -118,6 +119,7 @@ Future<void> _startupChores(List<String> args) async {
     // remembered sitting reopens — BEFORE sync starts serving, so the
     // first answer already comes from the right store.
     if (startupSettings.caregiverDevice) {
+      CareProfiles.afterSit = LanSyncService.instance.refreshTrustPolicy;
       try {
         final migrated = await CareProfiles.migrateLegacyIfNeeded();
         if (migrated != null) {
@@ -269,6 +271,13 @@ final _router = GoRouter(
       path: '/wake',
       builder: (context, state) => _wrapForDesktop(
           context, const WakeScreen(), state.uri.toString()),
+    ),
+    GoRoute(
+      // THE RING POPUP — deliberately NOT wrapped in the shell: when the
+      // alarm fires there is one screen with two answers, nothing else
+      // (owner, 2026-08-19: "no other screen than accept or snooze").
+      path: '/awake',
+      builder: (context, state) => const WakeRingScreen(),
     ),
     GoRoute(
       path: '/capture',

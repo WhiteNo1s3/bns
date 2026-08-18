@@ -60,6 +60,9 @@ for one Level-4 person. That is not a product.
 Wave 1: registry + migration + sitting + dropdown + REVOKED-guard +
 inbox. Live serving is for the sitting profile; closed profiles are
 silent-but-safe and catch up on open or by their person's next round.
+A Care alarm is the exception that walks every door: each profile
+store gets its own `wakeAlarmTime`, then that store's trusted[] is
+pushed — Dana's day cannot address Yossi's phone.
 
 Wave 2 (with BNS Care, the second entry point / `main_care.dart`,
 planned id `com.whiteno1se.bns.care`): live serving for EVERY profile

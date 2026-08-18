@@ -243,7 +243,10 @@ UI app-wide.
   Levels 1–2 own planning; Care may add / refresh upcoming facts.
   Level 3 can still change the plan (newer write wins). Level 4 takes
   Care's plan and keeps their answers. Discovery knocks the last known
-  door so nobody is dumped onto Settings to wait.
+  door so nobody is dumped onto Settings to wait. A Care alarm
+  (`wakeAlarmTime`) writes a copy into every profile and rides the
+  same loop onto that person's clock — the helper's pocket stays
+  quiet; levels 1–2 keep a wake they already set.
 - **Every level keeps the non-negotiables.** Adult temperature, no
   punishment language, static screens, labeled doors, 48dp targets,
   LAN-only privacy — the level changes who helps, never how the app

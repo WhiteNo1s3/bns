@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:uuid/uuid.dart';
 
+import 'package:bns/core/care_alarm.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/bns_home.dart';
@@ -58,6 +59,11 @@ class ProfileTrust {
 
 class CareProfiles {
   static const _uuid = Uuid();
+
+  /// After a sit / stand: reload LAN trust from the store that is
+  /// now open. Wired in main to [LanSyncService.refreshTrustPolicy]
+  /// so a door swap cannot push this day to someone else's phone.
+  static Future<void> Function()? afterSit;
 
   static Future<Directory> _profilesRoot() async {
     final root = await BnsHome.rootDir();
@@ -154,6 +160,7 @@ class CareProfiles {
     await sitting.writeAsString(profile.id, flush: true);
     await IsarService.enterHome(dir);
     await _drainInbox(profile.id);
+    await _afterSit();
   }
 
   /// Back to the seat's own store (no person's door open).
@@ -163,6 +170,15 @@ class CareProfiles {
       if (await f.exists()) await f.delete();
     } catch (_) {}
     await IsarService.enterHome(null);
+    await _afterSit();
+  }
+
+  static Future<void> _afterSit() async {
+    final hook = afterSit;
+    if (hook == null) return;
+    try {
+      await hook();
+    } catch (_) {}
   }
 
   /// At launch: re-open the remembered door, if it still exists.
@@ -329,5 +345,98 @@ class CareProfiles {
     await _writeIndex([...await list(), profile]);
     await IsarService.clearPersonData();
     return profile;
+  }
+
+  /// Every named door this seat holds, with that person's clock and
+  /// the wake last written into their store. Closed doors are read
+  /// from their file so the list is everyone, not only the sitting.
+  static Future<List<CareAlarmSeat>> alarmSeats() async {
+    final sitting = await sittingId();
+    final out = <CareAlarmSeat>[];
+    for (final p in await list()) {
+      if (p.id == sitting) {
+        final s = await IsarService.getSettings();
+        final trusted = await IsarService.getTrustedDevices();
+        out.add(CareAlarmSeat(
+          profileId: p.id,
+          name: p.name,
+          wakeTime: s.wakeAlarmTime,
+          wakeNote: s.wakeAlarmNote,
+          dayStartHour: s.dayStartHour,
+          dayRolloverHour: s.dayRolloverHour,
+          paired: trusted.isNotEmpty,
+        ));
+        continue;
+      }
+      final raw = await _readStoreMap(p.id);
+      final settings = AppSettings.fromJson(
+        Map<String, dynamic>.from(raw['settings'] as Map? ?? const {}),
+      );
+      final trusted = [
+        for (final e in (raw['trusted'] as List? ?? const []))
+          TrustedDevice.fromJson(e as Map<String, dynamic>),
+      ];
+      out.add(CareAlarmSeat(
+        profileId: p.id,
+        name: p.name,
+        wakeTime: settings.wakeAlarmTime,
+        wakeNote: settings.wakeAlarmNote,
+        dayStartHour: settings.dayStartHour,
+        dayRolloverHour: settings.dayRolloverHour,
+        paired: trusted.isNotEmpty,
+      ));
+    }
+    return out;
+  }
+
+  /// Write the same wall-clock time into every profile store. Each
+  /// copy lives behind that door — a later push can only address that
+  /// person's trusted[], so a wrong-profile landing is impossible.
+  static Future<void> writeWakeToAll({
+    required String time,
+    required String note,
+  }) async {
+    final sitting = await sittingId();
+    for (final p in await list()) {
+      if (p.id == sitting) {
+        final s = await IsarService.getSettings();
+        await IsarService.updateSettings(
+          s.copyWith(wakeAlarmTime: time, wakeAlarmNote: note),
+        );
+        continue;
+      }
+      await _patchStoreSettings(p.id, (settings) {
+        settings['wakeAlarmTime'] = time;
+        settings['wakeAlarmNote'] = note;
+      });
+    }
+  }
+
+  static Future<Map<String, dynamic>> _readStoreMap(String id) async {
+    try {
+      final f = File('${(await profileDir(id)).path}/bns_data.json');
+      if (!await f.exists()) return {};
+      final raw = jsonDecode(await f.readAsString());
+      if (raw is Map<String, dynamic>) return raw;
+      if (raw is Map) return Map<String, dynamic>.from(raw);
+    } catch (_) {}
+    return {};
+  }
+
+  static Future<void> _patchStoreSettings(
+    String id,
+    void Function(Map<String, dynamic> settings) edit,
+  ) async {
+    final f = File('${(await profileDir(id)).path}/bns_data.json');
+    await f.parent.create(recursive: true);
+    final raw = await _readStoreMap(id);
+    final settings = Map<String, dynamic>.from(
+      raw['settings'] as Map? ?? const {},
+    );
+    edit(settings);
+    raw['settings'] = settings;
+    final tmp = File('${f.path}.tmp');
+    await tmp.writeAsString(jsonEncode(raw), flush: true);
+    await tmp.rename(f.path);
   }
 }

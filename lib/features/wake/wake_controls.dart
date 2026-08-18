@@ -17,10 +17,10 @@ import 'package:bns/ui/widgets/time_fusion_picker.dart';
 /// mounted in the Tomorrow room and in the wake room alike, so the two
 /// doors can never drift apart.
 ///
-/// On a Care seat there is nothing to press: the wake rings on the
-/// PERSON'S nightstand, set on their device. [showSeatLine] rooms say
-/// that in words; embedded uses simply render nothing (the host room
-/// already gates).
+/// On a Care seat there is nothing to press here: the ring is on the
+/// PERSON'S nightstand. The helper sets it from their day — Alarm for
+/// everyone. [showSeatLine] rooms say that in words; embedded uses
+/// simply render nothing (the host room already gates).
 class WakeControls extends StatefulWidget {
   final bool showSeatLine;
   final bool showTitle;
@@ -142,9 +142,8 @@ class _WakeControlsState extends State<WakeControls> {
       return widget.showSeatLine
           ? Text(
               L.t(
-                  'The wake lives with them — it is set on the person\'s own device, '
-                  'and rings on their nightstand.',
-                  'ההשכמה גרה אצלם — היא נקבעת במכשיר של האדם עצמו, ומצלצלת ליד המיטה שלו.'),
+                  'The ring is on their nightstand. Set it from their day — Alarm for everyone.',
+                  'הצלצול אצלם, על השעון שלהם. קובעים אותו מהיום שלהם — צלצול לכולם.'),
               style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant))
           : const SizedBox.shrink();
     }

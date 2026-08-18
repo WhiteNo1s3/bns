@@ -88,6 +88,18 @@ class NotificationsService {
   /// (owner QA, 2026-08-14). Both open the app (same isolate — the store
   /// stays single-writer); a plain tap just lands where the reminder points.
   static Future<void> _handleResponse(String? payload, String? actionId) async {
+    // THE WAKE ANSWERS IN ONE PRESS (owner, 2026-08-19: "there is no way
+    // to shut down the alarm... no other screen than accept or snooze").
+    if (actionId == 'wake_up') {
+      await stopWakeRing();
+      onOpen?.call('/');
+      return;
+    }
+    if (actionId == 'wake_snooze') {
+      await snoozeWake();
+      onOpen?.call('/');
+      return;
+    }
     if (actionId == 'bns_later') {
       // "Later, I said so" (owner, 2026-08-15): the task moves by the
       // person's will — two hours, nothing marked, no judgment. The
@@ -285,6 +297,33 @@ class NotificationsService {
 
   static const int _wakeId = 910777;
 
+  /// A pressed snooze: the ring returns once at this moment, then the
+  /// daily wake resumes. In-memory only — the scheduled alarm itself
+  /// survives process death; this merely keeps a foreground
+  /// rescheduleAll from wiping the pending return.
+  static DateTime? _wakeSnoozeUntil;
+
+  /// Kill the ringing now (the insistent loop dies with the
+  /// notification) and re-arm tomorrow's wake.
+  static Future<void> stopWakeRing() async {
+    if (!_initialized) return;
+    try {
+      await _plugin.cancel(_wakeId);
+    } catch (_) {}
+    _wakeSnoozeUntil = null;
+    await rescheduleAll(force: true);
+  }
+
+  /// "עוד 10 דקות" — the ring comes back once, soon.
+  static Future<void> snoozeWake({int minutes = 10}) async {
+    if (!_initialized) return;
+    try {
+      await _plugin.cancel(_wakeId);
+    } catch (_) {}
+    _wakeSnoozeUntil = DateTime.now().add(Duration(minutes: minutes));
+    await rescheduleAll(force: true);
+  }
+
   static Future<void> _scheduleWake(AppSettings settings,
       List<Routine> routines, List<CalendarEvent> events, DateTime now) async {
     // A Care seat's store may carry the person's wake — it rings on THEIR
@@ -292,6 +331,33 @@ class NotificationsService {
     if (settings.caregiverDevice) return;
     final parsed = parseHhmm(settings.wakeAlarmTime);
     if (parsed == null || !settings.notificationsEnabled) return;
+
+    // A live snooze wins the slot: one return ring, then daily again.
+    final snooze = _wakeSnoozeUntil;
+    if (snooze != null && snooze.isAfter(now)) {
+      final note = settings.wakeAlarmNote.trim();
+      final body = note.isNotEmpty
+          ? note
+          : wakeBodyFor(
+              routines: routines,
+              events: events,
+              day: logicalDateOf(snooze, settings.dayRolloverHour),
+              rolloverHour: settings.dayRolloverHour,
+              t: L.t,
+            );
+      await _zonedScheduleExactish(
+        _wakeId,
+        L.t('Good morning', 'בוקר טוב'),
+        body,
+        tz.TZDateTime.from(snooze, tz.local),
+        _wakeDetails(settings, body),
+        mode: AndroidScheduleMode.alarmClock,
+        matchDateTimeComponents: null, // once — the daily returns after
+        payload: 'wake',
+      );
+      return;
+    }
+    _wakeSnoozeUntil = null;
 
     var fireAt = DateTime(
         now.year, now.month, now.day, parsed.hour, parsed.minute);
@@ -344,9 +410,13 @@ class NotificationsService {
       additionalFlags: Int32List.fromList(const [4]),
       color: BnsTheme.reminderColor(settings),
       styleInformation: BigTextStyleInformation(body),
+      // Exactly two answers, right on the ring (owner, 2026-08-19:
+      // "no other screen than accept or snooze, thats it").
       actions: <AndroidNotificationAction>[
+        AndroidNotificationAction('wake_up', L.t('I\'m up ✓', 'קמתי ✓'),
+            showsUserInterface: true),
         AndroidNotificationAction(
-            'wake_open', L.t('Open the day', 'לפתוח את היום'),
+            'wake_snooze', L.t('10 more minutes', 'עוד 10 דקות'),
             showsUserInterface: true),
       ],
     );

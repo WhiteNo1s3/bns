@@ -218,6 +218,14 @@ void main() {
           settings: settings.copyWith(notificationColor: 'rose'),
           now: now);
       expect(f1, isNot(f4), reason: 'a new color must reschedule');
+
+      final f5 = reminderFingerprint(
+          routines: routines,
+          events: events,
+          settings: settings.copyWith(wakeAlarmTime: '08:00'),
+          now: now);
+      expect(f1, isNot(f5),
+          reason: 'a Care-sent wake must re-register on their clock');
     });
   });
 

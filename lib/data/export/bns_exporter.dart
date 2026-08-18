@@ -81,8 +81,8 @@ class BnsExporter {
   ///    rants included — the frustration IS the signal.
   ///
   /// Every width ships a settings STUB: shareName plus the person-day
-  /// clock (start + owl end). The helper gets the person's DAY — the
-  /// clock IS the day — never their identity, keys, or other
+  /// clock (start + owl end + wake). The helper gets the person's DAY —
+  /// the clock IS the day — never their identity, keys, or other
   /// preferences. Hats cannot travel inside a care window at all.
   static Future<File> exportCareWindow(
     FamilyShareLevel width, {
@@ -160,12 +160,15 @@ class BnsExporter {
       'events': events.map((e) => e.toJson()).toList(),
       'captures': captures.map((e) => e.toJson()).toList(),
       'completionLogs': logs.map((e) => e.toJson()).toList(),
-      // Share identity + the person-day clock. No keybinds, no other
-      // preferences, no secrets. 15:00 is the day, not a preference.
+      // Share identity + the person-day clock (and the wake on it).
+      // No keybinds, no other preferences, no secrets. 15:00 is the
+      // day, not a preference; 08:00 on their nightstand is the same.
       'settings': {
         'shareName': settings.effectiveShareName,
         'dayStartHour': settings.dayStartHour,
         'dayRolloverHour': settings.dayRolloverHour,
+        'wakeAlarmTime': settings.wakeAlarmTime,
+        'wakeAlarmNote': settings.wakeAlarmNote,
       },
     };
 

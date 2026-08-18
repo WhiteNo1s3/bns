@@ -930,6 +930,11 @@ app sheds its inspector hat over time; the Care app holds:
   built day back. Never a blind push into a phone. The person's device
   stays the source of truth about what HAPPENED; the Care app is the
   source of what is PLANNED.
+- **Alarm for everyone (2026-08-18).** From the Care home the helper
+  sets one wall-clock time. Each profile store gets its own copy;
+  each person's BNS rings it on *their* clock. This phone does not
+  ring. Levels 1–2 keep a wake they already set. Untrusted devices
+  get nothing. The person stays on Today — the ring opens the day.
 - **Level 5 folds in.** The sketchbook (wave 22) becomes a profile
   type: "no phone" — a profile that simply has no pairing, whose
   together-view is the walkthrough. One mental model: a profile may

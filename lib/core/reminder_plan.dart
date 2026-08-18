@@ -214,6 +214,10 @@ List<PlannedReminder> planReminders({
 /// opens the day it lives on.
 String routeForReminderPayload(String? payload) {
   if (payload == null) return '/';
+  // The wake opens ITS OWN popup — accept or snooze, nothing else
+  // (owner, 2026-08-19: "it suppose to be an alarm that you set off,
+  // a pop up screen, no other screen than accept or snooze").
+  if (payload == 'wake') return '/awake';
   final parts = payload.split(':');
   if (parts.length >= 3 && parts[0] == 'event') {
     return '/day?date=${parts[2]}';
@@ -263,7 +267,9 @@ String reminderFingerprint({
     ..write('|${settings.eventReminderMinutes}')
     ..write('|${settings.reminderTimeoutMinutes}')
     ..write('|${settings.dayRolloverHour}')
-    ..write('|${settings.dayStartHour}');
+    ..write('|${settings.dayStartHour}')
+    ..write('|${settings.wakeAlarmTime}')
+    ..write('|${settings.wakeAlarmNote}');
   for (final r in routines) {
     if (!r.isActive || r.time == null) continue;
     // A later-today override must re-register even when nothing else moved.

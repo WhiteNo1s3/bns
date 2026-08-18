@@ -11,6 +11,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/care_profiles.dart';
+import 'package:bns/features/caregiver/care_alarm_door.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
@@ -479,6 +480,15 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                   _freshness(context),
                   // Their clock, visible and settable from the seat —
                   // never a reason to send anyone to הגדרות.
+                  if (_profiles.isNotEmpty)
+                    ListTile(
+                      leading: const Icon(Icons.alarm),
+                      title: Text(L.t('Alarm for everyone', 'צלצול לכולם')),
+                      subtitle: Text(L.t(
+                          'Each person hears it on their own clock. This phone does not ring.',
+                          'כל אחד שומע אצל עצמו, על השעון שלו. המכשיר הזה לא מצלצל.')),
+                      onTap: () => openCareAlarmDoor(context),
+                    ),
                   if (_sitting != null)
                     ListTile(
                       leading: const Icon(Icons.schedule),

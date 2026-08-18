@@ -653,3 +653,36 @@ sync freeze lifts; recorded here as the design.
 
 v0.14a. Tests 315 (+ alarm-page missions list; menu door renamed).
 Not yet lived: the repeat-days plant on Samsung Clock.
+
+## Ring-stop pass (owner, 2026-08-19 evening — "no way to shut down the alarm")
+
+The clock plant with repeat days WORKED on Samsung ("the OS did kick
+which is amazing, also mac and android wonderful") — and BNS's own
+insistent ring had no off switch: FLAG_INSISTENT loops until the
+notification dies, and nothing killed it. "It suppose to be an alarm
+that you set off, a pop up screen, no other screen than accept or
+snooze, thats it." Built exactly that:
+
+- **The ring popup** (`/awake`, WakeRingScreen, NOT shell-wrapped):
+  opening it silences the loop instantly (stopWakeRing = cancel + re-arm
+  tomorrow) and shows ONE screen — big clock, the reason, «קמתי ✓» and
+  «עוד 10 דקות». No bar, no menu, no list. Back answers like קמתי.
+- **Two answers ride the notification itself** (wake_up / wake_snooze
+  actions) and the plain tap routes payload 'wake' → /awake.
+- **Snooze survives the machinery**: _wakeSnoozeUntil rides in memory;
+  _scheduleWake schedules the one return ring instead of the daily while
+  it is live (a foreground rescheduleAll cannot wipe it), then the daily
+  resumes by itself.
+
+**The Prototyper's "alarm for everyone" drop — taken on owner's word
+("use the pr made for you") and on merit.** care_alarm.dart
+(wakeAdoptChoice: a helper's wake reaches L3–4 always; L1–2 only onto
+an EMPTY nightstand — they own their set wake; helper's empty never
+wipes), Care-home alarm door (one ring per seat, the helper's pocket
+stays quiet), pushTrustedNow (the set wake travels immediately),
+fingerprint carries wake fields. This is the L3–4-over-LAN design from
+yesterday's finding, built. Also merged: the L2 day-start PR (dressed
+harness apps pin their sibling person/ store; Today paints the clock
+door from the first settings read). Stray :TEMPkos files removed.
+
+v0.15a. Tests 339. Lived next: the ring → popup → snooze loop on the S23.

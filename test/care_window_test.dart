@@ -12,8 +12,8 @@
 ///    never, even tagged; untagged routines stay home;
 ///  - levels 3–4 get everything active, rants included (the law);
 ///  - EVERY window ships a settings stub — shareName + the person-day
-///    clock, no identity, no keys: a hat cannot travel inside a care
-///    window. 15:00 is the day, not a preference.
+///    clock and the wake on it; no identity, no keys: a hat cannot
+///    travel inside a care window. 15:00 is the day, not a preference.
 library;
 
 import 'dart:io';
@@ -136,7 +136,11 @@ void main() {
       final now = DateTime(2026, 8, 16, 12);
       final s = await IsarService.getSettings();
       await IsarService.updateSettings(s.copyWith(
-          shareName: 'Ben', dayStartHour: 15, dayRolloverHour: 5));
+          shareName: 'Ben',
+          dayStartHour: 15,
+          dayRolloverHour: 5,
+          wakeAlarmTime: '07:30',
+          wakeAlarmNote: 'קפה'));
       await IsarService.addRoutine(
         Routine(
           id: 'r1',
@@ -259,6 +263,8 @@ void main() {
       expect(parsed.settings.dayStartHour, 15,
           reason: 'the person-day clock IS the day — it rides the window');
       expect(parsed.settings.dayRolloverHour, 5);
+      expect(parsed.settings.wakeAlarmTime, '07:30',
+          reason: 'their wake is on that clock — Care may see it');
     });
 
     test('level 2: chosen family + family moments, vents never', () async {
@@ -373,6 +379,8 @@ void main() {
       expect(learned.dayStartHour, 15,
           reason: 'receive-first must teach Care the person\'s day start');
       expect(learned.dayRolloverHour, 5);
+      expect(learned.wakeAlarmTime, '07:30',
+          reason: 'Care may see the time on their clock');
       expect(learned.caregiverDevice, isTrue,
           reason: 'the clock travels; the hat does not');
 
@@ -393,6 +401,8 @@ void main() {
       final kept = await IsarService.getSettings();
       expect(kept.dayStartHour, 15);
       expect(kept.dayRolloverHour, 5);
+      expect(kept.wakeAlarmTime, '07:30',
+          reason: 'an empty stub cannot wipe a wake Care already holds');
     });
   });
 

@@ -270,6 +270,11 @@ The app updates the local DB and uses .bns to spread/deliver the data to the use
   // Heads-up before calendar plans with a time, in minutes.
   // -1 = no plan reminders, 0 = right at the time. Default 30.
   "eventReminderMinutes": 30,
+  // Daily wake on THIS person's wall clock. '' = off. A helper's
+  // empty string is unset (never a wipe). Care may send a time into
+  // each profile; it rings on the person's device only.
+  "wakeAlarmTime": "07:30",
+  "wakeAlarmNote": "",
   "hapticsEnabled": true,
   "lastFullSyncAt": "2026-07-03T22:10:00.000Z"
 }
@@ -332,3 +337,4 @@ This document is the source of truth. Update it when schema changes.
 - `Routine.tags` may include `need-help`.
 - `QuickCapture.tags` may include `asked-help` (the Level-1 share that travels) plus `need-help` and `family`. A skip note may have `need-help` without `asked-help` — that is NOT an ask and must not notify family.
 - Family-share `.bns`: the DESIGN is per-level windows (1 = asks only; 2 = chosen family plans + family tags + asks; 3–4 = full — `familyShareLevelFor` in `lib/core/need_help.dart` is the law). What the exporter DOES today (audit, 2026-08-16 evening): two widths only, keyed on `fullCareMode` — chosen vs. everything. The asks-only width and the ask-notify have no callers yet, and LAN sync to a trusted device carries the full store at every level. Wiring the windows is part of the BNS Care work (ideas wave 23); this line goes back to "respects `careLevel`" when the code does.
+- Care-window settings stub: `shareName` + `dayStartHour` + `dayRolloverHour` + `wakeAlarmTime` + `wakeAlarmNote`. The person's clock (and the wake on it) is the day. No `deviceId`, no hats, no keys.

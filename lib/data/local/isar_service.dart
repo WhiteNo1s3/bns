@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/kept_memory.dart';
+import 'package:bns/core/care_alarm.dart';
 import 'package:bns/core/care_sync_merge.dart';
 import 'package:bns/data/local/bns_home.dart';
 import 'package:bns/core/day_ideas.dart';
@@ -603,6 +604,11 @@ class IsarService {
     // backup carries their DATA, never their hat. And guided is never
     // the helper's hat at all — not even "kept" from a contaminated store.
     final keepRole = local.caregiverDevice;
+    final wake = _wakeMerge(
+      incoming: settings,
+      local: local,
+      incomingIsHelper: settings.caregiverDevice,
+    );
     d.settings = settings.copyWith(
       serverUrl: local.serverUrl,
       serverToken: local.serverToken,
@@ -629,6 +635,8 @@ class IsarService {
         incomingIsHelper: settings.caregiverDevice,
         localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
+      wakeAlarmTime: wake.time,
+      wakeAlarmNote: wake.note,
     );
     await _persist();
   }
@@ -698,8 +706,8 @@ class IsarService {
     // settings; the person's name already lives on the trusted device card.
     if (incomingSettings.deviceId.isEmpty) {
       // Care window stub: no identity, no hats — but the person's DAY
-      // includes their clock. 0 stays unset so an empty copy cannot
-      // midnight a set 15:00.
+      // includes their clock and their wake. 0 / '' stay unset so an
+      // empty copy cannot midnight a set 15:00 or wipe a sent alarm.
       final start = adoptPersonDayHour(
         incoming: incomingSettings.dayStartHour,
         local: local.dayStartHour,
@@ -708,10 +716,20 @@ class IsarService {
         incoming: incomingSettings.dayRolloverHour,
         local: local.dayRolloverHour,
       );
-      if (start != local.dayStartHour || end != local.dayRolloverHour) {
+      final wake = _wakeMerge(
+        incoming: incomingSettings,
+        local: local,
+        incomingIsHelper: false,
+      );
+      if (start != local.dayStartHour ||
+          end != local.dayRolloverHour ||
+          wake.time != local.wakeAlarmTime ||
+          wake.note != local.wakeAlarmNote) {
         d.settings = local.copyWith(
           dayStartHour: start,
           dayRolloverHour: end,
+          wakeAlarmTime: wake.time,
+          wakeAlarmNote: wake.note,
         );
       }
       await _persist();
@@ -733,6 +751,11 @@ class IsarService {
     final keepRole = local.caregiverDevice;
     final incomingIsHelper = incomingSettings.caregiverDevice;
     final hatsStay = keepRole || incomingIsHelper;
+    final wake = _wakeMerge(
+      incoming: incomingSettings,
+      local: local,
+      incomingIsHelper: incomingIsHelper,
+    );
     d.settings = incomingSettings.copyWith(
       deviceId: local.deviceId,
       deviceName: local.deviceName,
@@ -763,6 +786,8 @@ class IsarService {
         incomingIsHelper: incomingIsHelper,
         localUnderFullCare: local.fullCareMode || local.guidedMode,
       ),
+      wakeAlarmTime: wake.time,
+      wakeAlarmNote: wake.note,
     );
     await _persist();
   }
@@ -1242,3 +1267,17 @@ class _Data {
             .map((k, v) => MapEntry(k.toString(), v.toString())),
       );
 }
+
+({String time, String note}) _wakeMerge({
+  required AppSettings incoming,
+  required AppSettings local,
+  required bool incomingIsHelper,
+}) =>
+    adoptWakeFields(
+      incomingTime: incoming.wakeAlarmTime,
+      incomingNote: incoming.wakeAlarmNote,
+      localTime: local.wakeAlarmTime,
+      localNote: local.wakeAlarmNote,
+      incomingIsHelper: incomingIsHelper,
+      localUnderFullCare: local.fullCareMode || local.guidedMode,
+    );

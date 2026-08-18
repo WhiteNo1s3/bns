@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Bundle
+import android.provider.AlarmClock
 import android.speech.RecognizerIntent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -51,6 +52,41 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // THE CLOCK DOOR (owner, 2026-08-18: "make sure it passes from my
+        // app into the clock itself with configurations and notes"). Hands
+        // the wake to the phone's own clock app, pre-filled — time and the
+        // reason as the label. The clock's UI opens so the person SEES it
+        // land and can pick their song right there; its alarms survive
+        // anything, BNS included.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bns/wake_clock")
+            .setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "plant" -> {
+                            val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                putExtra(AlarmClock.EXTRA_HOUR,
+                                    call.argument<Int>("hour") ?: 8)
+                                putExtra(AlarmClock.EXTRA_MINUTES,
+                                    call.argument<Int>("minutes") ?: 0)
+                                call.argument<String>("message")?.let {
+                                    putExtra(AlarmClock.EXTRA_MESSAGE, it)
+                                }
+                                putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        }
+                        "openAlarms" -> {
+                            startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS))
+                            result.success(true)
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (e: Exception) {
+                    // No clock app to answer — the Dart side says so kindly.
+                    result.success(false)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bns/speech_popup")
             .setMethodCallHandler { call, result ->
                 if (call.method != "recognize") {

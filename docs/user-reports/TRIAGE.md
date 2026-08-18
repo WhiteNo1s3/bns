@@ -522,3 +522,47 @@ stabilization queue, not new sync scope (that stays frozen).
 Tests 287 (+7: owl past-day, fusion floor, day-view three-days,
 tomorrow-room weave + guided window). L1 queue continues: reach on
 Today, miss-door count, hero confirm, FAB seat.
+
+## Wake pass (owner as user, 2026-08-18 — "I don't get the notifications, I need an alarm clock")
+
+Two findings in one report. Both owned:
+
+- **Why notifications never arrived**: every reminder was scheduled
+  `inexactAllowWhileIdle` — Samsung batches, defers, and swallows
+  inexact alarms. Reminders now ride `exactAllowWhileIdle` with a
+  silent inexact fallback, and the manifest carries `USE_EXACT_ALARM`
+  (granted at install — BNS is an alarm-and-calendar app in the most
+  literal sense), `SCHEDULE_EXACT_ALARM` (≤32), `USE_FULL_SCREEN_INTENT`,
+  `SET_ALARM`, plus clock-app `queries` visibility.
+- **The wake alarm — in-app or OS? BOTH, each doing what only it can.**
+  BNS's own wake (`bns_wake` channel): a REAL alarm — importance max,
+  alarm category + alarm audio stream, full-screen, FLAG_INSISTENT (the
+  ring holds until answered), `AndroidScheduleMode.alarmClock` (Doze-
+  immune, status-bar alarm icon), daily repeat. Its body is THE REASON
+  (owner: "many days have nothing to wake up for and I do have"):
+  `wakeBodyFor` — the day's first three things in owl order (02:00
+  night pills never lead the morning), rebuilt fresh every reschedule;
+  an empty day still says «היום שלך מחכה לך.» The phone's own clock is
+  the second layer: «לשתול גם בשעון של הטלפון» (MainActivity
+  `bns/wake_clock` channel, ACTION_SET_ALARM pre-filled with time +
+  reason as the label, UI shown ON PURPOSE — the person sees it land
+  and picks their SONG right there; Samsung's song/Spotify alarms are
+  the customization he asked for, no bundled-audio scope). A clock
+  alarm survives force-stop; ours carries the meaning.
+- Seat + level rules: `_scheduleWake` refuses `caregiverDevice` (a
+  sitting store's wake must ring on the person's nightstand, never the
+  helper's); the wake section in the Tomorrow room hides on Care seats
+  and in guided mode. Caregiver-set wake via sync = wave 2, frozen
+  with the rest.
+- `wakeAlarmTime`/`wakeAlarmNote` joined settings ('' = off; old files
+  simply have no wake). Version-skew caveat applies as recorded.
+- **Version answered** (owner asked mid-wave): we are at **0.12.0+4**
+  (pubspec `version:`), scheme `0.MINOR.PATCH+build` — MINOR per
+  feature wave, PATCH for fix-only, `+N` is the Android versionCode
+  and climbs every shipped build. Apple/dist names derive from pubspec
+  via build-apple.sh. 1.0.0 = the L1 day runs clean + distribution
+  signing done.
+
+Tests 293 (+6: settings round-trip incl. pre-wake files, wake words ×3,
+tomorrow-room wake set flow, Care-seat refusal). Not yet lived-tested:
+the actual ring on the S23 (needs a set wake + a morning).

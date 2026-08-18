@@ -19,6 +19,19 @@
          which for this community means a missed medication, not a missed
          ping. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- EXACT DELIVERY (owner as user, 2026-08-18: "I don't get the
+         notifications"). Inexact alarms get batched and deferred by the
+         battery police until they help nobody. BNS is an alarm-and-
+         calendar app in the most literal sense — USE_EXACT_ALARM is the
+         permission made exactly for this class, granted at install. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <!-- The wake alarm takes the whole screen like an alarm should. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Planting the wake into the phone's own clock app (its alarms
+         survive anything, and its ringtones are where the songs live). -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
     <application
         android:name="${applicationName}"
@@ -142,6 +155,13 @@
         <!-- The Waze door (system listening sheet) on Android 11+. -->
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH"/>
+        </intent>
+        <!-- Seeing the phone's clock app on Android 11+ (the wake plant). -->
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS"/>
         </intent>
     </queries>
 </manifest>

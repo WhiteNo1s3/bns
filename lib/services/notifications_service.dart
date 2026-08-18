@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:typed_data' show Int32List;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -7,6 +8,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/reminder_plan.dart';
+import 'package:bns/core/wake_words.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/ui/theme.dart';
@@ -199,15 +201,13 @@ class NotificationsService {
 
     for (final p in plan) {
       try {
-        await _plugin.zonedSchedule(
+        await _zonedScheduleExactish(
           p.id,
           p.title,
           p.body,
           tz.TZDateTime.from(p.firstAt, tz.local),
           _detailsFor(settings, p),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
+          mode: AndroidScheduleMode.exactAllowWhileIdle,
           matchDateTimeComponents: switch (p.repeat) {
             PlannedRepeat.daily => DateTimeComponents.time,
             PlannedRepeat.weekly => DateTimeComponents.dayOfWeekAndTime,
@@ -219,7 +219,146 @@ class NotificationsService {
         // One bad reminder must never take down the rest.
       }
     }
+
+    try {
+      await _scheduleWake(settings, routines, events, now);
+    } catch (_) {
+      // The wake failing to schedule must never break the reminders.
+    }
     _lastFingerprint = fingerprint;
+  }
+
+  /// EXACT DELIVERY (owner as user, 2026-08-18: "I don't get the
+  /// notifications"). Inexact alarms were the silent killer — Samsung
+  /// batches and defers them until they help nobody. Reminders ride
+  /// exact-while-idle now (the manifest carries USE_EXACT_ALARM — BNS is
+  /// an alarm-and-calendar app in the most literal sense); if a device
+  /// still refuses exact alarms, the reminder arrives inexactly rather
+  /// than not at all.
+  static Future<void> _zonedScheduleExactish(
+    int id,
+    String title,
+    String body,
+    tz.TZDateTime at,
+    NotificationDetails details, {
+    required AndroidScheduleMode mode,
+    DateTimeComponents? matchDateTimeComponents,
+    String? payload,
+  }) async {
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        at,
+        details,
+        androidScheduleMode: mode,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+        payload: payload,
+      );
+    } catch (_) {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        at,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+        payload: payload,
+      );
+    }
+  }
+
+  // ---- THE WAKE ALARM ----
+  // Owner as user, 2026-08-18: "I need an alarm clock... many days have
+  // nothing to wake up for and I do have." A real alarm — alarm channel,
+  // alarm sound, full screen, insistent — and the ring CARRIES THE
+  // REASON: the day's opening, rebuilt fresh on every reschedule. The
+  // phone's own clock app can hold a second copy (planted from the
+  // Tomorrow room) — that one carries the person's songs and survives
+  // anything; this one carries the meaning.
+
+  static const int _wakeId = 910777;
+
+  static Future<void> _scheduleWake(AppSettings settings,
+      List<Routine> routines, List<CalendarEvent> events, DateTime now) async {
+    // A Care seat's store may carry the person's wake — it rings on THEIR
+    // nightstand, never on the helper's (the seat wears the helper's hat).
+    if (settings.caregiverDevice) return;
+    final parsed = parseHhmm(settings.wakeAlarmTime);
+    if (parsed == null || !settings.notificationsEnabled) return;
+
+    var fireAt = DateTime(
+        now.year, now.month, now.day, parsed.hour, parsed.minute);
+    if (!fireAt.isAfter(now)) fireAt = fireAt.add(const Duration(days: 1));
+
+    // The ring opens the day it lands on — the body is that day's plan.
+    final note = settings.wakeAlarmNote.trim();
+    final body = note.isNotEmpty
+        ? note
+        : wakeBodyFor(
+            routines: routines,
+            events: events,
+            day: logicalDateOf(fireAt, settings.dayRolloverHour),
+            rolloverHour: settings.dayRolloverHour,
+            t: L.t,
+          );
+
+    await _zonedScheduleExactish(
+      _wakeId,
+      L.t('Good morning', 'בוקר טוב'),
+      body,
+      tz.TZDateTime.from(fireAt, tz.local),
+      _wakeDetails(settings, body),
+      // The strongest scheduling Android has: the OS treats it as an
+      // alarm clock (status-bar alarm icon, immune to Doze).
+      mode: AndroidScheduleMode.alarmClock,
+      matchDateTimeComponents: DateTimeComponents.time, // every day
+      payload: 'wake',
+    );
+  }
+
+  static NotificationDetails _wakeDetails(AppSettings settings, String body) {
+    final android = AndroidNotificationDetails(
+      'bns_wake',
+      L.t('Wake alarm', 'השכמה'),
+      channelDescription: L.t('The morning alarm that carries your day',
+          'השכמת הבוקר שנושאת את היום שלך'),
+      importance: Importance.max,
+      priority: Priority.max,
+      category: AndroidNotificationCategory.alarm,
+      fullScreenIntent: true,
+      playSound: true,
+      // The phone's own alarm tone — the one the person already chose
+      // and knows. Ring like an alarm, through the alarm stream.
+      sound: const UriAndroidNotificationSound(
+          'content://settings/system/alarm_alert'),
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      // FLAG_INSISTENT: the sound holds until the person answers it —
+      // a wake that gives up after four seconds wakes nobody.
+      additionalFlags: Int32List.fromList(const [4]),
+      color: BnsTheme.reminderColor(settings),
+      styleInformation: BigTextStyleInformation(body),
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction(
+            'wake_open', L.t('Open the day', 'לפתוח את היום'),
+            showsUserInterface: true),
+      ],
+    );
+
+    const darwin = DarwinNotificationDetails(
+      presentAlert: true,
+      presentSound: true,
+      presentBadge: false,
+      interruptionLevel: InterruptionLevel.timeSensitive,
+    );
+
+    return NotificationDetails(android: android, iOS: darwin, macOS: darwin);
   }
 
   // ---- How a reminder looks and sounds: the person's choice ----

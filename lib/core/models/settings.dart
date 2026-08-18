@@ -59,6 +59,18 @@ class AppSettings {
   // all read this pair. Clamped to 0..23.
   final int dayStartHour;
 
+  // THE WAKE (owner as user, 2026-08-18: "I don't get the notifications,
+  // I need an alarm clock... many days have nothing to wake up for and I
+  // do have"). 'HH:mm' when a daily wake alarm is set, '' = no wake.
+  // BNS rings it as a real alarm (alarm channel, exact, full-screen) and
+  // the ring carries the REASON — the day's opening. The person can also
+  // plant it into the phone's own clock app, where their songs live.
+  final String wakeAlarmTime;
+
+  // Words the wake carries. '' = the day speaks for itself (the first
+  // things on the plan, built fresh every reschedule).
+  final String wakeAlarmNote;
+
   final bool hapticsEnabled;
   final DateTime? lastFullSyncAt;
 
@@ -185,6 +197,8 @@ class AppSettings {
     this.notificationColor = 'auto',
     this.eventReminderMinutes = 30,
     this.reminderTimeoutMinutes = 120,
+    this.wakeAlarmTime = '',
+    this.wakeAlarmNote = '',
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
     // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
@@ -227,6 +241,8 @@ class AppSettings {
     String? notificationColor,
     int? eventReminderMinutes,
     int? reminderTimeoutMinutes,
+    String? wakeAlarmTime,
+    String? wakeAlarmNote,
     bool? hapticsEnabled,
     Object? lastFullSyncAt = _unset,
     int? retentionDays,
@@ -264,6 +280,8 @@ class AppSettings {
       eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
       reminderTimeoutMinutes:
           reminderTimeoutMinutes ?? this.reminderTimeoutMinutes,
+      wakeAlarmTime: wakeAlarmTime ?? this.wakeAlarmTime,
+      wakeAlarmNote: wakeAlarmNote ?? this.wakeAlarmNote,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
       lastFullSyncAt: lastFullSyncAt == _unset
           ? this.lastFullSyncAt
@@ -307,6 +325,8 @@ class AppSettings {
         'notificationColor': notificationColor,
         'eventReminderMinutes': eventReminderMinutes,
         'reminderTimeoutMinutes': reminderTimeoutMinutes,
+        'wakeAlarmTime': wakeAlarmTime,
+        'wakeAlarmNote': wakeAlarmNote,
         'hapticsEnabled': hapticsEnabled,
         'lastFullSyncAt': lastFullSyncAt?.toIso8601String(),
         'retentionDays': retentionDays,
@@ -349,6 +369,8 @@ class AppSettings {
             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,
         reminderTimeoutMinutes:
             (json['reminderTimeoutMinutes'] as num?)?.toInt() ?? 120,
+        wakeAlarmTime: json['wakeAlarmTime'] as String? ?? '',
+        wakeAlarmNote: json['wakeAlarmNote'] as String? ?? '',
         hapticsEnabled: json['hapticsEnabled'] as bool? ?? true,
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null

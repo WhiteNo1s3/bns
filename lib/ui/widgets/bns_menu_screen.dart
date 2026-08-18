@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:bns/core/i18n/l.dart';
+import 'package:bns/core/version.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 
@@ -135,6 +136,15 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
                   'הכול נשאר במכשירים שלך.\nפרטי • בלי ענן • שלך'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+          ),
+          // The build wears its name (owner, 2026-08-18: "we neglect the
+          // versioning") — alpha testers report against THIS line.
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              'BNS $kBnsVersion',
+              style: TextStyle(fontSize: 12, color: cs.outline),
             ),
           ),
         ],

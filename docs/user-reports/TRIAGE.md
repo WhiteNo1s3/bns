@@ -566,3 +566,16 @@ Two findings in one report. Both owned:
 Tests 293 (+6: settings round-trip incl. pre-wake files, wake words ×3,
 tomorrow-room wake set flow, Care-seat refusal). Not yet lived-tested:
 the actual ring on the S23 (needs a set wake + a morning).
+
+### Versioning correction (owner, same day): the alpha law
+
+"We neglect the versioning, it's +0.01 and an `a` at the end as this is
+considered ALPHA." He is right — the tree already said 0.12a in three
+hardcoded spots (about dialog, both export stamps) while pubspec and
+dist names ignored it. Now ONE law: human version **0.12a** lives in
+`lib/core/version.dart` (`kBnsVersion`); menu footer shows it (testers
+report against that line); about + export stamps read it; build-apple
+derives dist names from pubspec wearing the `a`;
+`test/version_law_test.dart` welds constant↔pubspec so drift goes red.
+Full scheme in docs/versioning.md: +0.01 per wave, `+N` versionCode
+ever-climbing, the `a` falls only at 1.0. Tests 295.

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:bns/core/models/calendar_event.dart';
+import 'package:bns/core/version.dart';
 import 'package:bns/core/models/routine.dart';
 import 'package:bns/core/need_help.dart';
 import 'package:bns/data/local/bns_home.dart';
@@ -143,7 +144,7 @@ class BnsExporter {
       'exportedAt': DateTime.now().toIso8601String(),
       'deviceId': settings.deviceId,
       'deviceName': settings.deviceName,
-      'appVersion': '0.12a',
+      'appVersion': kBnsVersion,
       'schema': 'bns/v2',
       'familyShare': true,
       'careWindow': width.name,
@@ -216,7 +217,7 @@ class BnsExporter {
       'exportedAt': DateTime.now().toIso8601String(),
       'deviceId': snapshot.settings.deviceId, // stable identity of this device
       'deviceName': snapshot.settings.deviceName,
-      'appVersion': '0.12a',
+      'appVersion': kBnsVersion,
       'schema': 'bns/v2',
       'audioCount': audioPaths.length,
       'totalItems':

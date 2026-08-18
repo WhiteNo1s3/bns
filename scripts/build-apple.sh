@@ -14,7 +14,10 @@ set -e
 cd "$(dirname "$0")/.."
 
 TARGET="${1:-all}"
-VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | sed 's/+.*//')
+# The HUMAN version is 0.XXa — alpha law (owner, 2026-08-18): pubspec
+# holds the machine form 0.XX.0+N; dist files and echoes wear the `a`.
+VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//' | sed 's/+.*//' \
+  | sed -E 's/^([0-9]+)\.([0-9]+)\..*/\1.\2a/')
 mkdir -p dist
 
 echo "=== BNS Apple builds (v$VERSION) ==="

@@ -10,6 +10,7 @@ import 'package:bns/core/wake_words.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// THE WAKE, WHEREVER ITS DOOR IS (owner, 2026-08-19: "it can be its own
 /// button... whatever you see fits"). One implementation of the wake —
@@ -95,9 +96,14 @@ class _WakeControlsState extends State<WakeControls> {
     await NotificationsService.rescheduleAll(force: true);
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t('The wake is set — $hhmm, every day.',
             'ההשכמה נקבעה — $hhmm, כל יום.'))));
+    // The brief's wake lands in the phone's own clock in the SAME motion
+    // (owner, 2026-08-18: "הוספת שעון מעורר גם בטלפון") — the clock opens
+    // pre-filled so the person sees it land and picks their song there.
+    // The small button below still replants any time.
+    if (Platform.isAndroid) await _plantInClock();
   }
 
   Future<void> _clearWake() async {
@@ -106,7 +112,7 @@ class _WakeControlsState extends State<WakeControls> {
     await NotificationsService.rescheduleAll(force: true);
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
         SnackBar(content: Text(L.t('The wake is off.', 'ההשכמה כבויה.'))));
   }
 
@@ -127,7 +133,7 @@ class _WakeControlsState extends State<WakeControls> {
     } catch (_) {}
     if (!mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('No clock app answered on this device.',
               'שעון הטלפון לא נענה במכשיר הזה.'))));
     }

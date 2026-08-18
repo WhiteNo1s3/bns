@@ -49,6 +49,10 @@ Thumbs.db
 *.bns
 exports/
 audio/
+# ...but the bundled file-ear probe is SOURCE, not user audio: the one
+# recorded sentence the Android ear plays to find its working door.
+!assets/audio/
+!assets/audio/ear_probe_he.wav
 
 # Built artifacts live in releases/stores, not in source control
 dist/

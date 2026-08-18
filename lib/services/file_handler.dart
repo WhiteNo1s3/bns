@@ -4,6 +4,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Handles opening .bns files (file association) - cross-platform.
 /// iOS (high-profile iPhone): Via Info.plist document types. Open .bns → import full data.
@@ -25,7 +26,7 @@ class BnsFileHandler {
       AndroidBnsWidget.updateWidget();
 
       if (context != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        BnsSnack.show(context, 
           SnackBar(
               content: Text(L.t(
                   'Imported .bns: ${file.path.split(Platform.pathSeparator).last}. Your data is updated. You got this.',
@@ -34,7 +35,7 @@ class BnsFileHandler {
       }
     } catch (e) {
       if (context != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        BnsSnack.show(context, 
           SnackBar(
               content: Text(L.t('Import had a problem: $e',
                   'הייתה בעיה בקליטת הקובץ: $e'))),

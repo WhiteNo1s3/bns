@@ -6,6 +6,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Dedicated screen for managing all routines (CRUD).
 /// This is the first major feature added after core sync & retention.
@@ -89,7 +90,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       }
       await _loadRoutines();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        BnsSnack.show(context, 
           SnackBar(
             content: Text(existing != null
                 ? L.t('Routine updated. Nice work keeping things organized.',
@@ -127,7 +128,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       await IsarService.deleteRoutine(routine.id);
       await _loadRoutines();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        BnsSnack.show(context, 
           SnackBar(
               content: Text(
                   L.t('Routine removed. All good.', 'השגרה הוסרה. הכול בסדר.'))),
@@ -378,7 +379,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
             '${snapped.hour.toString().padLeft(2, '0')}:${snapped.minute.toString().padLeft(2, '0')}';
       });
       if (snapped.minute != picked.minute && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
             content: Text(L.t(
                 'Rounded to ${_time!} — clean quarter hours only.',
                 'עוגל ל־${_time!} — רק רבעי שעה נקיים.'))));
@@ -414,7 +415,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
 
   void _save() {
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t('Title is required – even a short one helps.',
                 'צריך כותרת – גם קצרה עוזרת.'))),
@@ -430,7 +431,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
             recurrence == RecurrenceType.custom) &&
         _daysOfWeek.isEmpty) {
       recurrence = RecurrenceType.daily;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'No days were picked — set to every day so it never gets lost. '
               'Edit anytime.',

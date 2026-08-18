@@ -79,6 +79,10 @@ flutter:
   assets:
     - assets/icon/bns_icon.png
     - assets/icon/bns_logo.png
+    # The file-ear probe: a known Hebrew sentence (spoken by macOS Carmit,
+    # 16 kHz mono WAV, ~56 KB) that the Android ear plays to each system
+    # recognizer once to learn which one honors EXTRA_AUDIO_SOURCE.
+    - assets/audio/ear_probe_he.wav
     # Gentle illustrations and assets for happy, low-load UI
     # - assets/images/
 

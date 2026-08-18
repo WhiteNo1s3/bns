@@ -3,7 +3,8 @@ import 'package:bns/core/i18n/l.dart';
 
 /// Always-accessible quick capture entry.
 /// Voice first (mic big target) + text fallback.
-/// Will expand to full bottom sheet / dedicated screen with Record package.
+/// Wears the room's name — «הקלטה ותיעוד» (owner rename, 2026-08-18) —
+/// with no trailing explainer; the mic on it says the how.
 class QuickCaptureBar extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -13,8 +14,7 @@ class QuickCaptureBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilledButton.tonalIcon(
       icon: const Icon(Icons.mic, size: 22),
-      label: Text(L.t('Keep this — voice or write',
-          'לשמור את זה — בקול או בכתיבה')),
+      label: Text(L.t('Recording & notes', 'הקלטה ותיעוד')),
       onPressed: onTap,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(56),

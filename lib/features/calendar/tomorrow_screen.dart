@@ -12,6 +12,7 @@ import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// TOMORROW — the next day's plan as ONE ENTITY, in its own room.
 ///
@@ -95,7 +96,7 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
   /// the important ones. Same shape as today's plan door, one day later.
   Future<void> _addPlan() async {
     if (_guided) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The plan is taken care of for you. All is well. 💚',
               'התוכנית מסודרת בשבילך. הכול בסדר. 💚'))));
@@ -199,7 +200,7 @@ class _TomorrowScreenState extends State<TomorrowScreen> {
     await NotificationsService.rescheduleAll();
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
       content: Text(L.t('"${e.title}" left tomorrow.',
           '״${e.title}״ ירד ממחר.')),
       action: SnackBarAction(

@@ -7,6 +7,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/snack.dart';
 
 /// The day-as-diary thread: everything said and done on one day, morning → night.
 ///
@@ -130,7 +131,7 @@ class _DayThreadScreenState extends State<DayThreadScreen> {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The sound for this one is not on this device anymore.',
               'ההקלטה של זה כבר לא נמצאת במכשיר הזה.'))));

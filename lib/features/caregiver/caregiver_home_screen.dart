@@ -20,6 +20,7 @@ import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/later_today_door.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// THE HELPER'S HOME (owner, 2026-07-27: "we also want to have a caregiver
 /// interface").
@@ -153,7 +154,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     LanSyncService.instance.pushTrustedNow(pushOnly: true);
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t(
             'Their clock is set: ${start.hour.toString().padLeft(2, '0')}:00'
             '–0${end.hour}:00. Sent to them now.',
@@ -325,7 +326,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     await IsarService.addRoutine(r.postponeOn(_todayKey, hhmm));
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
         content: Text(
           L.t(
@@ -379,7 +380,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
           content: Text(
             L.t(

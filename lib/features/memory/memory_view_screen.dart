@@ -10,6 +10,7 @@ import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/mark_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// One memory, still and clear. The person sees the words they kept,
 /// hears the voice if there is one, and can leave without a quiz.
@@ -40,7 +41,7 @@ class _MemoryViewScreenState extends State<MemoryViewScreen> {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The sound for this one is not on this device anymore.',
               'הצליל של הזיכרון הזה כבר לא נמצא במכשיר הזה.'))));
@@ -60,7 +61,7 @@ class _MemoryViewScreenState extends State<MemoryViewScreen> {
       _memory.copyWith(memoryLevel: MemoryLevel.memorize),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
       content: Text(L.t('This one will stay.', 'זה יישאר.')),
       duration: const Duration(seconds: 2),
     ));

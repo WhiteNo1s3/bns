@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/ui/snack.dart';
 
 /// THE CONTAINMENT STATE — one truth the whole app can ask synchronously.
 ///
@@ -178,7 +179,7 @@ Future<bool> showCareUnlockDialog(
   if (opened) CareState.noteUnlocked();
   ctrl.dispose();
   if (ok && !opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
       content: Text(L.t(
           'That door stays with the caregiver. All is well — your day '
               'continues as usual. 💚',

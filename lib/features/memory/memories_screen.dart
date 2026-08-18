@@ -9,6 +9,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/memory/memory_view_screen.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/snack.dart';
 
 /// The person's kept thoughts — every recording and note they saved.
 ///
@@ -89,7 +90,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     if (_showTrash) {
       await IsarService.restoreCapture(m.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
         content: Text(L.t('Brought back.', 'חזר.')),
         duration: const Duration(seconds: 2),
       ));
@@ -305,7 +306,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 context.go('/capture');
               },
               icon: const Icon(Icons.mic),
-              label: Text(L.t('Keep this', 'לשמור את זה')),
+              label: Text(L.t('Recording & notes', 'הקלטה ותיעוד')),
             ),
     );
   }

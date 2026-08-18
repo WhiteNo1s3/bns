@@ -61,6 +61,7 @@ import 'package:bns/services/tts_service.dart';
 import 'package:bns/services/file_handler.dart';
 import 'package:bns/features/sync/pairing_dialogs.dart';
 import 'package:confetti/confetti.dart';
+import 'package:bns/ui/snack.dart';
 
 void main(List<String> args) {
   // THE FIRST FRAME IS SACRED (black-screen fix, 2026-07-06): runApp runs
@@ -967,7 +968,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                           .toggle(c.audioPath!);
                                     } catch (_) {
                                       if (!ctx.mounted) return;
-                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                      BnsSnack.show(ctx, 
                                           SnackBar(
                                               content: Text(L.t(
                                                   'The sound for this one is not on this device anymore.',
@@ -1159,7 +1160,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await NotificationsService.rescheduleAll();
     await _refreshDoneToday();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t('Moved to $hhmm — still today.',
             'עבר ל־$hhmm — עדיין היום.'))));
   }
@@ -1173,7 +1174,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     if (!mounted) return;
     setState(() => _dayStartHour = v);
     final hh = v.toString().padLeft(2, '0');
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(v == 0
             ? L.t('Your day starts at midnight — the classic way.',
                 'היום שלך מתחיל בחצות — הדרך הקלאסית.')
@@ -1189,7 +1190,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         s.copyWith(todayOrder: next ? 'next' : 'timeline'));
     if (!mounted) return;
     setState(() => _nextFirstOrder = next);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(next
             ? L.t('Showing what\'s next first. The order follows the clock.',
                 'קודם מה שהכי קרוב עכשיו. הסדר הולך לפי השעון.')
@@ -1226,7 +1227,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         _uncleanExitNoticeShown = true;
         // ADULT WARMTH (owner + his father, 2026-08-16: "we went baby
         // soft... it's for adults"): state the fact, skip the cooing.
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
           duration: const Duration(seconds: 4),
           content: Text(L.t(
               'Everything from last time is saved.',
@@ -1264,7 +1265,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await IsarService.setMadMode(newVal);
     if (!mounted) return;
     setState(() => _madActive = newVal);
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
         content: Text(newVal
             ? L.t('Mad mode on. Say anything — it burns out by itself.',
@@ -1289,7 +1290,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       }
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t('Everything for today is already done. Amazing!',
                 'כל מה שהיה להיום כבר נעשה. מדהים!'))),
@@ -1797,7 +1798,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     ));
     await _refreshDoneToday();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('The day is kept.', 'היום נשמר.'))));
     }
   }
@@ -1928,7 +1929,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     if (mounted) {
       // Brief and quiet — the person already chose to keep it; don't ask
       // again. (Promoting a memory to "keep forever" lives in Memories.)
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
           content: Text(L.t('In the diary. ✓', 'נשמר ביומן. ✓')),
           duration: const Duration(seconds: 2),
@@ -2604,7 +2605,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       // their own hold, and the key does the guarding —
                       // with the setup offered when no key exists yet.
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        BnsSnack.show(context, SnackBar(
                             content: Text(L.t(
                                 'This door belongs to the caregiver. '
                                     'Your day is all here. 💚',

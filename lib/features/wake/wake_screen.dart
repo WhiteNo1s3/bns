@@ -12,6 +12,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/wake/wake_controls.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// THE ALARM PAGE (owner, 2026-08-19: "its not only to wake up, its to
 /// set real clock to alarm... wire the list to the alarm page, let user
@@ -215,7 +216,7 @@ class _WakeScreenState extends State<WakeScreen> {
     } catch (_) {}
     if (!mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('No clock app answered on this device.',
               'שעון הטלפון לא נענה במכשיר הזה.'))));
     }

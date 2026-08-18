@@ -7,6 +7,7 @@ import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/speech_popup.dart';
 import 'package:bns/services/stt_service.dart';
+import 'package:bns/ui/snack.dart';
 
 /// A small mic that dictates straight into a [TextEditingController] —
 /// the "STT all the time" building block. Drop it as a `suffixIcon` (or
@@ -181,7 +182,7 @@ class _DictationMicButtonState extends State<DictationMicButton> {
   void _tellOnce(String msg) {
     if (_told || !mounted) return;
     _told = true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    BnsSnack.show(context, SnackBar(content: Text(msg)));
   }
 
   @override

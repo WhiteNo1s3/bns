@@ -139,18 +139,12 @@ class _BnsMenuScreenState extends State<BnsMenuScreen> {
                 ),
               ),
             ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              L.t('Everything stays on your devices.\nPrivate • No cloud • Yours',
-                  'הכול נשאר במכשירים שלך.\nפרטי • בלי ענן • שלך'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-            ),
-          ),
+          // The privacy slogan came OFF this screen (owner, 2026-08-18:
+          // "זה משהו לגיטהאב לכתוב כפיצ׳ר") — feature copy lives in the
+          // README; the app just behaves that way.
           // The build wears its name (owner, 2026-08-18: "we neglect the
           // versioning") — alpha testers report against THIS line.
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
           Center(
             child: Text(
               'BNS $kBnsVersion',

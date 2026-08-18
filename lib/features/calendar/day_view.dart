@@ -17,6 +17,7 @@ import 'package:bns/ui/widgets/day_look_tile.dart';
 import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Day detail view.
 /// Shows:
@@ -120,7 +121,7 @@ class _DayViewState extends State<DayView> {
       await AudioPlaybackService.toggle(path);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The sound for this one is not on this device anymore.',
               'ההקלטה של זה כבר לא נמצאת במכשיר הזה.'))));
@@ -149,14 +150,14 @@ class _DayViewState extends State<DayView> {
 
   Future<void> _toggleRoutine(Routine r) async {
     if (_caregiverDevice) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The ✓ is written by the one doing it. It arrives here when the devices meet.',
               'את ה־✓ כותב מי שעושה. זה מגיע לכאן כשהמכשירים נפגשים.'))));
       return;
     }
     if (_isFutureDay) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('That day hasn\'t come yet — it can wait for you.',
               'היום הזה עוד לא הגיע — הוא יחכה לך.'))));
       return;
@@ -242,7 +243,7 @@ class _DayViewState extends State<DayView> {
   Future<void> _addEvent() async {
     // The past holds no new plans — for anyone, any hat.
     if (_isPastDay) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'A day that passed stays as it was. Plans belong to days still coming.',
               'יום שעבר נשאר כמו שהיה. תוכניות שייכות לימים שעוד באים.'))));
@@ -252,7 +253,7 @@ class _DayViewState extends State<DayView> {
     final settings = await IsarService.getSettings();
     if (settings.guidedMode) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
             content: Text(L.t(
                 'The plan is taken care of for you. All is well. 💚',
                 'התוכנית מסודרת בשבילך. הכול בסדר. 💚'))));
@@ -383,7 +384,7 @@ class _DayViewState extends State<DayView> {
     await IsarService.addEvent(updated);
     await _loadData();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(updated.shareWithFamily
             ? L.t('"${e.title}" goes into the family share.',
                 '״${e.title}״ נכנס לשיתוף המשפחתי.')
@@ -442,7 +443,7 @@ class _DayViewState extends State<DayView> {
     await _loadData();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t(
                 'Day kept. You showed up.',
@@ -676,8 +677,7 @@ class _DayViewState extends State<DayView> {
                           time: RecurrenceUtils.describe(r,
                               dayKey:
                                   DateFormat('yyyy-MM-dd').format(_date)),
-                          onTap: () => ScaffoldMessenger.of(context)
-                              .showSnackBar(SnackBar(
+                          onTap: () => BnsSnack.show(context, SnackBar(
                                   content: Text(dayHasNotComeLabel()))),
                         );
                       }

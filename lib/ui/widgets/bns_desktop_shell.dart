@@ -13,6 +13,7 @@ import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/data/import/bns_importer.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/layout.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Modern desktop shell for PC (Windows/macOS/Linux primary use).
 ///
@@ -86,10 +87,10 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
         _DesktopDestination(
           icon: Icons.mic_outlined,
           selectedIcon: Icons.mic,
-          label: L.t('Capture', 'לכידה'),
+          label: L.t('Recording & notes', 'הקלטה ותיעוד'),
           route: '/capture',
-          tooltip: L.t('Quick voice or text capture  •  Ctrl+N',
-              'לכידה מהירה בקול או בכתב  •  Ctrl+N'),
+          tooltip: L.t('Record and write it down  •  Ctrl+N',
+              'להקליט ולתעד  •  Ctrl+N'),
         ),
         _DesktopDestination(
           icon: Icons.sync_alt_outlined,
@@ -188,14 +189,14 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
       if (!mounted) return;
       // Name the FOLDER, not just the file — "saved: something.bns" leaves
       // a person hunting their own disk for their own backup.
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           duration: const Duration(seconds: 6),
           content: Text(L.t(
               'Backup saved in: ${BnsSaveOut.folderOf(f.path)}',
               'הגיבוי נשמר בתיקייה: ${BnsSaveOut.folderOf(f.path)}'))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(
               L.t('Export had a problem: $e', 'הייתה בעיה בייצוא: $e'))));
     }
@@ -208,17 +209,16 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
     try {
       await BnsImporter.importMerge(File(path));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'Backup merged in. Thank you for keeping things together.',
               'הגיבוי מוזג פנימה. תודה ששומרים על הכול ביחד.'))));
     } on FormatException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      BnsSnack.show(context, SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(
               L.t('Import had a problem: $e', 'הייתה בעיה בייבוא: $e'))));
     }
@@ -412,20 +412,9 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
                 ),
               ),
 
-              // Bottom info (PC focused, robust)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  L.t(
-                      'Everything stays on your devices.\nPrivate • No cloud • Yours',
-                      'הכול נשאר במכשירים שלך.\nפרטי • בלי ענן • שלך'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
+              // The privacy slogan came OFF the rail (owner, 2026-08-18:
+              // "זה משהו לגיטהאב לכתוב כפיצ׳ר") — the README carries the
+              // feature copy; the app just behaves that way.
             ],
           ),
         ),
@@ -700,7 +689,9 @@ class _PhoneDoors extends StatelessWidget {
             NavigationDestination(
               icon: const Icon(Icons.mic_none, size: 28),
               selectedIcon: const Icon(Icons.mic, size: 28),
-              label: L.t('Keep this', 'לשמור'),
+              // The chip is the room's short name (the room itself is
+              // «הקלטה ותיעוד» — owner rename, 2026-08-18).
+              label: L.t('Record', 'הקלטה'),
             ),
           NavigationDestination(
             icon: const Icon(Icons.menu_book_outlined, size: 28),

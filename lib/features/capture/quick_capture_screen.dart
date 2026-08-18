@@ -15,6 +15,7 @@ import 'package:bns/core/recording_text.dart';
 import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
+import 'package:bns/services/android_file_stt.dart';
 import 'package:bns/services/apple_file_stt.dart';
 import 'package:bns/services/speech_popup.dart';
 import 'package:bns/services/tts_service.dart';
@@ -23,6 +24,7 @@ import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/mark_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Full voice + text capture screen.
 /// Records using the `record` package, plays back with audioplayers.
@@ -218,7 +220,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       if (allowed) return true;
     } catch (_) {}
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
         content: Text(L.t(
             'The microphone did not open. You can write it instead.',
             'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
@@ -289,7 +291,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       });
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'The microphone did not open. You can write it instead.',
               'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
@@ -298,13 +300,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     }
   }
 
-  /// Voice is already safe. Then the words — and ONLY real words: a take
-  /// the engines couldn't read writes NOTHING into the box (owner beta
-  /// report, 2026-08-15: an empty "הקלטה 1" header standing where his
-  /// words should be — "not close to my vision"). On Android, where no
-  /// engine can read the file, the system speech sheet opens BY ITSELF
-  /// right after the voice is kept: talk → sheet → words. One flow, not
-  /// a card asking to press again.
+  /// Voice is already safe. Then the words — read from THE SAME take, on
+  /// every platform with an ear (Android included since 2026-08-18: the
+  /// file ear feeds Google the kept audio, nobody says anything twice) —
+  /// and ONLY real words: a take the engines couldn't read writes NOTHING
+  /// into the box (owner beta report, 2026-08-15: an empty "הקלטה 1"
+  /// header standing where his words should be — "not close to my
+  /// vision").
   Future<void> _keepTake(String path) async {
     final n = _takes.length + 1;
     setState(() {
@@ -334,9 +336,24 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     // system ear only when pressed.
   }
 
-  /// Hebrew first: Apple on-device ear, then Whisper (Windows), then Vosk.
+  /// Hebrew first: Android's file ear (Google reading the kept file),
+  /// Apple's on-device ear, then Whisper (Windows), then Vosk.
   Future<String> _hearWords(String path) async {
     try {
+      if (AndroidFileStt.isSupported) {
+        // The same respect as the popup door: a person who turned voice
+        // typing off said "no engine listens to me" — the ear stays shut
+        // and the voice is still kept.
+        final settings = await IsarService.getSettings();
+        if (!settings.sttEnabled) return '';
+        final chosen = settings.sttLocale.trim();
+        return await AndroidFileStt.transcribeFile(
+          path,
+          locale: chosen.isEmpty
+              ? (L.isHebrew ? 'he-IL' : 'en-US')
+              : chosen.replaceAll('_', '-'),
+        );
+      }
       if (AppleFileStt.isSupported) {
         final locale = L.isHebrew ? 'he-IL' : 'en-US';
         final apple = await AppleFileStt.transcribeFile(path, locale: locale);
@@ -361,14 +378,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     return '';
   }
 
-  /// ANDROID HAS NO FILE EAR — and Android is the flagship.
-  ///
-  /// Apple reads the finished recording; Windows has Whisper/Vosk. Android
-  /// has neither, and the recorder and the speech engine cannot share one
-  /// microphone (field truth, 2026-07-26 — running both killed the
-  /// recording). So the words come through the same door Waze uses: the
-  /// system popup, AFTER the voice is safely kept. Saying it a second time
-  /// is a real cost, so it is offered plainly and never demanded — the
+  /// ANDROID GREW A FILE EAR (2026-08-18) — the recorder and the live
+  /// engine still cannot share one microphone (field truth, 2026-07-26),
+  /// but Android 13's EXTRA_AUDIO_SOURCE lets Google read the KEPT file
+  /// afterwards, so one speaking normally yields voice and words both.
+  /// This popup door remains as the second chance for the takes the ear
+  /// could not read (phone predates 13, probe failed, offline, silence):
+  /// the same door Waze uses, offered plainly and never demanded — the
   /// voice is already saved either way, and typing always works.
   bool get _canSpeakWords =>
       SpeechPopup.isSupported &&
@@ -381,7 +397,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final settings = await IsarService.getSettings();
     if (!settings.sttEnabled) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'Voice typing is turned off in Settings. Typing works as always.',
               'הקלדה קולית כבויה בהגדרות. הקלדה רגילה עובדת כמו תמיד.')),
@@ -510,7 +526,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       // stays on this screen, said honestly — never a cheerful "saved"
       // over a void (owner QA, 2026-08-14).
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
             content: Text(L.t(
                 'Could not save just now — your words are still right here. '
                     'Try again in a moment.',
@@ -531,7 +547,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
           : _memoryLevel == MemoryLevel.memorize
               ? L.t('Kept permanently.', 'נשמר לתמיד.')
               : L.t('Saved.', 'נשמר.');
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
       );
       // WHAT WAS KEPT MUST BE SEEN — but the way back matters too.
@@ -601,7 +617,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       // the keyboard covers the big save"). The header שמירה is gone —
       // the one Save door is PINNED under the screen and rides above the
       // keyboard; two identical doors made every save a coin-flip story.
-      appBar: BnsAppBar(title: L.t('Keep this', 'לשמור את זה')),
+      // The room wears its work-name (owner, 2026-08-18: «לשמור את זה»
+      // reads like a command about something already said — «הקלטה
+      // ותיעוד» says what the room does).
+      appBar: BnsAppBar(title: L.t('Recording & notes', 'הקלטה ותיעוד')),
       // The whole screen SCROLLS (owner's phone, 2026-07-26: the tag chips
       // sat 300px past the bottom behind an overflow stripe). A capture
       // screen holds recording + transcript + tags + notes — on a phone
@@ -612,17 +631,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              _selectedTags.contains('mad-vent')
-                  ? L.t(
-                      'Let it out. Only you can see this. It burns out on its own.',
-                      'להוציא הכול. רק אתם רואים את זה. זה נמחק מעצמו.')
-                  : L.t(
-                      'Speak. We keep your voice and write the words. Hear them read, edit them, add more.',
-                      'מדברים. שומרים את הקול וכותבים את המילים. אפשר להקריא, לערוך, ולהוסיף עוד.'),
-              style: const TextStyle(fontSize: 18, height: 1.35),
-            ),
-            const SizedBox(height: 24),
+            // NOTHING ABOVE THE MIC (owner, 2026-08-18: "את כל מה שיש
+            // מעל המיקרופון בחלון אין צורך"). The mic explains itself.
+            // Only a mad-vent keeps its one-line promise — the promise
+            // IS the mode.
+            if (_selectedTags.contains('mad-vent')) ...[
+              Text(
+                L.t(
+                    'Let it out. Only you can see this. It burns out on its own.',
+                    'להוציא הכול. רק אתם רואים את זה. זה נמחק מעצמו.'),
+                style: const TextStyle(fontSize: 18, height: 1.35),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // ONE mic. Records the voice, then writes the words.
             Center(
@@ -656,29 +677,29 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                _isRecording
-                    ? L.t(
-                        'Recording… ${_formatDuration(_recordDuration)} — tap to stop',
-                        'מקליטים… ${_formatDuration(_recordDuration)} — הקשה לעצירה')
-                    : _hearingWords
-                        ? L.t('Writing the words…', 'כותבים את המילים…')
-                        : (_takes.isEmpty
-                            ? L.t(
-                                'Tap to speak. We write the words.',
-                                'הקשה כדי לדבר. נכתוב את המילים.')
-                            : L.t(
-                                'Tap for another recording — a new line.',
-                                'הקשה להקלטה נוספת — שורה חדשה.')),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 16,
+            // After a take the mic just sits ready — the caption that
+            // offered "another recording — a new line" is gone (owner,
+            // 2026-08-18: "צריך להיעלם").
+            if (_isRecording || _hearingWords || _takes.isEmpty) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  _isRecording
+                      ? L.t(
+                          'Recording… ${_formatDuration(_recordDuration)} — tap to stop',
+                          'מקליטים… ${_formatDuration(_recordDuration)} — הקשה לעצירה')
+                      : _hearingWords
+                          ? L.t('Writing the words…', 'כותבים את המילים…')
+                          : L.t('Tap to speak. We write the words.',
+                              'הקשה כדי לדבר. נכתוב את המילים.'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 16,
+                  ),
                 ),
               ),
-            ),
+            ],
 
             if (_takes.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -766,14 +787,14 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
               },
               icon: Icon(_showMore ? Icons.expand_less : Icons.expand_more,
                   size: 22),
+              // ONE DOOR, ONE NAME (owner, 2026-08-18): «תגיות ושיתוף»,
+              // whether open or closed — the flipped arrow says which, and
+              // the same tap that opened it closes it. The old label was a
+              // table of contents; this one is a name.
               label: Text(
-                  _showMore
-                      ? L.t('Close the options', 'לסגור את האפשרויות')
-                      : _selectedTags.contains('mad-vent')
-                          ? L.t('Keep forever · context',
-                              'לשמור לתמיד · הקשר')
-                          : L.t('Keep forever · family · a mark · context',
-                              'לשמור לתמיד · משפחה · סימן · הקשר'),
+                  _selectedTags.contains('mad-vent')
+                      ? L.t('Keep forever · context', 'לשמור לתמיד · הקשר')
+                      : L.t('Tags & sharing', 'תגיות ושיתוף'),
                   style: const TextStyle(fontSize: 15)),
             ),
             if (_showMore) ...[
@@ -859,17 +880,19 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 icon: const Icon(Icons.check, size: 28),
                 style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(56)),
-                // The void-promise without a navigation promise (tester,
-                // 2026-08-16: "Save promises 'אני אראה את זה' but lands
-                // on Today"). Saving stays in place; the kept strip shows it.
-                label: Text(
-                    L.t('Save — it stays with me', 'שמירה — זה נשאר אצלי')),
+                // One word and the ✓ (owner, 2026-08-18): the sentence-long
+                // promise came off. Saving still stays in place; the kept
+                // strip on Today is the proof.
+                label: Text(L.t('Save', 'שמירה')),
               ),
               TextButton(
                 onPressed: _leaveWithoutSaving,
                 style: TextButton.styleFrom(
                     minimumSize: const Size.fromHeight(44)),
-                child: Text(L.t('Not now', 'לא עכשיו')),
+                // Says where it goes (owner, 2026-08-18), same words as
+                // every other way home. Unsaved words still get the
+                // "leave without keeping?" guard.
+                child: Text(L.t('Back to my day', 'חזרה ליום שלי')),
               ),
             ],
           ),

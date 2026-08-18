@@ -7,6 +7,7 @@ import 'package:bns/data/local/care_profiles.dart';
 import 'package:bns/data/sync/lan_sync_service.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
+import 'package:bns/ui/snack.dart';
 
 /// One door on the Care home: set a ring for every person this seat
 /// helps. The helper sees the times; their pocket stays quiet.
@@ -98,7 +99,7 @@ class _CareAlarmSheetState extends State<_CareAlarmSheet> {
     }
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
       content: Text(L.t(
         'Sent. It reaches them on the next sync.',
         'נשלח. יגיע אליהם בסנכרון.',

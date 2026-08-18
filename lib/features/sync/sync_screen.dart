@@ -28,6 +28,7 @@ import 'package:bns/ui/theme.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:path/path.dart' as path_util;
 import 'package:path_provider/path_provider.dart';
+import 'package:bns/ui/snack.dart';
 
 /// Low-maintenance, secure sync screen with:
 /// - Clear progress bars (system or relaxing palette colors)
@@ -181,7 +182,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _setRetention(int days) async {
     await IsarService.updateRetentionDays(days);
     await _loadRetention();
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(days == 0
               ? L.t('Unlimited retention (large files possible)',
@@ -194,7 +195,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _resetRetention() async {
     await IsarService.resetRetentionToDefault();
     await _loadRetention();
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(L.t('Back to keeping 15 days of history',
               'חזרנו לשמירת 15 ימי היסטוריה'))),
@@ -212,7 +213,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _service.start(
         deviceName: updated.effectiveShareName, autoSync: _autoSync);
     setState(() => _deviceName = name.trim());
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(L.t(
               'Device named "$name". Your other devices will see this.',
@@ -231,7 +232,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         deviceName: updated.effectiveShareName, autoSync: _autoSync);
     setState(() => _shareName = name.trim());
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(name.trim().isEmpty
               ? L.t('Sharing as "${updated.deviceName}" (device name).',
@@ -246,7 +247,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.updateSettings(s.copyWith(autoImageEnabled: v));
     await _loadRetention();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(v
               ? L.t('A fresh .bns will quietly stay ready to share.',
                   'קובץ .bns טרי יישאר מוכן לשיתוף, בשקט.')
@@ -259,7 +260,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(s.copyWith(quietMode: v));
     await _loadRetention();
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(v
               ? L.t('Quiet mode on — less stimulation.',
@@ -277,7 +278,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await NotificationsService.rescheduleAll(force: true);
     await _loadRetention();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(v
             ? L.t('Reminders are on — a soft nudge at the times you chose.',
                 'התזכורות פועלות — נגיעה רכה בזמנים שבחרת.')
@@ -322,7 +323,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _loadRetention();
     if (!mounted) return;
     final hh = v.toString().padLeft(2, '0');
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(v == 0
             ? L.t('Your day starts at midnight — the classic way.',
                 'היום שלך מתחיל בחצות — הדרך הקלאסית.')
@@ -343,7 +344,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     AndroidBnsWidget.updateWidget();
     await _loadRetention();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(v == 0
             ? L.t('Your day ends at midnight — the classic way.',
                 'היום שלך נגמר בחצות — הדרך הקלאסית.')
@@ -395,7 +396,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await NotificationsService.rescheduleAll();
     if (mounted) setState(() => _caregiverDevice = v);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(v
             ? L.t(
                 'This device is set up as a helper\'s. Reminders here are '
@@ -463,7 +464,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(s.copyWith(sttEnabled: v));
     await _loadRetention();
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(v
               ? L.t('Speech-to-text on — your voice becomes text everywhere.',
@@ -481,7 +482,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     ref.invalidate(settingsProvider); // shortcuts rebuild live
     AndroidBnsWidget.updateWidget();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t(
                 '${Keybinds.labelFor(id)} is now ${Keybinds.pretty(combo)}. Active right away.',
@@ -494,7 +495,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.toggleKeybindEnabled(id, enabled);
     await _loadRetention();
     ref.invalidate(settingsProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(enabled
               ? L.t('Keybind enabled.', 'קיצור המקשים הופעל.')
@@ -508,7 +509,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _loadRetention();
     ref.invalidate(settingsProvider);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t('Keybinds back to the simple default layout.',
                 'קיצורי המקשים חזרו לברירת המחדל הפשוטה.'))),
@@ -610,7 +611,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final updated = settings.copyWith(widgetForwardDays: days);
     await IsarService.updateSettings(updated);
     await _loadRetention();
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(L.t(
               'Widget will show next $days days forward (less stress for you)',
@@ -886,7 +887,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await _service.refreshTrustPolicy();
     await _loadTrusted();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t(
             'Connection with ${d.name} ended. The other device was told.',
             'החיבור עם ${d.name} נותק. המכשיר השני יודע על כך.'))));
@@ -935,7 +936,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       final newPath = await IsarService.moveHome(picked);
       if (!mounted) return;
       setState(() => _homePath = newPath);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'BNS moved home. Everything now lives in $newPath — the old '
               'copy stays as a backup.',
@@ -943,7 +944,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               'כגיבוי.'))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('The move didn\'t complete: $e',
               'ההעברה לא הושלמה: $e'))));
     }
@@ -986,7 +987,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           'הגיבוי שמור בתוך BNS, אבל המכשיר הזה לא אפשר לשמור אותו החוצה. '
               'אפשר לסנכרן למכשיר אחר כדי לשמור עותק בטוח.');
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
       content: Text(msg),
       duration: const Duration(seconds: 6),
     ));
@@ -996,7 +997,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final res = await FilePicker.platform.pickFiles();
     if (res?.files.single.path == null) return;
     await _service.manualImport(File(res!.files.single.path!));
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           content: Text(L.t(
               'Data merged in. Thank you for keeping things together.',
@@ -1025,7 +1026,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         ? L.t(' — in: ${BnsSaveOut.folderOf(out.path!)}',
             ' — בתיקייה: ${BnsSaveOut.folderOf(out.path!)}')
         : '';
-    ScaffoldMessenger.of(context).showSnackBar(
+    BnsSnack.show(context, 
       SnackBar(
           duration: const Duration(seconds: 6),
           content: Text(_fullCareMode
@@ -1051,7 +1052,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await IsarService.updateSettings(s.copyWith(fullCareMode: false));
       setState(() => _fullCareMode = false);
       if (!mounted) return true;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t(
               'Full care is off. Only chosen things are shared.',
               'טיפול מלא כבוי. רק דברים שבחרת משותפים.'))));
@@ -1106,7 +1107,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
     if (confirmed != true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
             content: Text(L.t('Nothing changed — full care stays off.',
                 'שום דבר לא השתנה — טיפול מלא נשאר כבוי.'))));
       }
@@ -1115,7 +1116,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     await IsarService.updateSettings(s.copyWith(fullCareMode: true));
     setState(() => _fullCareMode = true);
     if (!mounted) return true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t(
             'Full care is on. Everything travels to the people who care.',
             'טיפול מלא פועל. הכול מגיע לאנשים שאכפת להם.'))));
@@ -1133,7 +1134,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await IsarService.updateSettings(s.copyWith(guidedMode: false));
       setState(() => _guidedMode = false);
       if (!mounted) return true;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      BnsSnack.show(context, SnackBar(
           content: Text(L.t('Guided mode is off. Full control is back here.',
               'מצב מונחה כבוי. השליטה המלאה חזרה לכאן.'))));
       return true;
@@ -1189,7 +1190,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
     if (confirmed != true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        BnsSnack.show(context, SnackBar(
             content: Text(L.t('Nothing changed — guided mode stays off.',
                 'שום דבר לא השתנה — מצב מונחה נשאר כבוי.'))));
       }
@@ -1202,7 +1203,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       _fullCareMode = true;
     });
     if (!mounted) return true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    BnsSnack.show(context, SnackBar(
         content: Text(L.t(
             'Guided mode is on. This device shows the list, with love.',
             'מצב מונחה פועל. המכשיר הזה מציג את הרשימה, באהבה.'))));
@@ -1571,7 +1572,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         await IsarService.updateSettings(
                             s.copyWith(userType: v));
                         await _loadRetention();
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        BnsSnack.show(context, SnackBar(
                             content: Text(L.t(
                                 'Set to ${_userTypeName(v)} — the screen adapts itself',
                                 'הוגדר ל${_userTypeName(v)} — המסך מתאים את עצמו'))));
@@ -2011,13 +2012,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     dense: true,
                     title: Text(L.t('Speech-to-text everywhere',
                         'דיבור-לטקסט בכל מקום')),
+                    // Says what the switch does, nothing more — the
+                    // free/private/no-cloud slogan is README copy (owner,
+                    // 2026-08-18).
                     subtitle: Text(L.t(
-                        'Voice notes become readable text as you speak, and every '
-                        'text field gets a small dictation mic. Device engine only '
-                        '— free, private, no cloud.',
-                        'הקלטות קול הופכות לטקסט קריא תוך כדי דיבור, ולכל שדה '
-                        'טקסט מתווסף מיקרופון הכתבה קטן. מנוע במכשיר בלבד — '
-                        'חינם, פרטי, בלי ענן.')),
+                        'Voice notes become readable text, and every text '
+                        'field gets a small dictation mic.',
+                        'הקלטות קול הופכות לטקסט קריא, ולכל שדה טקסט '
+                        'מתווסף מיקרופון הכתבה קטן.')),
                     value: _sttEnabled,
                     onChanged: _setSttEnabled,
                   ),

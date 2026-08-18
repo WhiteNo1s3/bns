@@ -142,8 +142,8 @@ class _WakeControlsState extends State<WakeControls> {
       return widget.showSeatLine
           ? Text(
               L.t(
-                  'The ring is on their nightstand. Set it from their day — Alarm for everyone.',
-                  'הצלצול אצלם, על השעון שלהם. קובעים אותו מהיום שלהם — צלצול לכולם.'),
+                  'Set through "Alarm for everyone" on the Care home — it rings on their device.',
+                  'נקבע דרך ״צלצול לכולם״ במסך הליווי, ומצלצל במכשיר שלהם.'),
               style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant))
           : const SizedBox.shrink();
     }

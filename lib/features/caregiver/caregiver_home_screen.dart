@@ -11,6 +11,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/care_profiles.dart';
+import 'package:bns/data/sync/lan_sync_service.dart';
 import 'package:bns/features/caregiver/care_alarm_door.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
@@ -146,14 +147,18 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     final s = await IsarService.getSettings();
     await IsarService.updateSettings(
         s.copyWith(dayStartHour: start.hour, dayRolloverHour: end.hour));
+    // HAND-DELIVERY (lived 2026-08-19 on the wake): an instruction just
+    // written must ship without pulling first, or the round's receive
+    // leg eats it with the person's old value.
+    LanSyncService.instance.pushTrustedNow(pushOnly: true);
     await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(L.t(
             'Their clock is set: ${start.hour.toString().padLeft(2, '0')}:00'
-            '–0${end.hour}:00. It reaches them on the next sync.',
+            '–0${end.hour}:00. Sent to them now.',
             'השעון שלהם נקבע: ${start.hour.toString().padLeft(2, '0')}:00'
-            '–0${end.hour}:00. יגיע אליהם בסנכרון הבא.'))));
+            '–0${end.hour}:00. נשלח אליהם עכשיו.'))));
   }
 
   /// A new named door. The name can be spoken — voice-first everywhere.
@@ -486,7 +491,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                       title: Text(L.t('Alarm for everyone', 'צלצול לכולם')),
                       subtitle: Text(L.t(
                           'Each person hears it on their own clock. This phone does not ring.',
-                          'כל אחד שומע אצל עצמו, על השעון שלו. המכשיר הזה לא מצלצל.')),
+                          'שעת צלצול לכל האנשים בליווי — מצלצל במכשיר שלהם.')),
                       onTap: () => openCareAlarmDoor(context),
                     ),
                   if (_sitting != null)

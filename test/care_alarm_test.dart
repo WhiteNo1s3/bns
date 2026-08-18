@@ -336,7 +336,7 @@ void main() {
 
       expect(find.text('צלצול לכולם'), findsOneWidget);
       expect(
-        find.textContaining('המכשיר הזה לא מצלצל'),
+        find.textContaining('המכשיר הזה נשאר שקט'),
         findsWidgets,
         reason: 'the helper\'s pocket is named as quiet',
       );

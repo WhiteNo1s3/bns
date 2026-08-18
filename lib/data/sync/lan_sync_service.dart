@@ -486,7 +486,7 @@ class LanSyncService {
   /// Push the ACTIVE store to its own trusted doors, now. Trust must
   /// already match this store ([refreshTrustPolicy] after a sit) —
   /// otherwise a door swap would address the previous person's phone.
-  void pushTrustedNow() {
+  void pushTrustedNow({bool pushOnly = false}) {
     if (!isRunning || _applyingRemoteData) return;
     _changePushTimer?.cancel();
     final now = DateTime.now();
@@ -501,7 +501,7 @@ class LanSyncService {
       final seen = _peers[id];
       if (seen != null && peerLooksOnline(seen.lastSeen, now)) {
         _lastAutoSyncAt[id] = now;
-        syncWithPeer(seen, isAuto: true);
+        syncWithPeer(seen, isAuto: true, pushOnly: pushOnly);
         continue;
       }
       final addr = _trustedAddresses[id];
@@ -516,6 +516,7 @@ class LanSyncService {
           deviceId: id,
         ),
         isAuto: true,
+        pushOnly: pushOnly,
       );
     }
   }
@@ -1131,8 +1132,17 @@ class LanSyncService {
   /// (so a mistyped pairing code is caught before we send anything), merge
   /// it in, then PUSH the combined picture back. Returns true when the
   /// whole round trip succeeded.
+  /// [pushOnly] is the HAND-DELIVERY (lived on the L3 pair, 2026-08-19:
+  /// the seat set a wake to 21:15, and the round's receive-first leg
+  /// pulled the person's old 19:54 OVER it before the send leg ran —
+  /// the fresh instruction died on its own doorstep). A seat that just
+  /// wrote an instruction sends without pulling first; every adopt rule
+  /// still runs on the RECEIVING side, so nothing about the wall or THE
+  /// PERSON ANSWERS is bypassed — only the self-eating refresh is.
   Future<bool> syncWithPeer(BnsPeer peer,
-      {bool isAuto = false, bool verifyingNewPairing = false}) async {
+      {bool isAuto = false,
+      bool verifyingNewPairing = false,
+      bool pushOnly = false}) async {
     final trusted = await IsarService.getTrustedDevice(peer.deviceId);
 
     if (trusted?.sharedSecret == null) {
@@ -1165,7 +1175,9 @@ class LanSyncService {
               'מביאים את העדכני ביותר מ-${peer.deviceName}...'),
           subtle: isAuto));
 
-      final pulled = await _pullTrusted(peer, trusted.sharedSecret!);
+      final pulled = pushOnly
+          ? _PullOutcome.gotData
+          : await _pullTrusted(peer, trusted.sharedSecret!);
       if (pulled == _PullOutcome.revoked) {
         // _handleRevoke already told the person; nothing more to do here.
         return false;

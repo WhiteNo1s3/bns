@@ -691,3 +691,32 @@ v0.15a. Tests 339. Lived next: the ring → popup → snooze loop on the S23.
 too.** Fire → popup → עוד 10 דקות → return ring → קמתי, end to end.
 The alarm story is closed as a person feature. Still unlived: the Care
 seat's צלצול לכולם landing on a person's device over LAN.
+
+## LAN-carry pass (owner: "lets test the care alarm on the lan pair", 2026-08-19)
+
+Driven live on the L3 pair (this Mac, both harness apps, real UDP/TCP).
+Result: **צלצול לכולם carried end to end** — Care set 21:15 + «כוס מים»
+→ person store adopted (fullCare) → the person's שעון מעורר shows
+«השכמה — 21:15, כל יום». Evidence: hunt-shots/lan-alarm-*.png.
+
+Two finds on the way, both fixed before the pass went green:
+
+- **The receive-first leg ate the instruction** (the owner saw it live:
+  "the set time did not change according to your press... all the times
+  around were not wired"). `pushTrustedNow` ran a full round; the pull
+  leg brought the person's old 19:54 onto the seat BEFORE the send leg
+  ran — the fresh 21:15 died on its own doorstep, and the person then
+  received their own old time back. Fix: **hand-delivery** —
+  `syncWithPeer(pushOnly: true)` skips the pull for instruction-sends;
+  every adopt rule still runs on the receiving side, so no wall is
+  bypassed. Wired into צלצול לכולם and «השעון שלהם» (same eater).
+- **Copy polish** (owner: "official but not Karen... this is gibberish"):
+  the alarm surfaces dropped the chatty filler — «נקבע כאן ומצלצל
+  במכשיר שלהם. המכשיר הזה נשאר שקט», «טקסט שיוצג בצלצול (רשות)»,
+  «אצל מי יצלצל», seat lines «כרגע X. ברמות 1–2 ההגדרה שלהם קודמת»,
+  wake-room intro tightened. A full-app Hebrew copy audit with the
+  owner joins the L1 queue.
+
+Leftover (cosmetic): the wake preview line shows the day's opening even
+when a note will replace it in the actual ring. Machine 0.15.1+8
+(human 0.15a). Tests 339.

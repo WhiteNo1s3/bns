@@ -103,14 +103,14 @@ String careAlarmSeatLine({
       : seat.name.trim();
   if (!seat.paired) {
     return t(
-      '$who — not paired yet. The ring waits behind their door.',
-      '$who — עוד לא מחוברים. הצלצול מחכה בדלת שלהם.',
+      '$who — not paired yet. It is sent after pairing.',
+      '$who — אין חיבור עדיין. יישלח לאחר הצימוד.',
     );
   }
   if (seat.wakeTime.isNotEmpty && seat.wakeTime != sentTime) {
     return t(
-      '$who — they have ${seat.wakeTime} now. At level 1–2 they keep theirs.',
-      '$who — אצלם עכשיו ${seat.wakeTime}. ברמה 1–2 הם שומרים את שלהם.',
+      '$who — currently ${seat.wakeTime}. At levels 1–2 their own setting comes first.',
+      '$who — כרגע ${seat.wakeTime}. ברמות 1–2 ההגדרה שלהם קודמת.',
     );
   }
   return t('$who — $sentTime on their clock.', '$who — $sentTime על השעון שלהם.');

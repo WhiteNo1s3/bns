@@ -81,9 +81,12 @@ class _CareAlarmSheetState extends State<_CareAlarmSheet> {
     );
     // Each door pushes from ITS store. Trust reloads on enter
     // (afterSit) so Dana's day cannot address Yossi's phone.
+    // HAND-DELIVERY (lived 2026-08-19): push WITHOUT pulling first —
+    // the round's receive-first leg was eating the fresh time with the
+    // person's old one before the send leg ever ran.
     for (final p in all) {
       await CareProfiles.enter(p);
-      LanSyncService.instance.pushTrustedNow();
+      LanSyncService.instance.pushTrustedNow(pushOnly: true);
     }
     if (sittingId != null) {
       for (final p in all) {
@@ -127,8 +130,8 @@ class _CareAlarmSheetState extends State<_CareAlarmSheet> {
               const SizedBox(height: 8),
               Text(
                 L.t(
-                  'Each person hears it on their own clock. This phone does not ring.',
-                  'כל אחד שומע אצל עצמו, על השעון שלו. המכשיר הזה לא מצלצל.',
+                  'Set here, rings on their device. This device stays quiet.',
+                  'נקבע כאן ומצלצל במכשיר שלהם. המכשיר הזה נשאר שקט.',
                 ),
                 style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
@@ -150,7 +153,7 @@ class _CareAlarmSheetState extends State<_CareAlarmSheet> {
                 decoration: InputDecoration(
                   labelText: L.t(
                     'Words the ring carries (optional)',
-                    'מילים שהצלצול יישא (לא חובה)',
+                    'טקסט שיוצג בצלצול (רשות)',
                   ),
                   border: const OutlineInputBorder(),
                   suffixIcon: DictationMicButton(controller: _note),
@@ -158,7 +161,7 @@ class _CareAlarmSheetState extends State<_CareAlarmSheet> {
               ),
               const SizedBox(height: 18),
               Text(
-                L.t('Who will hear it', 'מי ישמע'),
+                L.t('Where it rings', 'אצל מי יצלצל'),
                 style: text.titleMedium,
               ),
               const SizedBox(height: 6),

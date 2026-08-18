@@ -240,7 +240,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('לקבוע שעת השכמה'), findsNothing);
-      expect(find.textContaining('הצלצול אצלם'), findsOneWidget,
+      expect(find.textContaining('מצלצל במכשיר שלהם'), findsOneWidget,
           reason: 'a quiet word beats a silently missing door');
     });
 

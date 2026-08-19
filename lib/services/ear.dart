@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/android_file_stt.dart';
@@ -60,12 +62,38 @@ class Ear {
     return lang == 'iw' ? 'he' : (lang.isEmpty ? 'he' : lang);
   }
 
+  /// ONE READING AT A TIME (owner, 2026-08-19: "it sometimes won't press
+  /// the button and freezes... because I did right after you the
+  /// recordings"). Speaking again while the last take is still being read
+  /// is NORMAL — people talk in bursts — but the engines underneath are
+  /// not: two whisper reads at once fight over the same parked model and
+  /// hundreds of megabytes of memory, and the borrowed engines allow one
+  /// session each. So the takes QUEUE here instead of colliding, in the
+  /// order they were spoken, and the microphone stays free the whole time.
+  static Future<void> _queue = Future<void>.value();
+
+  @visibleForTesting
+  static Future<T> inTurn<T>(Future<T> Function() job) {
+    final mine = _queue.then((_) => job());
+    // The chain must survive a failed read, or one bad take would jam
+    // every take after it, forever.
+    _queue = mine.then((_) {}, onError: (_) {});
+    return mine;
+  }
+
   /// Read the words out of [path]. Returns '' when no ear could answer —
   /// and '' is never an error: the voice is already kept.
   ///
   /// A person who turned voice typing off in settings gets silence from
   /// every rung: "no engine listens to me" is a promise, not a preference.
-  static Future<String> hear(String path) async {
+  static Future<String> hear(String path) => inTurn(() => _hearNow(path));
+
+  /// Let the offline ear give its memory back — the model stays parked in
+  /// native memory between takes so the next one is quick, and a room the
+  /// person has left has no reason to hold it.
+  static Future<void> rest() => WhisperEar.rest();
+
+  static Future<String> _hearNow(String path) async {
     if (path.isEmpty) return '';
     final settings = await IsarService.getSettings();
     if (!settings.sttEnabled) return '';

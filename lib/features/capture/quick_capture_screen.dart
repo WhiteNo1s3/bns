@@ -18,6 +18,7 @@ import 'package:bns/services/voice_take.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/mark_picker.dart';
+import 'package:bns/ui/widgets/offline_ear_offer.dart';
 import 'package:bns/ui/snack.dart';
 
 /// Full voice + text capture screen.
@@ -78,7 +79,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   bool _isRecording = false;
   bool _isPlaying = false;
-  bool _hearingWords = false;
+  /// How many takes the ear still owes words for. A COUNT, not a flag:
+  /// a person may speak three times before the first reading lands.
+  int _hearingCount = 0;
+  bool get _hearingWords => _hearingCount > 0;
   Duration _recordDuration = Duration.zero;
   Timer? _durationTimer;
 
@@ -201,6 +205,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     _contextController.dispose();
     if (_isRecording) VoiceTake.stop();
     _audioPlayer.dispose();
+    // The room is closed: the offline ear may hand back the hundreds of
+    // megabytes it parks between takes. Any reading still in flight keeps
+    // its own model until it finishes.
+    Ear.rest();
     super.dispose();
   }
 
@@ -274,7 +282,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     final n = _takes.length + 1;
     setState(() {
       _takes.add(_Take(n, path, ''));
-      _hearingWords = true;
+      _hearingCount++;
     });
     final heard = await _hearWords(path);
     if (!mounted) return;
@@ -291,7 +299,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
       _textController.selection =
           TextSelection.collapsed(offset: next.length);
     }
-    setState(() => _hearingWords = false);
+    setState(() => _hearingCount--);
     // NOTHING SPEAKS OR LISTENS UNINVITED (owner as user, 2026-08-19:
     // "the recording button is making a recording and then it starts
     // the TTS which is not what I aimed at"). The take is kept, the
@@ -577,7 +585,13 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
             // ONE mic. Records the voice, then writes the words.
             Center(
               child: GestureDetector(
-                onTap: _isRecording || !_hearingWords ? _toggleRecording : null,
+                // THE MIC IS NEVER DEAD (owner, 2026-08-19: "it sometimes won't
+                // press the button and freezes... I did right after you the
+                // recordings"). It used to refuse every press while the ear
+                // was still reading the take before — a button that answers
+                // nothing reads as a frozen app. Speaking again is normal;
+                // the takes queue inside [Ear], the microphone never waits.
+                onTap: _toggleRecording,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: 140,
@@ -629,6 +643,17 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                 ),
               ),
             ],
+
+            // THE STANDARD, OFFERED WHERE THE MIC IS (owner, 2026-08-19:
+            // "we should push into this as the new standard"). Said once,
+            // never while recording, and never again after «לא עכשיו».
+            if (!_isRecording)
+              OfflineEarOffer(
+                // A new ear means the field mics may show themselves now.
+                onInstalled: () {
+                  if (mounted) setState(() {});
+                },
+              ),
 
             if (_takes.isNotEmpty) ...[
               const SizedBox(height: 16),

@@ -189,12 +189,65 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - ✅ Tests: `test/day_feed_test.dart` (order, mad exclusion, summary, care glance, search).
 - Still verify on two machines: LAN + `.bns` roundtrip with transcripts/reasons (manual live checklist).
 
+## THE STANDARD: the ear inside (settled 2026-08-19, owner: "we should push into this as the new standard")
+
+Speech-to-text in BNS is **whisper.cpp compiled into the app** (`whisper_ggml`
+→ `lib/services/whisper_ear.dart`, behind the one ladder in
+`lib/services/ear.dart`). Lived on the S23 the night it landed: a Hebrew
+sentence spoken across a room came back word for word, and a take survived
+the keyboard opening on top of it. The owner's verdict: "it works almost
+flawlessly."
+
+**Why it is the standard and not one more option**
+
+- **One ear on every platform BNS ships to** — Android, iOS, macOS, Windows,
+  Linux — the same code, the same words, the same Hebrew. Every borrowed ear
+  before it existed only somewhere: Google's needs Android 13 and a willing
+  service, Apple's is Apple's, Windows had none at all.
+- **Nothing cancels it.** Words are read off a KEPT recording, so a finger on
+  the screen, the keyboard, a notification or a pause cannot end a sentence
+  the way the borrowed popup did.
+- **It belongs to the person.** No network after the model lands, no account,
+  no company in the middle — and no censor: curses arrive whole (AGENTS.md,
+  "THE EAR IS OURS").
+- **It is free forever** and costs no subscription, which is the same law that
+  banned cloud AI from this app.
+
+**How it is built in**
+
+| Piece | Where | Job |
+|---|---|---|
+| `VoiceTake` | `lib/services/voice_take.dart` | one microphone, one named holder |
+| `Ear` | `lib/services/ear.dart` | the ladder + the queue (one reading at a time) |
+| `WhisperEar` | `lib/services/whisper_ear.dart` | the offline ear itself, model install/remove |
+| The door | Sync/Settings screen | one 190 MB download, «אוזן משלנו» |
+
+The model is the quantized `small` (q5_1, 190 MB — `base` mangles Hebrew and
+plain `small` is 488 MB). The APK carries whisper + ffmpeg per architecture:
+63 MB → 92 MB after ship builds drop the emulator ABIs at packaging.
+
+**What is left, in order**
+
+- **Offer the ear where the person meets the mic**, not only in Settings — a
+  phone with no model still falls back to Google's ear, and should be told
+  once, gently, that a better one is a download away.
+- **Lived proof on iOS, Windows and Linux** (Android + macOS are done). The
+  Windows/Linux path wants 16 kHz WAV, which is what BNS already records
+  there; iOS is waiting on the first iOS build.
+- **The in-app download door over a real network** — on the S23 the model was
+  side-loaded for the first pass.
+- **Retire the old desktop doors** (`WhisperService`'s downloaded whisper-cli,
+  Vosk) once the in-app ear is lived on Windows: same engine, one copy.
+- **Speed on older phones.** An 8-second take became words ~16 s after the
+  stop press on an S23 (model load included). If a weaker phone drags, the
+  next rung is a smaller quantization — a different file, no new package.
+
 ## Needed / to do (next passes)
 - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
 - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.
 - ~~Android widget native side~~ — DONE in wave 5 (three-widget bundle, receivers + layouts + deep links).
 - **Old-audio re-encode tier** (Ben's "compress sound files older than 2 days"): a small MediaCodec platform channel that re-encodes >2-day-old .m4a to ~24 kbps mono in place (hash updates on next imaging). Real size win where gzip has none. Waiting on: first real-device profiling of how much space old audio actually takes at the new 48 kbps birth rate.
-- **Voice-note subject via on-device speech recognition** (Ben: subject line = start of the recording, free platform recognizer, NO cloud AI subscriptions): add `speech_to_text`-style plugin AFTER verifying it survives the AGP 9.0.1 / legacy-Kotlin build ladder (see Android build notes). One-shot transcribe of the first seconds → capture title.
+- ~~**Voice-note subject via on-device speech recognition**~~ — ANSWERED by the ear inside (2026-08-19, section above): the recognizer question is settled for every platform at once, and it survived the AGP 9.0.1 ladder (one Gradle fix: library modules aiming below the ffmpeg they carry are raised). What remains of this idea is only the SUBJECT LINE — the first words of a take becoming the note's title — which is now a pure text decision, no plugin work.
 - Notifications: timezone is UTC until we wire `flutter_timezone` to set `tz.local` (reminders may fire at shifted times).
 - Pairing hardening: PBKDF2 (or SPAKE2) instead of single sha256 for key derivation; rate-limit attempts.
 - Keyboard navigation for Routines manager and Memories list (same ↑↓/Enter pattern as Today — reuse, keep semi-homogenous).
@@ -214,7 +267,7 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
 - **bns-cli** (from the container evolution plan): native binaries with `inspect`, `validate`, `merge`, `export-json` — waiting on the packer abstraction settling (it has). Next natural step for the global-spread story.
 - ~~**Faster container prototype**~~ — BNS3 (`bns3-v1`) + BNS Wire shipped 2026-07-27: original string-pool TLV coding, codec race (gzip+json vs gzip+wire vs raw wire), SHA-256 seal, audio still STORED. zip-v2 remains default writer; `BnsPackers.compact` exposes BNS3. Benchmark races all three. Next height: columnar or delta LAN payloads (audio still dominates whole-file size).
 - ~~Offline web viewer~~ — ABSORBED by wave 4, and grew into a full manager (`satellite/bns-web.html`). Servers stay banned; the satellite is a static file.
-- ~~**Voice-to-text for vents and captures**~~ — largely absorbed by wave 12 (device STT + dictation mics on comments; live-while-record still forbidden on Android). Remaining: offline *file* STT on Android after record without a second speak; vents stay non-searchable in summaries unless user promoted to Memorize.
+- ~~**Voice-to-text for vents and captures**~~ — CLOSED 2026-08-19 by the ear inside (section above): offline file STT after one recording, on every platform, no second speak, no live session to lose. Vents still stay non-searchable in summaries unless the person promoted them to Memorize.
 - ~~**Days thread UI**~~ — shipped wave 13 (`/day`, day_feed).
 - ~~**Inspector care glance**~~ — shipped wave 13 (full-care card on day diary; soft lines only).
 - **Keybind for "start venting" global** — waiting on mad mode UX feedback; could be `Ctrl+Shift+M`.

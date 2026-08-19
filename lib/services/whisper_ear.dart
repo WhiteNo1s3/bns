@@ -136,8 +136,9 @@ class WhisperEar {
         if (r.statusCode >= 300 && r.statusCode < 400) {
           final loc = r.headers.value(HttpHeaders.locationHeader);
           await r.drain<void>();
-          if (loc == null)
+          if (loc == null) {
             throw const HttpException('redirect without location');
+          }
           target = Uri.parse(loc);
           continue;
         }
@@ -178,6 +179,31 @@ class WhisperEar {
         } catch (_) {}
       }
     }
+  }
+
+  /// THE ONE-TIME OFFER (owner, 2026-08-19: "we should push into this as
+  /// the new standard"). A standard nobody is told about is a setting. The
+  /// capture room offers the ear once; a person who says «לא עכשיו» is not
+  /// asked again, and the answer is DEVICE TRUTH — a sidecar file, never a
+  /// synced setting, because it is about this phone's storage and not about
+  /// how the person wants to live.
+  static Future<bool> offerDeclined() async {
+    try {
+      return (await _declineMark()).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> declineOffer() async {
+    try {
+      await (await _declineMark()).writeAsString('not now');
+    } catch (_) {}
+  }
+
+  static Future<File> _declineMark() async {
+    final dir = await WhisperController.getModelDir();
+    return File('$dir/ear_offer_declined.txt');
   }
 
   /// Give the storage back. The borrowed ears keep working.

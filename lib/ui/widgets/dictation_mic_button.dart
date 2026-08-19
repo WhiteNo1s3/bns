@@ -116,7 +116,14 @@ class _DictationMicButtonState extends State<DictationMicButton> {
   }
 
   Future<void> _toggle() async {
-    if (_phase == _MicPhase.hearing) return; // the ear is reading; let it
+    if (_phase == _MicPhase.hearing) {
+      // The ear is still reading the last one. A press that answers
+      // NOTHING reads as a frozen app (owner, 2026-08-19) — so say what
+      // is happening instead of swallowing the finger.
+      _tell(L.t('Still writing the last words — one moment.',
+          'עוד כותבים את המילים הקודמות — רגע אחד.'));
+      return;
+    }
     if (_phase == _MicPhase.recording) {
       await _finish();
       return;

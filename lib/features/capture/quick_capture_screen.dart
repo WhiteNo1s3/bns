@@ -1,11 +1,7 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bns/core/i18n/l.dart';
@@ -15,12 +11,10 @@ import 'package:bns/core/recording_text.dart';
 import 'package:bns/core/tag_flair.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/platform/android_widget.dart';
-import 'package:bns/services/android_file_stt.dart';
-import 'package:bns/services/apple_file_stt.dart';
+import 'package:bns/services/ear.dart';
 import 'package:bns/services/speech_popup.dart';
 import 'package:bns/services/tts_service.dart';
-import 'package:bns/services/vosk_service.dart';
-import 'package:bns/services/whisper_service.dart';
+import 'package:bns/services/voice_take.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/mark_picker.dart';
@@ -79,7 +73,6 @@ class QuickCaptureScreen extends StatefulWidget {
 
 class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   final _textController = TextEditingController();
-  final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
   final _uuid = const Uuid();
 
@@ -206,7 +199,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     TtsService.stop();
     _textController.dispose();
     _contextController.dispose();
-    _audioRecorder.dispose();
+    if (_isRecording) VoiceTake.stop();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -215,10 +208,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   /// that plugin has no macOS implementation, so request() threw and the
   /// mic never opened, and macOS never showed its permission sheet.
   Future<bool> _ensureMic() async {
-    try {
-      final allowed = await _audioRecorder.hasPermission(request: true);
-      if (allowed) return true;
-    } catch (_) {}
+    if (await VoiceTake.ensureMic()) return true;
     if (mounted) {
       BnsSnack.show(context, SnackBar(
         content: Text(L.t(
@@ -230,74 +220,47 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
   }
 
   Future<void> _toggleRecording() async {
-    // Desktop (Mac included) records WAV so the file is simple and the
-    // open-source ear can read it later. Phones stay on small AAC.
-    final desktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-
     if (_isRecording) {
-      try {
-        final path = await _audioRecorder.stop();
-        _durationTimer?.cancel();
-        if (!mounted) return;
-        setState(() => _isRecording = false);
-        if (path != null) await _keepTake(path);
-      } catch (_) {
-        _durationTimer?.cancel();
-        if (mounted) setState(() => _isRecording = false);
-      }
+      final path = await VoiceTake.stop();
+      _durationTimer?.cancel();
+      if (!mounted) return;
+      setState(() => _isRecording = false);
+      if (path != null) await _keepTake(path);
       return;
     }
 
     final allowed = await _ensureMic();
     if (!allowed || !mounted) return;
 
-    try {
-      final dir = await IsarService.getAudioDir();
-      final fileName =
-          'cap_${_uuid.v4().substring(0, 8)}.${desktop ? 'wav' : 'm4a'}';
-      final path = p.join(dir.path, fileName);
-
-      await _audioRecorder.start(
-        desktop
-            ? const RecordConfig(
-                encoder: AudioEncoder.wav,
-                sampleRate: 16000,
-                numChannels: 1,
-              )
-            : const RecordConfig(
-                encoder: AudioEncoder.aacLc,
-                bitRate: 48000,
-                sampleRate: 44100,
-                numChannels: 1,
-              ),
-        path: path,
-      );
-
-      await _audioPlayer.stop();
-      await TtsService.stop();
-      if (!mounted) return;
-      setState(() {
-        _isRecording = true;
-        _isPlaying = false;
-        _playingPath = null;
-        _recordDuration = Duration.zero;
-      });
-
-      _durationTimer?.cancel();
-      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (_isRecording && mounted) {
-          setState(() => _recordDuration += const Duration(seconds: 1));
-        }
-      });
-    } catch (_) {
-      if (mounted) {
-        BnsSnack.show(context, SnackBar(
-          content: Text(L.t(
-              'The microphone did not open. You can write it instead.',
-              'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
-        ));
-      }
+    final dir = await IsarService.getAudioDir();
+    final path =
+        await VoiceTake.start(holder: 'capture', dir: dir, prefix: 'cap');
+    if (!mounted) return;
+    if (path == null) {
+      BnsSnack.show(context, SnackBar(
+        content: Text(L.t(
+            'The microphone did not open. You can write it instead.',
+            'המיקרופון לא נפתח. אפשר לכתוב במקום.')),
+      ));
+      return;
     }
+
+    await _audioPlayer.stop();
+    await TtsService.stop();
+    if (!mounted) return;
+    setState(() {
+      _isRecording = true;
+      _isPlaying = false;
+      _playingPath = null;
+      _recordDuration = Duration.zero;
+    });
+
+    _durationTimer?.cancel();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_isRecording && mounted) {
+        setState(() => _recordDuration += const Duration(seconds: 1));
+      }
+    });
   }
 
   /// Voice is already safe. Then the words — read from THE SAME take, on
@@ -336,47 +299,10 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     // system ear only when pressed.
   }
 
-  /// Hebrew first: Android's file ear (Google reading the kept file),
-  /// Apple's on-device ear, then Whisper (Windows), then Vosk.
-  Future<String> _hearWords(String path) async {
-    try {
-      if (AndroidFileStt.isSupported) {
-        // The same respect as the popup door: a person who turned voice
-        // typing off said "no engine listens to me" — the ear stays shut
-        // and the voice is still kept.
-        final settings = await IsarService.getSettings();
-        if (!settings.sttEnabled) return '';
-        final chosen = settings.sttLocale.trim();
-        return await AndroidFileStt.transcribeFile(
-          path,
-          locale: chosen.isEmpty
-              ? (L.isHebrew ? 'he-IL' : 'en-US')
-              : chosen.replaceAll('_', '-'),
-        );
-      }
-      if (AppleFileStt.isSupported) {
-        final locale = L.isHebrew ? 'he-IL' : 'en-US';
-        final apple = await AppleFileStt.transcribeFile(path, locale: locale);
-        if (apple.isNotEmpty) return apple;
-      }
-      final support = await getApplicationSupportDirectory();
-      final whisperDir = p.join(support.path, 'whisper');
-      if (WhisperService.isInstalled(whisperDir)) {
-        final heard = await WhisperService.transcribeWav(
-          whisperDir,
-          path,
-          language: L.isHebrew ? 'he' : 'auto',
-        );
-        if (heard.trim().isNotEmpty) return heard.trim();
-      }
-      final voskDir = p.join(support.path, 'vosk');
-      if (VoskService.isInstalled(voskDir)) {
-        final text = await VoskService.transcribeWav(voskDir, path);
-        if (text.trim().isNotEmpty) return text.trim();
-      }
-    } catch (_) {}
-    return '';
-  }
+  /// ONE EAR, ASKED ONCE (see [Ear]): the offline whisper the person
+  /// installed, else the phone's own file ear, else the desktop doors. The
+  /// take is already kept — the words only ever add to it.
+  Future<String> _hearWords(String path) => Ear.hear(path);
 
   /// ANDROID GREW A FILE EAR (2026-08-18) — the recorder and the live
   /// engine still cannot share one microphone (field truth, 2026-07-26),

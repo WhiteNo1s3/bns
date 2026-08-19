@@ -756,3 +756,54 @@ Evidence: hunt-shots/today-quiet-*.png (lived on the L3 person
 harness). v0.16a. Tests 343 (+4 quiet-row).
 Next in the L1 queue: the four-door miss sheet count, hero wrong-goal
 confirm, and the full Hebrew copy audit.
+
+## The ear that belongs to us (owner: "we need to make the recorder work in order to use my vision of pressing one button", 2026-08-19)
+
+The vision, in his words: "pressing one button and using sst and record the
+man, or we find a way to sst less fragile than android simple one that
+cancel itself when you press any point of the screen... Or pure custom:
+record package + any Whisper package."
+
+Both halves were built, because they are one thing:
+
+- **One microphone, named** (`VoiceTake`). The capture room owned an
+  `AudioRecorder`, and every text field's mic opened a second listener
+  through someone else's popup. Two recorders on one phone is not a
+  feature, it is a silence — the second one fails and the person only
+  learns that the button did nothing. Now every take in the app runs
+  through one recorder that knows who is holding it.
+- **The field mic stopped being a popup** (`DictationMicButton`, rewritten).
+  It no longer opens Google's listening screen and no longer runs a live
+  engine that gives up after a pause. Press once → it RECORDS. Press again
+  → it reads the words off the finished file. A finger landing anywhere,
+  a scroll, the keyboard, a notification: none of them can cancel a take
+  any more. The cost is honest and shown: the words arrive a moment after
+  the second press, and the button says «כותבים…» while the ear reads.
+- **One ear for the whole app** (`Ear`). The ladder that lived inside the
+  capture screen now serves every room: the offline ear first when it is
+  installed, then the phone's own file ear (Google on Android 13+, Apple
+  on iOS/macOS), then the desktop doors that came before.
+- **The ear inside** (`WhisperEar`, whisper_ggml 2.6.0 — whisper.cpp
+  compiled INTO the app, MIT). One 490 MB model download in Settings, and
+  then Android, iOS, macOS, Windows and Linux all hear the same way, with
+  no network, no account, and nobody else in the middle. Every borrowed
+  ear fails somewhere — Google's needs Android 13 and a willing service,
+  Apple's is Apple's, Windows has none — this one is just a file on the
+  device.
+
+**The build find (Gradle):** whisper_ggml's own library module aims at
+compileSdk 34 while the ffmpeg it carries demands 35+, so the APK died
+inside someone else's package. `android/build.gradle.kts` now raises every
+library module that aims below 36 — by reflection, so an AGP major cannot
+break it, and on the spot rather than in `afterEvaluate`, because the
+`evaluationDependsOn(":app")` block above it has already forced evaluation.
+
+Verified here: macOS debug app builds, Android APK builds, analyzer clean,
+tests 354 (+6: the ear's language, the one microphone).
+
+**Not yet lived — the whole point still waits on the S23** (no phone was
+connected this session): the 490 MB model download over a real network,
+how long `small` takes to read a 30-second Hebrew take on that phone, and
+whether its Hebrew is good enough to stand where Google's ear stands. If
+`small` is too slow on the phone, the rung to try is a quantized model
+file — same code, smaller and faster, no new package.

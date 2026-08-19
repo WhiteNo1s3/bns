@@ -23,6 +23,7 @@ import 'package:bns/data/sync/sync_progress.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/services/notifications_service.dart';
 import 'package:bns/services/vosk_service.dart';
+import 'package:bns/services/whisper_ear.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/theme.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
@@ -117,6 +118,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     _caregiverDevice = settings.caregiverDevice;
     _homePath = await BnsHome.currentPath();
     _refreshVoskStatus();
+    _refreshEar();
 
     // (Receiver-side pairing prompts are app-wide now — main.dart installs
     // the handler, so a request lands even when this screen is closed.)
@@ -380,6 +382,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   String _voskStatus = '';
   bool _voskBusy = false;
 
+  // The ear that lives INSIDE the app (whisper.cpp, every platform).
+  bool _earInstalled = false;
+  bool _earBusy = false;
+  double _earProgress = 0;
+  String? _earTrouble;
+
   // The app's language — Hebrew first, the whole tree re-skins live.
   String _appLanguage = 'he';
 
@@ -458,6 +466,48 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       if (mounted) setState(() => _voskBusy = false);
       await _refreshVoskStatus();
     }
+  }
+
+  Future<void> _refreshEar() async {
+    final on = await WhisperEar.isInstalled();
+    if (mounted) setState(() => _earInstalled = on);
+  }
+
+  /// One download, then the app hears by itself — on this device and on
+  /// every other one, the same way. Nothing here can half-succeed: the
+  /// model file only takes its real name once it arrived whole.
+  Future<void> _installEar() async {
+    if (_earBusy) return;
+    setState(() {
+      _earBusy = true;
+      _earProgress = 0;
+      _earTrouble = null;
+    });
+    try {
+      await WhisperEar.install(onProgress: (pct) {
+        if (mounted) setState(() => _earProgress = pct);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _earTrouble = L.t(
+            'Could not fetch it right now — try again later.',
+            'לא הצלחנו להוריד כרגע — אפשר לנסות שוב מאוחר יותר.'));
+      }
+    } finally {
+      if (mounted) setState(() => _earBusy = false);
+      await _refreshEar();
+    }
+  }
+
+  Future<void> _removeEar() async {
+    await WhisperEar.remove();
+    await _refreshEar();
+    if (!mounted) return;
+    BnsSnack.show(context, SnackBar(
+      content: Text(L.t(
+          'The offline ear was removed. The phone\'s own ear keeps working.',
+          'האוזן הלא-מקוונת הוסרה. האוזן של המכשיר ממשיכה לעבוד.')),
+    ));
   }
 
   Future<void> _setSttEnabled(bool v) async {
@@ -2023,6 +2073,58 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     value: _sttEnabled,
                     onChanged: _setSttEnabled,
                   ),
+                  // THE EAR INSIDE — whisper.cpp compiled into the app
+                  // (owner, 2026-08-19: "record package + any Whisper
+                  // package"). Offered on every platform, because the
+                  // borrowed ears each fail somewhere: Google's needs
+                  // Android 13 and a willing service, Apple's is Apple's,
+                  // Windows has none. This one is just a file on the device.
+                  if (WhisperEar.isSupportedPlatform && _sttEnabled)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(_earInstalled
+                          ? Icons.hearing
+                          : Icons.hearing_disabled_outlined),
+                      title: Text(L.t(
+                          'An ear of its own — works with no network',
+                          'אוזן משלנו — עובדת בלי רשת')),
+                      subtitle: Text(_earBusy
+                          ? L.t(
+                              'Fetching the ear… ${(_earProgress * 100).round()}%',
+                              'מורידים את האוזן… ${(_earProgress * 100).round()}%')
+                          : _earTrouble ??
+                              (_earInstalled
+                                  ? L.t(
+                                      'Installed. Recordings become words on '
+                                      'this device, in Hebrew and in English, '
+                                      'with nothing else involved.',
+                                      'מותקנת. הקלטות הופכות למילים במכשיר '
+                                      'הזה, בעברית ובאנגלית, בלי אף אחד '
+                                      'באמצע.')
+                                  : L.t(
+                                      'About 190 MB, once. Then words come '
+                                      'back with no network and no other '
+                                      'company involved.',
+                                      'בערך 190 MB, פעם אחת. אחר כך המילים '
+                                      'חוזרות בלי רשת ובלי אף חברה אחרת '
+                                      'באמצע.')),
+                          style: const TextStyle(fontSize: 12)),
+                      trailing: _earBusy
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  value: _earProgress > 0 ? _earProgress : null),
+                            )
+                          : TextButton(
+                              onPressed:
+                                  _earInstalled ? _removeEar : _installEar,
+                              child: Text(_earInstalled
+                                  ? L.t('Remove', 'להסיר')
+                                  : L.t('Install', 'להתקין')),
+                            ),
+                    ),
                   // Windows itself is deaf to Hebrew (checked, 2026-07-27:
                   // WinRT + legacy engines list en-GB/en-US only; Voice
                   // typing knows Hebrew but no app may call it). whisper.cpp

@@ -1,26 +1,31 @@
-import 'dart:io' show Platform;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'package:bns/core/i18n/l.dart';
 import 'package:bns/data/local/isar_service.dart';
-import 'package:bns/services/speech_popup.dart';
-import 'package:bns/services/stt_service.dart';
+import 'package:bns/services/ear.dart';
+import 'package:bns/services/voice_take.dart';
 import 'package:bns/ui/snack.dart';
 
-/// A small mic that dictates straight into a [TextEditingController] —
-/// the "STT all the time" building block. Drop it as a `suffixIcon` (or
-/// anywhere) next to ANY text field and the field becomes voice-writable.
+/// A mic beside any text field: press once and speak, press again and the
+/// words are written. Drop it as a `suffixIcon` (or anywhere) next to ANY
+/// controller and that field becomes voice-writable.
 ///
-/// Behavior:
-/// - Tap: start continuous dictation (device engine, keeps restarting itself
-///   through pauses). Tap again: stop.
-/// - Words land live at the end of whatever is already typed — dictation
-///   appends, never overwrites.
-/// - Respects Settings.sttEnabled + sttLocale.
-/// - On devices with no engine, it simply reports "voice typing isn't
-///   available" once — typing always works, never a dead end.
+/// THE PRESS THAT SURVIVES A FINGER (owner, 2026-08-19: "we find a way to
+/// sst less fragile than android simple one that cancel itself when you
+/// press any point of the screen"). This button no longer opens the system
+/// listening popup, and no longer runs a live engine that gives up after a
+/// pause. It RECORDS — a plain take, held by [VoiceTake] — and then reads
+/// the words off the finished file with [Ear]. Consequences, all of them
+/// the point:
+/// - Touching the screen, scrolling, the keyboard opening, a notification
+///   landing: none of it stops the take. Only the second press does.
+/// - Long thoughts are fine. There is no pause timeout to race.
+/// - The words arrive a moment AFTER the press, not while speaking — so the
+///   button says «כותבים…» while the ear reads, and never lies about it.
+/// - Nothing is lost to a missing engine: a take nobody could read says so
+///   plainly, and typing always works.
 class DictationMicButton extends StatefulWidget {
   final TextEditingController controller;
 
@@ -37,173 +42,171 @@ class DictationMicButton extends StatefulWidget {
   State<DictationMicButton> createState() => _DictationMicButtonState();
 }
 
-class _DictationMicButtonState extends State<DictationMicButton> {
-  bool _dictating = false;
-  SttState _state = SttState.idle;
+enum _MicPhase { idle, recording, hearing }
 
-  /// The field's content when dictation started — dictated words append here.
-  String _baseText = '';
+class _DictationMicButtonState extends State<DictationMicButton> {
+  _MicPhase _phase = _MicPhase.idle;
+  Duration _elapsed = Duration.zero;
+  Timer? _tick;
+
+  /// Whether ANY ear can answer on this device. A mic that cannot listen is
+  /// worse than no mic, so the button hides itself until one exists. Asked
+  /// per mount, not once per app: the person may have just installed the
+  /// offline ear, and the mic must appear without restarting anything.
+  late final Future<bool> _earCheck = Ear.hasAnyEar;
 
   @override
   void dispose() {
-    if (_dictating) SttService.stop();
+    _tick?.cancel();
+    // The person left mid-take: the mic must not stay open for the next
+    // screen, and a half-said sentence is not kept behind their back.
+    if (_phase == _MicPhase.recording) VoiceTake.cancel();
     super.dispose();
   }
 
   Future<void> _toggle() async {
-    if (_dictating) {
-      await SttService.stop();
-      if (mounted) setState(() => _dictating = false);
+    if (_phase == _MicPhase.hearing) return; // the ear is reading; let it
+    if (_phase == _MicPhase.recording) {
+      await _finish();
       return;
     }
 
-    // Every failed attempt says WHY, once per attempt — a silent mic that
-    // does nothing reads as "broken", never as "disabled in settings".
-    _told = false;
-
+    // Every refusal says WHY, once per attempt — a silent mic that does
+    // nothing reads as "broken", never as "turned off in settings".
     final settings = await IsarService.getSettings();
     if (!settings.sttEnabled) {
-      _tellOnce(L.t(
+      _tell(
+        L.t(
           'Voice typing is turned off in Settings (the Sync screen). '
-          'Typing works as always.',
+              'Typing works as always.',
           'הקלדה קולית כבויה בהגדרות (מסך הסנכרון). '
-          'הקלדה רגילה עובדת כמו תמיד.'));
-      return;
-    }
-
-    // permission_handler is not on macOS — calling it killed the tap
-    // and the system never asked. On Mac the speech engine asks itself.
-    if (!Platform.isMacOS && !Platform.isLinux) {
-      try {
-        final mic = await Permission.microphone.request();
-        if (mic != PermissionStatus.granted) {
-          _tellOnce(L.t(
-              'Voice typing needs the microphone. Typing works as always.',
-              'הקלדה קולית צריכה את המיקרופון. הקלדה רגילה עובדת כמו תמיד.'));
-          return;
-        }
-      } catch (_) {}
-    }
-
-    _baseText = widget.controller.text;
-
-    // THE WAZE DOOR FIRST for Hebrew (owner's phone, 2026-07-26): the
-    // embedded engine refuses he_IL/iw_IL on this device, while the system
-    // popup — Waze's own door — hears Hebrew perfectly. Try it; only fall
-    // through to the embedded engine if the door itself isn't there.
-    final wantHebrew = _wantsHebrew(settings.sttLocale);
-    if (wantHebrew && SpeechPopup.isSupported) {
-      if (mounted) setState(() => _dictating = true);
-      final words = await SpeechPopup.recognize(
-        locale: settings.sttLocale.trim().isEmpty
-            ? 'he-IL'
-            : settings.sttLocale.trim().replaceAll('_', '-'),
-        prompt: L.t('Speak now', 'אפשר לדבר עכשיו'),
+              'הקלדה רגילה עובדת כמו תמיד.',
+        ),
       );
-      if (mounted) setState(() => _dictating = false);
-      if (words != null) {
-        // Door answered (words, or empty when cancelled) — respect it.
-        final text = words.trim();
-        if (text.isNotEmpty) {
-          final sep = _baseText.isEmpty || _baseText.endsWith(' ') ? '' : ' ';
-          widget.controller.text = '$_baseText$sep$text';
-          widget.controller.selection = TextSelection.collapsed(
-              offset: widget.controller.text.length);
-        }
-        return;
-      }
-      // Door missing on this device — fall through to the engine below.
-    }
-
-    final started = await SttService.start(
-      localeId: settings.sttLocale,
-      onText: (text) {
-        if (!mounted) return;
-        final sep =
-            _baseText.isEmpty || _baseText.endsWith(' ') || text.isEmpty
-                ? ''
-                : ' ';
-        widget.controller.text = '$_baseText$sep$text';
-        widget.controller.selection = TextSelection.collapsed(
-            offset: widget.controller.text.length);
-      },
-      onState: (s) {
-        if (!mounted) return;
-        setState(() {
-          _state = s;
-          if (s == SttState.unavailable || s == SttState.idle) {
-            _dictating = false;
-          }
-        });
-        if (s == SttState.unavailable) {
-          _tellUnavailable(L.t(
-              'Voice typing is not available right now. Typing works as always.',
-              'הקלדה קולית לא זמינה כרגע. הקלדה רגילה עובדת כמו תמיד.'));
-        }
-      },
-    );
-
-    if (mounted) setState(() => _dictating = started);
-    if (!started) {
-      _tellUnavailable(L.t(
-          'Voice typing is not available on this device. Typing works as always.',
-          'הקלדה קולית לא זמינה במכשיר הזה. הקלדה רגילה עובדת כמו תמיד.'));
-    }
-  }
-
-  /// Hebrew is wanted when explicitly chosen, or when the app itself is
-  /// Hebrew and no other language was picked.
-  static bool _wantsHebrew(String sttLocale) {
-    final chosen = sttLocale.trim().toLowerCase();
-    if (chosen.isEmpty) return L.isHebrew;
-    return chosen.startsWith('he') || chosen.startsWith('iw');
-  }
-
-  /// Unavailable is not always the same story. When the engine said WHY —
-  /// a missing language pack — say THAT, gently, instead of a vague shrug.
-  void _tellUnavailable(String fallback) {
-    final err = SttService.lastErrorMsg ?? '';
-    if (err.contains('language')) {
-      _tellOnce(L.t(
-          "The phone's speech engine doesn't have Hebrew installed. "
-          "You can add it in the phone's Google voice-typing settings — "
-          "meanwhile the mic uses the phone's language.",
-          'נראה שמנוע הדיבור של הטלפון לא כולל עברית. '
-          'אפשר להוסיף אותה בהגדרות ההקלדה הקולית של Google — '
-          'בינתיים המיקרופון ישתמש בשפת הטלפון.'));
       return;
     }
-    _tellOnce(fallback);
+    if (VoiceTake.isRecording) {
+      _tell(
+        L.t('Something else is already recording.', 'משהו אחר כבר מקליט כרגע.'),
+      );
+      return;
+    }
+
+    final started = await VoiceTake.start(
+      holder: 'field',
+      dir: await VoiceTake.scratchDir(),
+      prefix: 'say',
+    );
+    if (!mounted) return;
+    if (started == null) {
+      _tell(
+        L.t(
+          'The microphone did not open. You can write it instead.',
+          'המיקרופון לא נפתח. אפשר לכתוב במקום.',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _phase = _MicPhase.recording;
+      _elapsed = Duration.zero;
+    });
+    _tick?.cancel();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _elapsed = VoiceTake.elapsed);
+    });
   }
 
-  /// Once per ATTEMPT (reset in [_toggle]) — not once per app lifetime,
-  /// which made every later failure completely silent.
-  static bool _told = false;
-  void _tellOnce(String msg) {
-    if (_told || !mounted) return;
-    _told = true;
+  Future<void> _finish() async {
+    _tick?.cancel();
+    final path = await VoiceTake.stop();
+    if (!mounted) return;
+    setState(() => _phase = _MicPhase.hearing);
+    final heard = (await Ear.hear(path ?? '')).trim();
+    await VoiceTake.discard(path);
+    if (!mounted) return;
+    setState(() => _phase = _MicPhase.idle);
+    if (heard.isEmpty) {
+      _tell(
+        L.t(
+          'No words came back from that one. You can write it instead.',
+          'לא חזרו מילים מההקלטה הזאת. אפשר לכתוב במקום.',
+        ),
+      );
+      return;
+    }
+    // Dictation APPENDS, never overwrites — the field may already hold
+    // something the person typed.
+    final base = widget.controller.text;
+    final sep = base.isEmpty || base.endsWith(' ') || base.endsWith('\n')
+        ? ''
+        : ' ';
+    widget.controller.text = '$base$sep$heard';
+    widget.controller.selection = TextSelection.collapsed(
+      offset: widget.controller.text.length,
+    );
+  }
+
+  void _tell(String msg) {
+    if (!mounted) return;
     BnsSnack.show(context, SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
-    // A mic that cannot listen is worse than no mic — on desktops without
-    // live dictation the words come from recording instead (owner's law:
-    // as little confusion as possible).
-    if (!SttService.isSupportedPlatform) return const SizedBox.shrink();
-    final color = _dictating
-        ? (_state == SttState.restarting
-            ? Colors.orange
-            : Theme.of(context).colorScheme.primary)
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    return IconButton(
-      iconSize: widget.dense ? 22 : 28,
-      tooltip: _dictating
-          ? L.t('Stop voice typing', 'לעצור הקלדה קולית')
-          : L.t('Voice typing (speak to write)',
-              'הקלדה קולית (מדברים — וזה נכתב)'),
-      icon: Icon(_dictating ? Icons.mic : Icons.mic_none_rounded, color: color),
-      onPressed: _toggle,
+    return FutureBuilder<bool>(
+      future: _earCheck,
+      builder: (context, snap) {
+        if (snap.data != true) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        final size = widget.dense ? 22.0 : 28.0;
+        switch (_phase) {
+          case _MicPhase.hearing:
+            return Padding(
+              padding: const EdgeInsets.all(8),
+              child: SizedBox(
+                width: size,
+                height: size,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: scheme.primary,
+                ),
+              ),
+            );
+          case _MicPhase.recording:
+            final secs = _elapsed.inSeconds;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (secs > 0)
+                  Text(
+                    '$secs${L.t('s', 'ש')}',
+                    style: TextStyle(color: scheme.error, fontSize: 12),
+                  ),
+                IconButton(
+                  iconSize: size,
+                  tooltip: L.t(
+                    'Stop and write the words',
+                    'לעצור ולכתוב את המילים',
+                  ),
+                  icon: Icon(Icons.stop_circle_rounded, color: scheme.error),
+                  onPressed: _toggle,
+                ),
+              ],
+            );
+          case _MicPhase.idle:
+            return IconButton(
+              iconSize: size,
+              tooltip: L.t('Speak instead of typing', 'לדבר במקום להקליד'),
+              icon: Icon(
+                Icons.mic_none_rounded,
+                color: scheme.onSurfaceVariant,
+              ),
+              onPressed: _toggle,
+            );
+        }
+      },
     );
   }
 }

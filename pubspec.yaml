@@ -1,6 +1,6 @@
 name: bns
 description: "BNS — Gentle support for routines, memory, reminders and feeling good. Privacy-first, LAN-sync only, cross-platform (Android, iOS, macOS, Windows, Linux). Built for neurological needs including executive dysfunction and TBI."
-version: 0.16.0+9
+version: 0.17.0+10
 publish_to: 'none'
 
 environment:
@@ -64,6 +64,14 @@ dependencies:
 
   # Android home widget (gadget) — 0.9.3 needs Dart >=3.10 (Flutter 3.44+).
   home_widget: ^0.9.3
+  # THE EAR INSIDE (2026-08-19). whisper.cpp compiled into the app —
+  # Android, iOS, macOS, Windows, Linux, one ear, no network, no account.
+  # The borrowed ears stay as the fast first try where they exist; this one
+  # is what answers when they don't (and what never cancels itself because
+  # a finger touched the screen). Its own Gradle module aims at compileSdk
+  # 34 while the ffmpeg it carries demands 35 — android/build.gradle.kts
+  # raises every library module that aims too low.
+  whisper_ggml: ^2.6.0
 
 dev_dependencies:
   flutter_test:

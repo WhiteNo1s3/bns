@@ -61,6 +61,18 @@ android {
             versionNameSuffix = "-dev"
         }
         release {
+            // THE WEIGHT WHISPER BROUGHT (2026-08-19). The ear inside the
+            // app carries whisper.cpp and an ffmpeg per architecture, and
+            // the release APK went 63 MB -> 134 MB. `--target-platform`
+            // drops Flutter's own x86_64 slices but not a plugin's prebuilt
+            // ones, so ship builds throw the emulator architectures out at
+            // packaging time. No person's phone runs x86; debug builds keep
+            // every ABI, so developing against an emulator is unchanged.
+            packaging {
+                jniLibs {
+                    excludes += setOf("lib/x86_64/**", "lib/x86/**")
+                }
+            }
             // Real certificate when the keystore exists (scripts/make-keystore.ps1),
             // debug keys otherwise so a fresh clone still runs.
             signingConfig = if (hasReleaseKeystore) {

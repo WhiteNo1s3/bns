@@ -142,3 +142,37 @@ Field-test leftovers, owner told: a few wordless test voice-notes
 banked into Memories between 20:05–20:17 (his real 19:52 take was
 deliberately saved); orphan test audio files on disk; media volume
 restored to 94.
+
+## 2026-08-19 — 0.17a: the ear inside, and one mouth for the mic
+
+Owner (the same night as the hunt): "we find a way to sst less fragile
+than android simple one that cancel itself when you press any point of
+the screen... record package + any Whisper package." Built:
+
+- **`WhisperEar`** (lib/services/whisper_ear.dart): whisper.cpp compiled
+  INTO the app via `whisper_ggml` — Android, iOS, macOS, Windows, Linux,
+  one ear, offline after one download, nothing that cancels itself
+  because a finger touched the screen. Model = `small` (Hebrew is
+  genuinely usable there; `base` mangles it — field truth 2026-07-27).
+  Download lands under a `.part` name and only takes its real name once
+  whole — a crashed download can never impersonate an installed ear.
+- **`Ear`** (lib/services/ear.dart): ONE EAR FOR THE WHOLE APP. Rungs:
+  WhisperEar → the platform's own file ear (Google/Apple) → the old
+  desktop doors (whisper-cli exe, Vosk). Every rung answers '' rather
+  than throwing; sttEnabled off = silence from every rung.
+- **`VoiceTake`** (lib/services/voice_take.dart): ONE MICROPHONE, ONE
+  PERSON. Every recorder in the app (capture room, every field mic)
+  goes through it — the mic has one holder, a second asker is told, and
+  nothing listens or stops on its own.
+- **The field mic reborn** (dictation_mic_button.dart): no system popup,
+  no live engine that dies on a pause — press, speak, press, and the
+  ear reads the finished take («כותבים…» while it does). Hides itself
+  when NO ear could answer. Capture room now records through VoiceTake
+  and hears through Ear (dead code swept).
+- **The settings door** (sync screen, under the STT switch): «אוזן
+  משלנו — עובדת בלי רשת» — install (~490 MB, progress shown), remove.
+- Android build: whisper_ggml's own module aims at compileSdk 34 while
+  its ffmpeg demands 35+ — android/build.gradle.kts now raises any
+  library module that aims too low (reflection, AGP-shape-proof).
+
+v0.17a / 0.17.0+10 by the alpha law.

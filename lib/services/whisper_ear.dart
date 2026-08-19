@@ -82,6 +82,12 @@ class WhisperEar {
         lang: lang,
         // Nothing but words: no [MUSIC], no (silence), no timestamps.
         suppressNonSpeechTokens: true,
+        // NO CARRIED CONTEXT (lived on the S23, 2026-08-19). Fed a quiet
+        // take with a faint voice in it, whisper feeds its own last guess
+        // back into the next window and loops — a field dictation came out
+        // as «קצת רגלת כתובילים תודה רגלת כתובילים». Each window judged on
+        // its own audio alone stops the loop from building.
+        noContext: true,
         // The next take skips the multi-second model load. A voice note is
         // rarely alone — people speak twice.
         keepModelLoaded: true,
@@ -90,6 +96,18 @@ class WhisperEar {
     } catch (e) {
       debugPrint('BNS whisper ear failed: $e');
       return '';
+    } finally {
+      // THE CRUMB IT LEAVES (lived on the S23, 2026-08-19). To read an m4a
+      // the plugin's ffmpeg writes a 16 kHz WAV called '<take>.m4a.wav' —
+      // right next to the take, five times its size, and it never cleans up
+      // after itself. That folder is the person's kept VOICE: it is packed
+      // into .bns files and carried over sync. The crumb goes.
+      try {
+        final crumb = File('$path.wav');
+        if (crumb.existsSync()) {
+          await crumb.delete();
+        }
+      } catch (_) {}
     }
   }
 

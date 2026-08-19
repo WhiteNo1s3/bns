@@ -784,7 +784,7 @@ Both halves were built, because they are one thing:
   installed, then the phone's own file ear (Google on Android 13+, Apple
   on iOS/macOS), then the desktop doors that came before.
 - **The ear inside** (`WhisperEar`, whisper_ggml 2.6.0 — whisper.cpp
-  compiled INTO the app, MIT). One 490 MB model download in Settings, and
+  compiled INTO the app, MIT). One 190 MB model download in Settings, and
   then Android, iOS, macOS, Windows and Linux all hear the same way, with
   no network, no account, and nobody else in the middle. Every borrowed
   ear fails somewhere — Google's needs Android 13 and a willing service,
@@ -801,9 +801,46 @@ break it, and on the spot rather than in `afterEvaluate`, because the
 Verified here: macOS debug app builds, Android APK builds, analyzer clean,
 tests 354 (+6: the ear's language, the one microphone).
 
-**Not yet lived — the whole point still waits on the S23** (no phone was
-connected this session): the 490 MB model download over a real network,
-how long `small` takes to read a 30-second Hebrew take on that phone, and
-whether its Hebrew is good enough to stand where Google's ear stands. If
-`small` is too slow on the phone, the rung to try is a quantized model
-file — same code, smaller and faster, no new package.
+**LIVED ON THE S23 the same night** (the owner plugged the phone in
+mid-pass — cable and wireless debugging both). The ear inside heard
+Hebrew, on this phone, with nothing else involved:
+
+- «אני צריך לזכור לקחת את התרופה בשמונה בערב, ולהתקשר לאמא.» — spoken
+  by the Mac across the room into the phone's own microphone, written
+  back WORD FOR WORD, punctuation and all (hunt-shots/ear-inside-heard.png).
+  A longer sentence came back with three words bent out of eleven; a
+  human speaking into their own phone has none of that distance.
+- **The finger no longer kills the take** (hunt-shots/ear-inside-keyboard-survives.png):
+  mid-dictation the screen was tapped, the field took focus and the
+  KEYBOARD opened over half the room — «23ש» kept counting, and the
+  words landed when the stop was pressed. That is the whole complaint,
+  answered.
+- **Timing, honestly**: an 8-second take became words about 16 seconds
+  after the stop-press (first read of the run — the model load is inside
+  that). The voice is kept instantly and «כותבים את המילים…» stands
+  where the words will be, so the wait is visible, never a blank.
+- **The model was quantized, and that is why it fits**: `small` q5_1 is
+  190 MB instead of 488 MB, the same weights through the same code.
+
+**Two finds, both fixed before the pass closed:**
+
+- **The crumb it leaves.** To read an m4a, the plugin's ffmpeg writes
+  `<take>.m4a.wav` next to the take — five times its size — and never
+  cleans up. That folder is the person's kept VOICE; it is packed into
+  .bns files and carried over sync. `WhisperEar` deletes the crumb in a
+  `finally`, lived and confirmed on the phone.
+- **The loop on a quiet take.** Fed a 23-second dictation that was
+  mostly silence with a faint distant voice in it, whisper fed its own
+  last guess back in and looped: «קצת רגלת כתובילים תודה רגלת
+  כתובילים». `noContext: true` judges each window on its own audio; the
+  next dictation of a normal sentence came back right
+  (hunt-shots/ear-inside-field-dictation.png).
+
+**The weight it brought.** whisper.cpp plus an ffmpeg per architecture
+took the release APK from 63 MB to 134 MB. Ship builds now drop the
+emulator architectures at packaging time (`lib/x86*`), which brings it
+to 92 MB; debug builds keep every ABI. The 190 MB model is a separate,
+deliberate download that only exists if the person asks for it.
+
+Still unlived: the in-app download door over a real network (the model
+was side-loaded onto the phone for this pass), and iOS/Windows/Linux.

@@ -104,3 +104,41 @@ the sheet must SAY the move is one-time — «לתת לאנשים להבין ש�
   network listener; password mismatch says «הסיסמאות לא זהות»; broken
   .bns copy suggestions stopped commanding («אפשר לנסות עותק אחר»);
   «לא קרה + סיבה» → «לא קרה — ולמה».
+
+## 2026-08-19 — The ear hunt: six field truths until the words landed
+
+Owner: «ניסיתי הקלטה, המילים לא הופיעו — תבדוק בלוג איזו דלת ענתה».
+Driven live over adb on the S23 (silent takes to fire the probe, the
+Mac's own speakers speaking Carmit's sentence into a real recording),
+ending with the words ON SCREEN: «שלום מה שלומך היום שלום מה שלומך
+היום». What the phone taught, each fix in `MainActivity.kt` +
+`android_file_stt.dart`:
+
+1. **Doors are dynamic, not numbered.** The S23 has NO quicksearchbox
+   RecognitionService. Its cast: AiAi (on-device host), **Speech
+   Services (com.google.android.tts) — the winner**, and third parties
+   we never touch. Kotlin `ears` lists them; the sidecar stores the
+   door by name.
+2. **ondevice has no Hebrew** (ERROR 12). When every door fails, the
+   app now asks the engine to download the pack
+   (`checkRecognitionSupport` + `triggerModelDownload`) — a later run
+   may find a fully offline door.
+3. **An fd session IS a segmented session.** Without
+   `EXTRA_SEGMENTED_SESSION = EXTRA_AUDIO_SOURCE` the service returns
+   an empty success in 500ms. Results arrive via `onSegmentResults`,
+   joined per segment — this is also the long-recording answer.
+4. **16 kHz only.** A 44.1 kHz feed dies as SERVER_DISCONNECTED /
+   NETWORK; every take is linear-resampled to 16 kHz mono first.
+5. **Pace the pipe.** Blasting 16s of audio at 100× folded the network
+   layer (ERROR 2 in 40ms). Feed at ~4× realtime (1s of audio per
+   250ms).
+6. **Silence never answers.** A quiet take triggers no callback at
+   all — after EOF a 20s wrap-up closes with whatever was heard, and
+   the door is NOT forgotten (only door-shaped errors forget:
+   `no_*`, 9/12/13, start-refused; network moods pass).
+   Plus: legacy `iw` locales are spoken to the service as `he`.
+
+Field-test leftovers, owner told: a few wordless test voice-notes
+banked into Memories between 20:05–20:17 (his real 19:52 take was
+deliberately saved); orphan test audio files on disk; media volume
+restored to 94.

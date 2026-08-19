@@ -17,8 +17,11 @@ import android.os.ParcelFileDescriptor
 import android.provider.AlarmClock
 import android.speech.RecognitionListener
 import android.speech.RecognitionService
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import androidx.annotation.RequiresApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -170,6 +173,29 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "isSupported" ->
                         result.success(Build.VERSION.SDK_INT >= 33)
+                    // The doors THIS phone offers, by honest inventory:
+                    // the on-device recognizer, every Google-published
+                    // RecognitionService, and the system default. Never a
+                    // third-party service — the voice goes only to the OS
+                    // and to Google's own engines (privacy law).
+                    "ears" -> {
+                        if (Build.VERSION.SDK_INT < 33) {
+                            result.success(listOf<String>())
+                        } else {
+                            val doors = mutableListOf<String>()
+                            if (SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                                doors.add("ondevice")
+                            }
+                            for (c in googleRecognitionServices()) {
+                                doors.add("${c.packageName}/${c.className}")
+                            }
+                            if (SpeechRecognizer.isRecognitionAvailable(this)) {
+                                doors.add("default")
+                            }
+                            Log.i("BNSear", "doors: $doors")
+                            result.success(doors)
+                        }
+                    }
                     "transcribeFile" -> {
                         if (Build.VERSION.SDK_INT < 33) {
                             result.error("old_android",
@@ -182,10 +208,22 @@ class MainActivity : FlutterActivity() {
                             transcribeFile(
                                 call.argument<String>("path") ?: "",
                                 call.argument<String>("locale") ?: "he-IL",
-                                call.argument<Int>("variant") ?: 2,
+                                call.argument<String>("door") ?: "default",
                                 (call.argument<Int>("timeoutMs") ?: 120_000).toLong(),
                                 result,
                             )
+                        }
+                    }
+                    // Ask the on-device engine to FETCH the language pack
+                    // (API 33: checkRecognitionSupport + triggerModelDownload).
+                    // Fire-and-forget: if Hebrew lands, the next run's probe
+                    // finds a working on-device door — fully offline words.
+                    "suggestDownload" -> {
+                        if (Build.VERSION.SDK_INT < 33) {
+                            result.success(false)
+                        } else {
+                            result.success(suggestOnDeviceDownload(
+                                call.argument<String>("locale") ?: "he-IL"))
                         }
                     }
                     else -> result.notImplemented()
@@ -203,7 +241,7 @@ class MainActivity : FlutterActivity() {
     /// [timeoutMs] caps a stuck session — the probe passes a short leash
     /// so a phone with three dead doors costs seconds, never minutes.
     private fun transcribeFile(
-        path: String, locale: String, variant: Int, timeoutMs: Long,
+        path: String, locale: String, door: String, timeoutMs: Long,
         result: MethodChannel.Result
     ) {
         Thread {
@@ -216,15 +254,27 @@ class MainActivity : FlutterActivity() {
                     ?: decodeCompressed(path)
             } else null
             if (decoded == null) {
+                Log.i("BNSear", "decode failed: $path")
                 mainHandler.post {
                     earBusy = false
                     result.error("no_audio", "could not read $path", null)
                 }
                 return@Thread
             }
+            Log.i("BNSear", "decoded ${decoded.first.size}B @${decoded.second}Hz " +
+                "door=$door locale=$locale ${File(path).name}")
+            // The online fd pipeline is picky about rates: the 16 kHz probe
+            // sails through while a 44.1 kHz take is cut off with
+            // SERVER_DISCONNECTED in 250ms (S23 field truth, 2026-08-19).
+            // Every take goes down to 16 kHz mono — the rate speech
+            // engines eat natively.
+            val pcm16 = resampleTo16k(decoded.first, decoded.second)
+            if (pcm16.size != decoded.first.size) {
+                Log.i("BNSear", "resampled to ${pcm16.size}B @16000Hz")
+            }
             if (Build.VERSION.SDK_INT >= 33) {
                 mainHandler.post {
-                    listenToPcm(decoded.first, decoded.second, locale, variant,
+                    listenToPcm(pcm16, 16000, locale, door,
                         timeoutMs, result)
                 }
             } else {
@@ -365,6 +415,27 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /// Plain linear resampling to 16 kHz mono PCM16 — plenty for speech.
+    private fun resampleTo16k(pcm: ByteArray, rate: Int): ByteArray {
+        if (rate == 16000 || rate <= 0) return pcm
+        val nIn = pcm.size / 2
+        if (nIn < 2) return pcm
+        val src = ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN)
+        val nOut = ((nIn.toLong() * 16000) / rate).toInt().coerceAtLeast(1)
+        val out = ByteArray(nOut * 2)
+        val dst = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN)
+        for (i in 0 until nOut) {
+            val pos = i.toDouble() * rate / 16000.0
+            val i0 = pos.toInt().coerceAtMost(nIn - 1)
+            val i1 = (i0 + 1).coerceAtMost(nIn - 1)
+            val frac = pos - i0
+            val s = src.getShort(i0 * 2) * (1 - frac) +
+                src.getShort(i1 * 2) * frac
+            dst.putShort(i * 2, s.toInt().toShort())
+        }
+        return out
+    }
+
     private fun downmix(pcm: ByteArray, channels: Int): ByteArray {
         val frame = channels * 2
         val frames = pcm.size / frame
@@ -388,44 +459,52 @@ class MainActivity : FlutterActivity() {
     /// itself is whole either way (segmented sessions are the next rung).
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun listenToPcm(
-        pcm: ByteArray, rate: Int, locale: String, variant: Int,
+        pcm: ByteArray, rate: Int, locale: String, door: String,
         timeoutMs: Long, result: MethodChannel.Result
     ) {
-        val recognizer: SpeechRecognizer = when (variant) {
-            0 -> {
+        val recognizer: SpeechRecognizer = when (door) {
+            "ondevice" -> {
                 if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                    Log.i("BNSear", "door=ondevice: unavailable")
                     earBusy = false
                     result.error("no_ondevice", "no on-device recognizer", null)
                     return
                 }
+                Log.i("BNSear", "door=ondevice")
                 SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
             }
-            1 -> {
-                val component = googleRecognitionService()
-                if (component == null) {
-                    earBusy = false
-                    result.error("no_google", "no Google recognition service", null)
-                    return
-                }
-                SpeechRecognizer.createSpeechRecognizer(this, component)
-            }
-            else -> {
+            "default" -> {
                 if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                    Log.i("BNSear", "door=default: unavailable")
                     earBusy = false
                     result.error("no_service", "no recognition service", null)
                     return
                 }
+                Log.i("BNSear", "door=default")
                 SpeechRecognizer.createSpeechRecognizer(this)
+            }
+            else -> {
+                val parts = door.split('/')
+                if (parts.size != 2) {
+                    earBusy = false
+                    result.error("bad_door", door, null)
+                    return
+                }
+                Log.i("BNSear", "door=$door")
+                SpeechRecognizer.createSpeechRecognizer(
+                    this, ComponentName(parts[0], parts[1]))
             }
         }
         val pipe = ParcelFileDescriptor.createPipe()
         var finished = false
         lateinit var timeout: Runnable
+        var wrapUp: Runnable? = null
         // Every road out passes here exactly once: destroy, close, answer.
         fun finish(words: String?, errCode: String?) {
             if (finished) return
             finished = true
             mainHandler.removeCallbacks(timeout)
+            wrapUp?.let { mainHandler.removeCallbacks(it) }
             try { recognizer.destroy() } catch (_: Exception) {}
             try { pipe[0].close() } catch (_: Exception) {}
             try { pipe[1].close() } catch (_: Exception) {}
@@ -436,22 +515,56 @@ class MainActivity : FlutterActivity() {
                 result.success(words ?: "")
             }
         }
-        timeout = Runnable { finish(null, "ear_timeout") }
+        timeout = Runnable {
+            Log.i("BNSear", "door=$door hard timeout")
+            finish(null, "ear_timeout")
+        }
         mainHandler.postDelayed(timeout, timeoutMs)
+        // An fd session is a SEGMENTED session (the API-33 recipe this
+        // door was missing): words arrive per segment, and the session
+        // ends when the source ends. Plain onResults stays handled for
+        // services that answer the classic way.
+        val segments = StringBuilder()
+        fun joined(tail: String?): String {
+            val t = (tail ?: "").trim()
+            if (t.isNotEmpty()) {
+                if (segments.isNotEmpty()) segments.append('\n')
+                segments.append(t)
+            }
+            return segments.toString().trim()
+        }
         recognizer.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
                 val texts = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                finish(texts?.firstOrNull() ?: "", null)
+                Log.i("BNSear",
+                    "door=$door results len=${texts?.firstOrNull()?.length ?: -1}")
+                finish(joined(texts?.firstOrNull()), null)
+            }
+
+            override fun onSegmentResults(segmentResults: Bundle) {
+                val texts = segmentResults
+                    .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                Log.i("BNSear",
+                    "door=$door segment len=${texts?.firstOrNull()?.length ?: -1}")
+                joined(texts?.firstOrNull())
+            }
+
+            override fun onEndOfSegmentedSession() {
+                Log.i("BNSear", "door=$door segmented session ended")
+                finish(segments.toString().trim(), null)
             }
 
             override fun onError(error: Int) {
+                Log.i("BNSear", "door=$door onError=$error")
                 // Silence is an answer, not a failure: the ear worked and
-                // heard nothing. Anything else names a broken variant.
+                // heard nothing. Anything else names a broken door — but
+                // words already gathered from segments are never dropped.
                 if (error == SpeechRecognizer.ERROR_NO_MATCH ||
-                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+                    segments.isNotEmpty()
                 ) {
-                    finish("", null)
+                    finish(segments.toString().trim(), null)
                 } else {
                     finish(null, "ear_$error")
                 }
@@ -475,13 +588,31 @@ class MainActivity : FlutterActivity() {
                 AudioFormat.ENCODING_PCM_16BIT)
             putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
             putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, rate)
+            // Reading from a file descriptor IS a segmented session — the
+            // documented pairing. Without it Google's service closed the
+            // session in half a second with an empty result (S23 field
+            // truth, 2026-08-19).
+            putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION,
+                RecognizerIntent.EXTRA_AUDIO_SOURCE)
             // No asterisks over the person's own words (mad-vent law).
             putExtra(RecognizerIntent.EXTRA_MASK_OFFENSIVE_WORDS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
+        // A silence-only take never triggers any callback in a segmented
+        // session (S23 field truth, 2026-08-19: «כותבים את המילים…» hung
+        // the full timeout on a quiet room). So: once the whole file has
+        // been fed and consumed, a short grace — then we close with
+        // whatever was heard, empty included. The door stays trusted.
+        wrapUp = Runnable {
+            Log.i("BNSear", "door=$door wrap-up after EOF")
+            finish(segments.toString().trim(), null)
+        }
         try {
             recognizer.startListening(intent)
         } catch (e: Exception) {
+            // The fd-in-intent path is the fragile joint (some glue layers
+            // refuse file descriptors) — name the refusal in the log.
+            Log.e("BNSear", "door=$door startListening threw", e)
             finish(null, "ear_start")
             return
         }
@@ -493,28 +624,96 @@ class MainActivity : FlutterActivity() {
                         val n = minOf(32 * 1024, pcm.size - off)
                         sink.write(pcm, off, n)
                         off += n
+                        // ~4× realtime, one second of audio per quarter
+                        // second: the service streams to its server as it
+                        // reads, and blasting a 16-second take at 100×
+                        // folded the network layer (S23 field truth,
+                        // 2026-08-19: ERROR_NETWORK 40ms after the feed).
+                        if (off < pcm.size) Thread.sleep(250)
                     }
                 }
+                // The pipe is small, so writes complete only as the service
+                // reads: reaching here means the audio was consumed whole.
+                Log.i("BNSear", "door=$door audio fed (${pcm.size}B)")
+                wrapUp?.let { mainHandler.postDelayed(it, 20_000) }
             } catch (_: Exception) {
                 // Reader closed early (recognizer finished or died) — fine.
             }
         }.apply { name = "bns-file-ear-feed" }.start()
     }
 
-    /// Google's recognition service, found by name — on Samsung phones the
-    /// DEFAULT recognizer is Samsung's and refuses Hebrew (field truth,
-    /// 2026-07-26), while Google's, asked directly, is the popup's engine.
-    private fun googleRecognitionService(): ComponentName? {
+    /// Every RecognitionService Google publishes on this phone, ranked:
+    /// the Google app (the Waze popup's own home) first, then Speech
+    /// Services (com.google.android.tts), then the rest. The S23 carries
+    /// no quicksearchbox service (field truth, 2026-08-19) — its cast is
+    /// AiAi (on-device host), Speech Services, and third parties we never
+    /// touch (the voice goes only to the OS and Google's own engines).
+    private fun googleRecognitionServices(): List<ComponentName> {
         return try {
-            packageManager.queryIntentServices(
+            val all = packageManager.queryIntentServices(
                 Intent(RecognitionService.SERVICE_INTERFACE), 0)
-                .firstOrNull {
-                    it.serviceInfo?.packageName?.contains("google") == true
+                .mapNotNull { it.serviceInfo }
+            Log.i("BNSear", "recognition services: " +
+                all.joinToString { "${it.packageName}/${it.name}" })
+            all.filter { it.packageName.startsWith("com.google.") }
+                .sortedBy {
+                    when (it.packageName) {
+                        "com.google.android.googlequicksearchbox" -> 0
+                        "com.google.android.tts" -> 1
+                        else -> 2
+                    }
                 }
-                ?.serviceInfo
-                ?.let { ComponentName(it.packageName, it.name) }
-        } catch (_: Exception) {
-            null
+                .map { ComponentName(it.packageName, it.name) }
+        } catch (e: Exception) {
+            Log.e("BNSear", "service query failed", e)
+            emptyList()
+        }
+    }
+
+    /// Ask the on-device engine for the Hebrew pack (API 33). Honest
+    /// telemetry in the log either way; true = a download was triggered.
+    /// If the pack lands, the next run's probe finds a working ondevice
+    /// door — words with no network at all.
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun suggestOnDeviceDownload(locale: String): Boolean {
+        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+            Log.i("BNSear", "download: no on-device recognizer to teach")
+            return false
+        }
+        return try {
+            val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+            }
+            recognizer.checkRecognitionSupport(intent, mainExecutor,
+                object : RecognitionSupportCallback {
+                    override fun onSupportResult(support: RecognitionSupport) {
+                        Log.i("BNSear", "ondevice support: " +
+                            "installed=${support.installedOnDeviceLanguages} " +
+                            "supported=${support.supportedOnDeviceLanguages} " +
+                            "pending=${support.pendingOnDeviceLanguages}")
+                        val canLearn = support.supportedOnDeviceLanguages.any {
+                            it.startsWith("he") || it.startsWith("iw")
+                        }
+                        if (canLearn) {
+                            Log.i("BNSear", "download: triggering $locale pack")
+                            recognizer.triggerModelDownload(intent)
+                        }
+                        // Give the trigger a breath before letting go.
+                        mainHandler.postDelayed({
+                            try { recognizer.destroy() } catch (_: Exception) {}
+                        }, 3_000)
+                    }
+
+                    override fun onError(error: Int) {
+                        Log.i("BNSear", "download: support check error=$error")
+                        try { recognizer.destroy() } catch (_: Exception) {}
+                    }
+                })
+            true
+        } catch (e: Exception) {
+            Log.e("BNSear", "download suggestion failed", e)
+            false
         }
     }
 

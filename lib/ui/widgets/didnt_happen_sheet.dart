@@ -39,6 +39,9 @@ class _DidntHappenSheet extends StatefulWidget {
 class _DidntHappenSheetState extends State<_DidntHappenSheet> {
   late final TextEditingController _ctrl;
 
+  /// True while a spoken why is still being written — the doors wait.
+  bool _settling = false;
+
   @override
   void initState() {
     super.initState();
@@ -52,8 +55,19 @@ class _DidntHappenSheetState extends State<_DidntHappenSheet> {
     super.dispose();
   }
 
-  void _finish(DidntHappenResult result) {
-    Navigator.pop(context, result);
+  /// THE SKIP-WHY THAT WENT BLANK: the ear writes words a moment AFTER
+  /// the stop-press — a confirm that outran it kept an empty why, and a
+  /// confirm mid-take CANCELLED the recording, so the spoken why died
+  /// with the sheet. Both worded doors now settle the mic first: the
+  /// take is finished, the words land in the field, and only then does
+  /// the sheet answer with everything that was said.
+  Future<void> _finish(
+      DidntHappenResult Function(String words) result) async {
+    if (_settling) return; // one press is already doing the whole job
+    setState(() => _settling = true);
+    await DictationMicButton.settle(_ctrl);
+    if (!mounted) return;
+    Navigator.pop(context, result(_ctrl.text));
   }
 
   @override
@@ -89,8 +103,21 @@ class _DidntHappenSheetState extends State<_DidntHappenSheet> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
               ),
-              onPressed: () => _finish(didntHappenOnConfirm(_ctrl.text)),
-              child: Text(widget.confirmLabel),
+              onPressed: () => _finish(didntHappenOnConfirm),
+              child: _settling
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(L.t('Writing the words…', 'כותבים את המילים…')),
+                      ],
+                    )
+                  : Text(widget.confirmLabel),
             ),
             const SizedBox(height: 8),
             Center(
@@ -98,7 +125,7 @@ class _DidntHappenSheetState extends State<_DidntHappenSheet> {
                 style: TextButton.styleFrom(
                   minimumSize: const Size(48, 48),
                 ),
-                onPressed: () => _finish(didntHappenOnDismiss(_ctrl.text)),
+                onPressed: () => _finish(didntHappenOnDismiss),
                 child: Text(L.t('Close', 'סגירה')),
               ),
             ),

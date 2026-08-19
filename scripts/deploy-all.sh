@@ -64,4 +64,36 @@ for d in .l4-test .l3-test; do
   done
 done
 
+# THE L2 PAIR AGES TOO (lived 2026-08-19: the seated windows showed
+# BNS-Care.app still answering «מתי היום שלך מתחיל?» — a person question
+# on a Care seat, because that app predated the data-dir pin and read
+# bundle documents instead of .l2-test/caregiver). The gBNS harness pair
+# now rides every wave with everyone else. Missing dir = reported, never
+# fatal (this Mac may not carry the fork).
+L2DIR="$HOME/dev/gBNS/.l2-test"
+if [ -d "$L2DIR" ]; then
+  echo "== harness L2 pair =="
+  for app in BNS-L2 BNS-Care; do
+    t="$L2DIR/$app.app"
+    case $app in
+      BNS-L2)   ent="$L2DIR/l2.entitlements";;
+      BNS-Care) ent="$L2DIR/l2care.entitlements";;
+    esac
+    [ -d "$t" ] || { echo "  $t missing — skipped"; continue; }
+    bid=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$t/Contents/Info.plist")
+    bname=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$t/Contents/Info.plist")
+    bdisp=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$t/Contents/Info.plist" 2>/dev/null || echo "$bname")
+    rm -rf "$t"
+    ditto build/macos/Build/Products/Release/bns.app "$t"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bid" "$t/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName $bname" "$t/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $bdisp" "$t/Contents/Info.plist" 2>/dev/null || \
+      /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $bdisp" "$t/Contents/Info.plist"
+    codesign --force --deep -s - --entitlements "$ent" "$t"
+    echo "  re-dressed $t as $bid"
+  done
+else
+  echo "== harness L2 pair: $L2DIR not on this Mac — skipped =="
+fi
+
 echo "WAVE-DEPLOYED v$VERSION"

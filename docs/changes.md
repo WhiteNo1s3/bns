@@ -176,3 +176,40 @@ the screen... record package + any Whisper package." Built:
   library module that aims too low (reflection, AGP-shape-proof).
 
 v0.17a / 0.17.0+10 by the alpha law.
+
+## 2026-08-19 — The sitting pile: the why that went blank, the + that invented, the window they could not see
+
+The night's leftovers, worked in order:
+
+- **Skip-why that could go blank** (the sharpest edge of the new ear:
+  words land a moment AFTER the stop-press). A confirm pressed mid-take
+  CANCELLED the recording — the spoken why died with the sheet; pressed
+  mid-«כותבים…» it outran the words and kept a blank. Now every worded
+  keeper settles the mouth first: `DictationMicButton.settle(controller)`
+  finishes a running take, waits for the words, and only then does the
+  door answer. Wired into the miss sheet (both doors, with an honest
+  «כותבים את המילים…» on the confirm), the diary keep, the capture Save,
+  and the new plan ask. Tap-out still cancels — leaving is leaving.
+- **The calendar + stopped inventing plans** (Eagered's 03:07 ghost:
+  a bare + auto-created «פגישה חדשה / הערה»). The + now opens the
+  focused day with the ONE add ask up (`DayView(startWithAdd: true)`);
+  the name field starts EMPTY with a mic, «הוספה» sleeps until a name
+  exists, ביטול creates nothing. The «פגישה» prefill died too — a name
+  answerable by silence is how ghosts are born. test/named_plan_test.dart.
+- **The L2 window they could not see** (gBNS harness): LAUNCH.sh now
+  seats the pair — Person LEFT, Care RIGHT, both raised, person
+  frontmost. Lived on this Mac: the seating screenshot showed the person
+  window wearing «היום מתחיל 15:00» — and CAUGHT a stale harness app:
+  BNS-Care.app predated the data-dir pin and was answering the person
+  question «מתי היום שלך מתחיל?» from bundle documents.
+  scripts/deploy-all.sh now re-dresses the gBNS L2 pair with every wave.
+- **The New Bot has a job**: COPY-AUDITOR.md — the queued full-app
+  Hebrew copy audit as a seat charter (find, never fix; one report;
+  the owner walks the findings).
+- Eagered's capture-maze fix (forDate + «להוסיף רעיון ליום הזה») was
+  already in the tree since 413dd6b — it needs LIVING on a current
+  build, not building.
+- One Care / few people stays REQUIRED and frozen (owner: do not start
+  the switcher; sync frozen until L1 clean).
+
+Tests 357.

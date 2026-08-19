@@ -78,32 +78,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () async {
-              // Simple add today event
-              final now = DateTime.now();
-              final dateStr = DateFormat('yyyy-MM-dd').format(_focusedDay);
-              await IsarService.addEvent(
-                CalendarEvent(
-                  id: '',
-                  title: L.t('New appointment / note', 'פגישה חדשה / הערה'),
-                  date: dateStr,
-                  time:
-                      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
-                  notes: '',
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              );
-              await _loadEvents();
-              if (mounted && _selectedDay != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => DayView(date: _focusedDay)),
-                ).then((_) => _loadEvents());
-              }
+            // DON'T INVENT A PLAN (Eagered: the + auto-made a nameless
+            // «פגישה חדשה / הערה» at 03:07). The + now opens the focused
+            // day with the ONE add ask up — a name in front of the person,
+            // the fusion time, and cancel creates nothing at all.
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        DayView(date: _focusedDay, startWithAdd: true)),
+              ).then((_) => _loadEvents());
             },
-            tooltip: L.t('Quick add event for focused day',
-                'הוספה מהירה של אירוע ליום שנבחר'),
+            tooltip: L.t('Add an event to this day',
+                'להוסיף אירוע ליום הזה'),
           ),
         ],
       ),

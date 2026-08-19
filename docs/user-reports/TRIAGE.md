@@ -844,3 +844,47 @@ deliberate download that only exists if the person asks for it.
 
 Still unlived: the in-app download door over a real network (the model
 was side-loaded onto the phone for this pass), and iOS/Windows/Linux.
+
+## Pile pass (owner: "we Still sitting from last night", 2026-08-19 night)
+
+The named pile, item by item:
+
+- **The ear inside SHIPPED as 0.17a** (was sitting uncommitted): whisper.cpp
+  in the app (`WhisperEar`), one ladder (`Ear`), one mic (`VoiceTake`), the
+  field mic that survives a finger, the settings door «אוזן משלנו — עובדת
+  בלי רשת» (~490 MB once). Machine 0.17.0+10 by the alpha law.
+- **skip-why that can go blank — found and closed.** The new ear writes
+  words AFTER the stop-press, so «זה לא קרה היום» pressed mid-take
+  cancelled the spoken why (deleted it!), and pressed during «כותבים…»
+  outran the words: a wordless skip nobody chose. Every worded keeper now
+  settles the mic first (miss sheet both doors, diary keep, capture Save,
+  plan ask) — one press finishes the take, waits for the words, then
+  answers. The wordless-on-purpose skip stays a right: day view still says
+  «לא קרה — לא נשמרה סיבה».
+- **Eagered's naked calendar + — closed.** The + opens the day's ONE add
+  ask (name EMPTY + mic + autofocus, «הוספה» asleep till a name exists,
+  ביטול creates nothing). The «פגישה» prefill died with it. No more 03:07
+  ghosts. test/named_plan_test.dart (+3).
+- **Eagered's capture maze — already built, needs living**: forDate +
+  «להוסיף רעיון ליום הזה» landed in 413dd6b; his last look was a 0.11
+  build. Re-live on 0.17a.
+- **The L2 window — seated.** gBNS LAUNCH.sh now places Person LEFT /
+  Care RIGHT, both raised, person frontmost (lived: seating shot shows
+  «היום מתחיל 15:00» on the person's own window). The seating CAUGHT a
+  stale seat: BNS-Care.app predated the data-dir pin and asked the person
+  question from bundle documents — deploy-all.sh now re-dresses the gBNS
+  L2 pair every wave, so no harness app ages out of the truth again.
+- **Capture still feels far — reframed, not yet closed.** On the phone
+  bar «הקלטה» is one tap from Today; the room has ONE pinned Save since
+  the one-save pass. The far-ness L2 lived was mostly the invisible
+  window (they wrote into the day because they could not reach their own
+  screen). Re-test after the seating + fresh 0.17a pair; if it still
+  feels far ON a visible window, that's the next design wound.
+- **One Care, few people — stays REQUIRED, stays frozen** (owner law: do
+  not start the switcher; sync frozen until L1 clean). Not touched.
+- **The New Bot seat has a job**: COPY-AUDITOR.md at the repo root — the
+  queued full-app Hebrew copy audit (find, never fix; one report at
+  docs/user-reports/copy-audit-YYYY-MM-DD.md; owner walks the findings).
+
+Tests 357 (+3 named-plan). L1 queue continues: four-door miss sheet
+count, hero wrong-goal confirm — and the copy audit now has a seat.

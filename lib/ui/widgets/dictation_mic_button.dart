@@ -38,6 +38,19 @@ class DictationMicButton extends StatefulWidget {
     this.dense = true,
   });
 
+  /// THE SAVE THAT WAITS FOR THE MOUTH (the skip-why that went blank):
+  /// words land a moment AFTER the stop-press, so a worded door pressed
+  /// mid-take — or mid-«כותבים…» — used to keep an empty field while the
+  /// spoken words died with the sheet. A keeper calls this first: a
+  /// running take is finished and read, an in-flight reading is awaited,
+  /// and only then does [controller] hold everything that was said.
+  /// A field with no live mic returns at once.
+  static Future<void> settle(TextEditingController controller) async {
+    final state = _DictationMicButtonState._live[controller];
+    if (state == null) return;
+    await state._settle();
+  }
+
   @override
   State<DictationMicButton> createState() => _DictationMicButtonState();
 }
@@ -45,9 +58,17 @@ class DictationMicButton extends StatefulWidget {
 enum _MicPhase { idle, recording, hearing }
 
 class _DictationMicButtonState extends State<DictationMicButton> {
+  /// Live buttons by the field they write into, so [DictationMicButton.settle]
+  /// can find the one holding a take. One mic per field by construction —
+  /// two mics on one controller would already be two mouths for one voice.
+  static final Map<TextEditingController, _DictationMicButtonState> _live = {};
+
   _MicPhase _phase = _MicPhase.idle;
   Duration _elapsed = Duration.zero;
   Timer? _tick;
+
+  /// The in-flight stop-and-read, so a settle can await instead of racing.
+  Future<void>? _finishing;
 
   /// Whether ANY ear can answer on this device. A mic that cannot listen is
   /// worse than no mic, so the button hides itself until one exists. Asked
@@ -56,12 +77,42 @@ class _DictationMicButtonState extends State<DictationMicButton> {
   late final Future<bool> _earCheck = Ear.hasAnyEar;
 
   @override
+  void initState() {
+    super.initState();
+    _live[widget.controller] = this;
+  }
+
+  @override
+  void didUpdateWidget(covariant DictationMicButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      if (_live[oldWidget.controller] == this) {
+        _live.remove(oldWidget.controller);
+      }
+      _live[widget.controller] = this;
+    }
+  }
+
+  @override
   void dispose() {
+    if (_live[widget.controller] == this) _live.remove(widget.controller);
     _tick?.cancel();
     // The person left mid-take: the mic must not stay open for the next
     // screen, and a half-said sentence is not kept behind their back.
+    // (A worded save settles FIRST — see [DictationMicButton.settle] —
+    // so this cancel only ever meets a genuine walk-away.)
     if (_phase == _MicPhase.recording) VoiceTake.cancel();
     super.dispose();
+  }
+
+  /// Finish whatever the mouth is doing and land the words in the field.
+  Future<void> _settle() async {
+    if (_phase == _MicPhase.recording) {
+      await _finish();
+      return;
+    }
+    final inFlight = _finishing;
+    if (inFlight != null) await inFlight;
   }
 
   Future<void> _toggle() async {
@@ -118,13 +169,23 @@ class _DictationMicButtonState extends State<DictationMicButton> {
     });
   }
 
-  Future<void> _finish() async {
+  Future<void> _finish() {
+    // One shared future: the stop-press and a parent's settle can meet
+    // here without reading the same take twice.
+    return _finishing ??= _runFinish().whenComplete(() => _finishing = null);
+  }
+
+  Future<void> _runFinish() async {
     _tick?.cancel();
     final path = await VoiceTake.stop();
-    if (!mounted) return;
-    setState(() => _phase = _MicPhase.hearing);
-    final heard = (await Ear.hear(path ?? '')).trim();
-    await VoiceTake.discard(path);
+    if (mounted) setState(() => _phase = _MicPhase.hearing);
+    String heard = '';
+    try {
+      heard = (await Ear.hear(path ?? '')).trim();
+    } finally {
+      // The scratch take never outlives its reading — mounted or not.
+      await VoiceTake.discard(path);
+    }
     if (!mounted) return;
     setState(() => _phase = _MicPhase.idle);
     if (heard.isEmpty) {

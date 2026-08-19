@@ -1912,6 +1912,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   Future<void> _saveDiaryEntry() async {
+    // A spoken line still being written lands first — the keep that
+    // outran the ear kept a blank (the skip-why lesson, same mouth).
+    await DictationMicButton.settle(_diaryController);
     final text = _diaryController.text.trim();
     if (text.isEmpty) return;
 

@@ -14,6 +14,7 @@ import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
 import 'package:bns/ui/widgets/day_look_tile.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
 import 'package:bns/ui/widgets/gather_sheet.dart';
 import 'package:bns/ui/widgets/time_fusion_picker.dart';
@@ -28,7 +29,13 @@ import 'package:bns/ui/snack.dart';
 class DayView extends StatefulWidget {
   final DateTime date;
 
-  const DayView({super.key, required this.date});
+  /// Open with the add-event ask already up — for doors like the
+  /// calendar's +, which promise "add" and must land in the ONE add flow
+  /// (name asked, fusion time, cancel creates nothing) instead of
+  /// inventing a nameless «פגישה חדשה» (Eagered: don't invent a plan).
+  final bool startWithAdd;
+
+  const DayView({super.key, required this.date, this.startWithAdd = false});
 
   @override
   State<DayView> createState() => _DayViewState();
@@ -54,7 +61,11 @@ class _DayViewState extends State<DayView> {
   void initState() {
     super.initState();
     _date = widget.date;
-    _loadData();
+    // The add ask waits for the load: past/today walls judge with the
+    // person's real rollover hour, never the 0 default.
+    _loadData().then((_) {
+      if (widget.startWithAdd && mounted) _addEvent();
+    });
   }
 
   Future<void> _loadData() async {
@@ -261,8 +272,9 @@ class _DayViewState extends State<DayView> {
       return;
     }
     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
-    final controller =
-        TextEditingController(text: L.t('Appointment', 'פגישה'));
+    // No prefilled «פגישה»: a name answerable by silence is how nameless
+    // ghosts are born (Eagered's 03:07). The field asks, the person names.
+    final controller = TextEditingController();
     // THE FUSION SHEET, NOT A WALL OF HOURS (owner as user, 2026-08-18:
     // "a proper dropdown... instead of to show all hours the day have
     // including the past"). Planning TODAY starts at the next quarter
@@ -285,8 +297,10 @@ class _DayViewState extends State<DayView> {
             children: [
               TextField(
                   controller: controller,
-                  decoration:
-                      InputDecoration(labelText: L.t('Title', 'כותרת'))),
+                  autofocus: true,
+                  decoration: InputDecoration(
+                      labelText: L.t('What is happening?', 'מה קורה?'),
+                      suffixIcon: DictationMicButton(controller: controller))),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 icon: const Icon(Icons.schedule, size: 20),
@@ -325,24 +339,35 @@ class _DayViewState extends State<DayView> {
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: Text(L.t('Cancel', 'ביטול'))),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await IsarService.addEvent(CalendarEvent(
-                  id: '',
-                  title: controller.text,
-                  date: dateStr,
-                  // Quarter hours only — no ugly numbers (owner law).
-                  time: _snapToQuarter(
-                      '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}'),
-                  notes: '',
-                  shareWithFamily: shareWithFamily,
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                ));
-                await _loadData();
-              },
-              child: Text(L.t('Add', 'הוספה')),
+            // The door wakes with the name — no name, no plan, and the
+            // asking field sits right above saying what is missing.
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (ctx2, value, _) => FilledButton(
+                onPressed: value.text.trim().isEmpty
+                    ? null
+                    : () async {
+                        // A spoken name still being written lands first.
+                        await DictationMicButton.settle(controller);
+                        final name = controller.text.trim();
+                        if (name.isEmpty || !ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        await IsarService.addEvent(CalendarEvent(
+                          id: '',
+                          title: name,
+                          date: dateStr,
+                          // Quarter hours only — no ugly numbers (owner law).
+                          time: _snapToQuarter(
+                              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}'),
+                          notes: '',
+                          shareWithFamily: shareWithFamily,
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                        ));
+                        await _loadData();
+                      },
+                child: Text(L.t('Add', 'הוספה')),
+              ),
             ),
           ],
         ),

@@ -437,6 +437,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
 
   Future<void> _saveCapture() async {
     if (_saving) return; // a double-tap must not keep the thought twice
+    // A field dictation still being written lands first — Save must
+    // never beat the ear to the words (the skip-why lesson).
+    await DictationMicButton.settle(_textController);
     final text = _textController.text.trim();
     if (text.isEmpty && _takes.isEmpty) {
       _leaveWithoutSaving();

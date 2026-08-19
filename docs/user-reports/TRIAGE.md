@@ -888,3 +888,21 @@ The named pile, item by item:
 
 Tests 357 (+3 named-plan). L1 queue continues: four-door miss sheet
 count, hero wrong-goal confirm — and the copy audit now has a seat.
+
+### Wave proof (same night): 0.17a everywhere, and the pair lived
+
+deploy-all.sh ran green: S23 **versionName=0.17.0 / versionCode=10**
+(dumpsys, the law's proof — adb Success alone is claim), /Applications
+replaced, L3/L4 harness re-dressed, and the NEW stage re-dressed the
+gBNS L2 pair. Relaunched and seated: the person window wears the 0.17a
+day (hero with «שינוי שעה», «8 נשארו»), and the Care window finally
+wears its REAL face — «אנשים» sitting on רמה 2, «נשמע לאחרונה לפני 0
+דקות», «השעון שלהם — היום מתחיל 15:00 · נגמר 05:00». Shot:
+gBNS/.l2-test/l2-pair-after-017a.png.
+
+One more trap welded on the way: after a re-dress, `open` re-FRONTED
+the stale Care process (old binary, person face) instead of launching
+the new one — LAUNCH.sh now kills the pair first; the launcher
+launches THE BUILD. Leftover for Ben's sit-down: the fresh signature
+re-asks macOS Local Network for BNS-L2 — the dialog waits on the
+person window («Allow» is his to tap).

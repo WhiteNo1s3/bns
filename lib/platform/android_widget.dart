@@ -96,12 +96,15 @@ class AndroidBnsWidget {
       final lastMem = kept.isEmpty ? null : kept.first;
       final recentStory = lastMem == null ? '' : memoryWords(lastMem);
 
-      // Kind, user-type-aware summary.
-      String summary = L.t('You showed up. Small steps = big wins. You got this!',
-          'הגעת. צעדים קטנים = ניצחונות גדולים. את/ה יכול/ה!');
+      // Kind, user-type-aware summary — at ADULT temperature for the
+      // default voice (owner + his father, 2026-08-16: the cooing and
+      // the את/ה slash-forms "pissed him off"). Kid and ADHD voices
+      // keep their own chosen brightness.
+      String summary = L.t('You showed up. Small steps count.',
+          'הגעת. צעדים קטנים נחשבים.');
       if (doneCount > 0) {
-        summary = L.t('You showed up. $doneCount done today. You got this!',
-            'הגעת. $doneCount נעשו היום. את/ה יכול/ה!');
+        summary = L.t('You showed up. $doneCount done today.',
+            'הגעת. $doneCount נעשו היום.');
       }
       if (settings.userType.contains('kid')) {
         summary = L.t('Awesome job! $doneCount wins today 🌟 You are amazing!',
@@ -128,8 +131,8 @@ class AndroidBnsWidget {
       await HomeWidget.saveWidgetData<String>(
           'recent_memory',
           recentStory.isEmpty
-              ? L.t('You\'ve done great things before.',
-                  'כבר עשית דברים נהדרים בעבר.')
+              ? L.t('Nothing kept here yet.',
+                  'עוד לא נשמר כאן זיכרון.')
               : recentStory);
 
       for (final provider in _providers) {

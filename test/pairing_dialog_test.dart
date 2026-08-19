@@ -1,9 +1,10 @@
 /// The pairing ask stays a door the person can simply close.
 ///
 /// Adapted from PR1 (prototyper-doors): its test wanted a labeled
-/// «סגירה»; our dialog's worded decline is «סרב», matching its own body
-/// copy ("אם לא ציפית לזה, פשוט סרב") — kept, not renamed. What must
-/// hold: declining needs no code, costs nothing, and shares nothing.
+/// «סגירה»; our dialog's worded decline is «לסרב», matching its own body
+/// copy ("פשוט לסרב") — infinitive like every BNS door since the
+/// gendered-imperative sweep (2026-08-19). What must hold: declining
+/// needs no code, costs nothing, and shares nothing.
 library;
 
 import 'package:flutter/material.dart';
@@ -38,7 +39,7 @@ void main() {
     expect(find.textContaining('רוצה להתחבר'), findsOneWidget,
         reason: 'the ask names who is asking');
 
-    await tester.tap(find.text('סרב'));
+    await tester.tap(find.text('לסרב'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('רוצה להתחבר'), findsNothing);
@@ -66,7 +67,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), '993685');
-    await tester.tap(find.text('צמד באופן מאובטח'));
+    await tester.tap(find.text('צימוד מאובטח'));
     await tester.pumpAndSettle();
 
     expect(result, '993685');

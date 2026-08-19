@@ -72,8 +72,8 @@ class _ShowCodeDialogState extends State<ShowCodeDialog> {
                   'Type this code on ${widget.peerName} — a small window is '
                   'asking for it there right now. (If nothing appeared, open '
                   'the Sync screen on that device.)',
-                  'הקלד את הקוד הזה במכשיר ${widget.peerName} — חלון קטן '
-                  'מבקש אותו שם ממש עכשיו. (אם שום דבר לא הופיע, פתח שם '
+                  'מקלידים את הקוד הזה במכשיר ${widget.peerName} — חלון '
+                  'קטן מבקש אותו שם ממש עכשיו. (אם כלום לא הופיע, פותחים שם '
                   'את מסך הסנכרון.)'),
               textAlign: TextAlign.center,
             ),
@@ -129,7 +129,7 @@ class _ShowCodeDialogState extends State<ShowCodeDialog> {
                       'Open it there and try again.',
                       'לא התקבלה תשובה הפעם — הבקשה נדחתה, או שמסך '
                       'הסנכרון לא היה פתוח במכשיר ${widget.peerName}. '
-                      'פתח אותו שם ונסה שוב.'),
+                      'אפשר לפתוח אותו שם ולנסות שוב.'),
               textAlign: TextAlign.center,
             ),
           ],
@@ -145,7 +145,7 @@ class _ShowCodeDialogState extends State<ShowCodeDialog> {
         if (!_waiting)
           FilledButton(
             onPressed: _attempt,
-            child: Text(L.t('Try again (fresh code)', 'נסה שוב (קוד טרי)')),
+            child: Text(L.t('Try again (fresh code)', 'עוד ניסיון (קוד טרי)')),
           ),
       ],
     );
@@ -197,8 +197,8 @@ class _EnterCodeDialogState extends State<EnterCodeDialog> {
           Text(L.t(
               'Enter the 6-digit code shown on that device. If you didn\'t '
               'expect this, just decline — nothing is shared.',
-              'הקלד את הקוד בן 6 הספרות שמוצג במכשיר השני. אם לא ציפית '
-              'לזה, פשוט סרב — שום דבר לא משותף.')),
+              'מקלידים את הקוד בן 6 הספרות שמוצג במכשיר השני. אם זה '
+              'לא צפוי — פשוט לסרב, ושום דבר לא משותף.')),
           const SizedBox(height: 16),
           TextField(
             controller: _codeController,
@@ -217,11 +217,11 @@ class _EnterCodeDialogState extends State<EnterCodeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(L.t('Decline', 'סרב')),
+          child: Text(L.t('Decline', 'לסרב')),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, _codeController.text.trim()),
-          child: Text(L.t('Pair securely', 'צמד באופן מאובטח')),
+          child: Text(L.t('Pair securely', 'צימוד מאובטח')),
         ),
       ],
     );

@@ -762,7 +762,7 @@ class _DayViewState extends State<DayView> {
                                   icon: const Icon(Icons.edit_note),
                                   onPressed: () => _skipRoutine(r),
                                   tooltip: L.t('Log skip + reason',
-                                      'לרשום שלא קרה + סיבה'),
+                                      'לרשום שלא קרה — ולמה'),
                                 ),
                         ),
                       );

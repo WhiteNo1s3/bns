@@ -94,9 +94,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
           SnackBar(
             content: Text(existing != null
                 ? L.t('Routine updated. Nice work keeping things organized.',
-                    'השגרה עודכנה. כל הכבוד על הסדר.')
-                : L.t('New routine added. You\'ve got this.',
-                    'שגרה חדשה נוספה. יש לך את זה.')),
+                    'השגרה עודכנה.')
+                : L.t('New routine added.',
+                    'שגרה חדשה נוספה.')),
           ),
         );
       }
@@ -131,7 +131,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
         BnsSnack.show(context, 
           SnackBar(
               content: Text(
-                  L.t('Routine removed. All good.', 'השגרה הוסרה. הכול בסדר.'))),
+                  L.t('Routine removed. All good.', 'השגרה הוסרה.'))),
         );
       }
     }
@@ -169,7 +169,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                 L.t(
                     'Caregiver setup — changes save to this device only. '
                     'What you build here is the list they will see.',
-                    'הגדרת מטפל — השינויים נשמרים במכשיר הזה בלבד. '
+                    'מצב מלווה — השינויים נשמרים במכשיר הזה בלבד. '
                     'מה שבונים כאן הוא הרשימה שהם יראו.'),
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.onTertiaryContainer),
@@ -627,7 +627,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                   side: BorderSide(color: Colors.grey.shade300)),
             ),
             SwitchListTile(
-              title: Text(L.t('First-step-only mode', 'מצב צעד-ראשון-בלבד')),
+              title: Text(L.t('First-step-only mode', 'מצב "רק הצעד הראשון"')),
               subtitle: Text(L.t(
                   'Helpful on overwhelming days – just do the tiniest part',
                   'עוזר בימים מציפים – עושים רק את החלק הכי קטן')),

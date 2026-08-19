@@ -257,7 +257,7 @@ Future<String?> showCareLockSetupDialog(BuildContext context) async {
               }
               if (a != b) {
                 setDlg(() => error = L.t('The two don\'t match — try again',
-                    'לא יצא אותו דבר — עוד ניסיון'));
+                    'הסיסמאות לא זהות — עוד ניסיון'));
                 return;
               }
               Navigator.pop(ctx, makeCareLockHash(a));

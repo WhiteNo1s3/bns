@@ -168,7 +168,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(L.t('Who do you help?', 'את מי אתה מלווה?')),
+        title: Text(L.t('Who do you help?', 'את מי מלווים?')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -397,7 +397,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final who = _personName.isEmpty
-        ? L.t('the person you help', 'מי שאתה מלווה')
+        ? L.t('the person you help', 'מי שבליווי')
         : _personName;
 
     return Scaffold(
@@ -742,6 +742,10 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
                                   rolloverHour: _rolloverHour,
                                   startHour: _dayStartHour,
                                   onPicked: (hhmm) => _postponeTheirs(r, hhmm),
+                                  // Same one-time truth the person sees.
+                                  note: L.t(
+                                      'Today only — the routine itself stays as it is.',
+                                      'רק להיום — השגרה הקבועה לא משתנה.'),
                                 ),
                               ),
                           ],

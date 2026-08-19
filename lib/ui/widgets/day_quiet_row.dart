@@ -127,7 +127,7 @@ class DayQuietRow extends StatelessWidget {
                   IconButton(
                     onPressed: onSkip,
                     tooltip:
-                        L.t('Didn\'t happen + why', 'לא קרה + סיבה'),
+                        L.t('Didn\'t happen + why', 'לא קרה — ולמה'),
                     constraints:
                         const BoxConstraints(minWidth: 48, minHeight: 48),
                     icon: Icon(Icons.edit_note,

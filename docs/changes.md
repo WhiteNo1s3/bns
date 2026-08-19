@@ -72,3 +72,35 @@ of capture-room renames and «יש ספאם של טוסטים… אסור שיה
 - **The privacy slogan left the app** (menu screen, desktop rail; the
   STT switch subtitle lost its free/private/no-cloud tail) — «זה משהו
   לגיטהאב לכתוב כפיצ׳ר». README already carries it.
+
+## 2026-08-19 — שינוי שעה wears its name, and the Hebrew stopped commanding men
+
+Owner: the routine postpone door «עוד היום» becomes **«שינוי שעה»**, and
+the sheet must SAY the move is one-time — «לתת לאנשים להבין שזה חד
+פעמי». Plus an open license: fix any copy that reads wrong.
+
+- **שינוי שעה** (`later_today_door.dart`): door label + sheet title
+  renamed; `showTimeFusionSheet` grew a `note` line under the title.
+  Routine mounts (routine_tile, next_hero_card, caregiver home, and the
+  long-press flow in main.dart) pass «רק להיום — השגרה הקבועה לא
+  משתנה.»; plan mounts pass nothing — a plan's move IS the plan.
+- **The gendered-imperative sweep**: every masculine command the UI
+  spoke (הקלד / פתח / נסה / סרב / צמד / הפעל / השתמש / בחר / שים לב /
+  תן / לחץ / הקש / סמן / חפש / סנכרן) is now the app's own voice —
+  infinitives and plural doing-forms. Half the users this app is for
+  are not men; the pairing dialogs, sync screen, and LAN toasts were
+  the worst rooms. Test `pairing_dialog_test` updated to the new doors
+  («לסרב», «צימוד מאובטח»).
+- **Adult temperature enforced where the law already said so**:
+  «זה בסדר גמור» left the didnt-happen sheet (AGENTS.md quotes that
+  exact phrase as the counter-example) — it now says deciding counts;
+  «כל הכבוד על הסדר» / «יש לך את זה» / «מדהים!» trimmed; the widget's
+  default voice dropped את/ה slash-forms and «= ניצחונות גדולים» (kid
+  and ADHD voices keep their chosen brightness).
+- **One word for the helper**: «מטפל» unified to «מלווה» (routines
+  screen, sync level-4 text — which also mis-named the Today button;
+  it is «למלווה»). «מי שאתה מלווה» → «מי שבליווי».
+- Smaller honesty fixes: «השלום לא נפתח» → plain words about the
+  network listener; password mismatch says «הסיסמאות לא זהות»; broken
+  .bns copy suggestions stopped commanding («אפשר לנסות עותק אחר»);
+  «לא קרה + סיבה» → «לא קרה — ולמה».

@@ -122,12 +122,15 @@ Future<DidntHappenResult> showDidntHappenSheet({
     isScrollControlled: true,
     builder: (ctx) => _DidntHappenSheet(
       title: title,
+      // Adult temperature (the law quotes this very sheet: «לא קרה —
+      // נרשם» beats «זה בסדר גמור») — and a deliberate skip is a
+      // decision, and deciding counts. Say that, skip the hug.
       body: body ??
           L.t(
-              'Didn\'t happen? That\'s okay. If something got in the way, '
-              'write it down — it will be remembered, so it can get help.',
-              'לא קרה? זה בסדר גמור. אם משהו הפריע, אפשר לכתוב אותו כאן — '
-              'הוא ייזכר, כדי שיהיה אפשר לעזור.'),
+              'Didn\'t happen — deciding that counts too. If something got '
+              'in the way, you can write it here — it is kept so it can help.',
+              'לא קרה — גם להחליט את זה נחשב. אם משהו הפריע, אפשר לכתוב '
+              'כאן — זה נשמר כדי שיהיה אפשר לעזור.'),
       confirmLabel: confirmLabel,
       initialReason: initialReason,
       hold: hold,

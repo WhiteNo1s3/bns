@@ -1127,11 +1127,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   /// Long-press on a quiet row: the fusion sheet, floored at now.
+  /// Same name and same one-time note as the שינוי שעה door (owner
+  /// rename, 2026-08-19) — a routine's move is today-only, so the note
+  /// rides along; a plan simply moves, no note to carry.
   Future<void> _laterTodayFor(Object item) async {
     final now = DateTime.now();
     final t = await showTimeFusionSheet(
       context: context,
-      title: L.t('Later today — when?', 'עוד היום — מתי?'),
+      title: L.t('Change the time — when today?', 'שינוי שעה — למתי היום?'),
+      note: item is Routine
+          ? L.t('Today only — the routine itself stays as it is.',
+              'רק להיום — השגרה הקבועה לא משתנה.')
+          : null,
       initial: nextQuarterFrom(now),
       minHour: now.hour,
     );
@@ -1293,7 +1300,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       BnsSnack.show(context, 
         SnackBar(
             content: Text(L.t('Everything for today is already done. Amazing!',
-                'כל מה שהיה להיום כבר נעשה. מדהים!'))),
+                'כל מה שהיה להיום כבר נעשה.'))),
       );
     }
   }
@@ -1916,7 +1923,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       tags: ['diary', 'goal-progress'],
       memoryLevel: MemoryLevel.remember,
       contextNote: L.t('Daily interactive diary - goals & wins',
-          'יומן יומי — מטרות והצלחות'),
+          'יומן — דבר טוב, דבר קשה'),
     );
     await IsarService.addCapture(capture);
     _diaryController.clear();

@@ -110,7 +110,7 @@ class BnsZipPacker implements BnsPacker {
           'This .bns file is damaged (failed the container check). '
           'Try another copy — your device data is untouched.',
           'הקובץ הזה פגום (בדיקת המבנה נכשלה). '
-          'נסה עותק אחר — המידע שבמכשיר שלך לא נפגע.'));
+          'אפשר לנסות עותק אחר — המידע שבמכשיר שלך לא נפגע.'));
     }
 
     Map<String, dynamic> manifest = {};

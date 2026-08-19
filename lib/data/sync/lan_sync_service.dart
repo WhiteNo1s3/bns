@@ -615,7 +615,7 @@ class LanSyncService {
         progress: 0.0,
         message: L.t(
             'Hello could not open. Still looking for other BNS apps on this Mac.',
-            'השלום לא נפתח. עדיין מחפשים אפליקציות BNS אחרות במק הזה.'),
+            'ההאזנה לרשת לא נפתחה. ממשיכים לחפש אפליקציות BNS אחרות במק הזה.'),
         subtle: true));
   }
 
@@ -1161,7 +1161,7 @@ class LanSyncService {
                 'LAN transfers are switched off for ${peer.deviceName}. '
                 'Flip its "LAN allowed" toggle to sync.',
                 'העברות ברשת כבויות עבור ${peer.deviceName}. '
-                'הפעל את "העברות ברשת" שלו כדי לסנכרן.')));
+                'מדליקים שם את "העברות ברשת" כדי לסנכרן.')));
       }
       return false;
     }

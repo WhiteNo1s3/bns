@@ -238,7 +238,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               ? L.t('Sharing as "${updated.deviceName}" (device name).',
                   'משתפים בשם "${updated.deviceName}" (שם המכשיר).')
               : L.t('People you trust will see you as "${name.trim()}".',
-                  'אנשים שאתה סומך עליהם יראו אותך בתור "${name.trim()}".'))),
+                  'במכשירים המצומדים יראו אותך בתור "${name.trim()}".'))),
     );
   }
 
@@ -403,7 +403,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 'off — they belong to the person you help. Nothing changed '
                 'on their device.',
                 'המכשיר הזה מוגדר כמכשיר של מלווה. התזכורות כאן כבויות — '
-                'הן שייכות למי שאתה מלווה. שום דבר לא השתנה אצלו.')
+                'הן שייכות למי שבליווי. שום דבר לא השתנה אצלם.')
             : L.t('This device is your own again — reminders are back on.',
                 'המכשיר הזה שוב שלך — התזכורות חזרו.'))));
   }
@@ -564,7 +564,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             ),
             Tooltip(
               message: L.t('Click, then press the new keys',
-                  'לחץ, ואז הקש את המקשים החדשים'),
+                  'לוחצים, ואז מקישים את הצירוף החדש'),
               child: OutlinedButton(
                 onPressed: () => _recordCombo(id),
                 style: OutlinedButton.styleFrom(
@@ -615,7 +615,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       SnackBar(
           content: Text(L.t(
               'Widget will show next $days days forward (less stress for you)',
-              'הווידג׳ט יציג $days ימים קדימה (פחות עומס בשבילך)'))),
+              'הווידג׳ט יציג $days ימים קדימה'))),
     );
     AndroidBnsWidget.updateWidget();
   }
@@ -725,7 +725,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   : const Icon(Icons.sync, size: 18),
               label: Text(syncing
                   ? L.t('Syncing…', 'מסנכרן…')
-                  : L.t('Sync now', 'סנכרן עכשיו')),
+                  : L.t('Sync now', 'לסנכרן עכשיו')),
             ),
           ),
           ExpansionTile(
@@ -804,7 +804,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     : TextButton.icon(
                         onPressed: _seekAgain,
                         icon: const Icon(Icons.refresh, size: 18),
-                        label: Text(L.t('Look again', 'חפש שוב')),
+                        label: Text(L.t('Look again', 'לחפש שוב')),
                       ),
               ],
             ),
@@ -814,8 +814,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   'Open BNS on the other device and it will appear here. '
                   'Pairing asks for a code once — after that, the two sync '
                   'by themselves.',
-                  'פתח את BNS במכשיר השני והוא יופיע כאן. הצימוד מבקש קוד '
-                  'פעם אחת — ומשם, השניים מסתנכרנים מעצמם.'),
+                  'פותחים את BNS במכשיר השני והוא יופיע כאן. הצימוד מבקש '
+                  'קוד פעם אחת — ומשם, השניים מסתנכרנים מעצמם.'),
               style: TextStyle(
                   fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
             ),
@@ -906,7 +906,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Future<void> _chooseHome() async {
     final picked = await FilePicker.platform.getDirectoryPath(
         dialogTitle: L.t('Choose where BNS keeps your data',
-            'בחר איפה BNS ישמור את המידע שלך'));
+            'לבחור איפה BNS ישמור את המידע שלך'));
     if (picked == null || picked.trim().isEmpty) return;
     if (!mounted) return;
     final sure = await showDialog<bool>(
@@ -1001,7 +1001,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       SnackBar(
           content: Text(L.t(
               'Data merged in. Thank you for keeping things together.',
-              'המידע מוזג פנימה. תודה שאתה שומר שהכול יישאר יחד.'))),
+              'המידע מוזג פנימה. הכול יחד עכשיו.'))),
     );
   }
 
@@ -1088,7 +1088,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             const SizedBox(height: 12),
             Text(
                 L.t('To turn it on, type the share name ("$expected"):',
-                    'כדי להפעיל, הקלד את שם השיתוף ("$expected"):'),
+                    'כדי להפעיל, מקלידים את שם השיתוף ("$expected"):'),
                 style: const TextStyle(fontSize: 13)),
             TextField(controller: nameCtrl, autofocus: true),
           ],
@@ -1101,7 +1101,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               onPressed: () => Navigator.pop(
                   c, nameCtrl.text.trim().toLowerCase() ==
                       expected.toLowerCase()),
-              child: Text(L.t('Turn on full care', 'הפעל טיפול מלא'))),
+              child: Text(L.t('Turn on full care', 'להפעיל טיפול מלא'))),
         ],
       ),
     );
@@ -1171,7 +1171,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             const SizedBox(height: 12),
             Text(
                 L.t('To turn it on, type the share name ("$expected"):',
-                    'כדי להפעיל, הקלד את שם השיתוף ("$expected"):'),
+                    'כדי להפעיל, מקלידים את שם השיתוף ("$expected"):'),
                 style: const TextStyle(fontSize: 13)),
             TextField(controller: nameCtrl, autofocus: true),
           ],
@@ -1184,7 +1184,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               onPressed: () => Navigator.pop(
                   c, nameCtrl.text.trim().toLowerCase() ==
                       expected.toLowerCase()),
-              child: Text(L.t('Turn on guided mode', 'הפעל מצב מונחה'))),
+              child: Text(L.t('Turn on guided mode', 'להפעיל מצב מונחה'))),
         ],
       ),
     );
@@ -1423,7 +1423,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             Text(L.t(
                 'No devices connected yet. Use "Add a new device" below — '
                 'once is enough, then syncing happens by itself.',
-                'עוד אין מכשירים מחוברים. השתמש ב"הוספת מכשיר חדש" למטה — '
+                'עוד אין מכשירים מחוברים. הדלת "הוספת מכשיר חדש" למטה — '
                 'פעם אחת מספיקה, ומשם הסנכרון קורה מעצמו.')),
           ..._trusted.map(_trustedCard),
 
@@ -1547,7 +1547,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   Text(
                     L.t(
                         'Warning: larger retention = bigger .bns files = slower LAN sync.',
-                        'שים לב: שמירה ארוכה יותר = קובצי .bns גדולים יותר = סנכרון איטי יותר.'),
+                        'שווה לדעת: היסטוריה ארוכה יותר פירושה קובצי .bns גדולים יותר וסנכרון איטי יותר.'),
                     style: TextStyle(fontSize: 11, color: Colors.orange),
                   ),
                   const SizedBox(height: 12),
@@ -1556,7 +1556,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   Text(
                       L.t(
                           'Your type (adapts UI brighter/simpler, fluent for kids):',
-                          'הסוג שלך (מתאים את המסך — בהיר ופשוט יותר, זורם לילדים):'),
+                          'התאמת המסך (בהיר ופשוט יותר, לפי מי שמשתמש):'),
                       style: TextStyle(fontSize: 11)),
                   DropdownButton<String>(
                     value: _userType,
@@ -1584,7 +1584,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   Text(
                       L.t(
                           'Widget forward days (set low to reduce stress - you control what you see):',
-                          'ימים קדימה בווידג׳ט (נמוך = פחות עומס — אתה שולט במה שאתה רואה):'),
+                          'כמה ימים קדימה מציג הווידג׳ט:'),
                       style: TextStyle(fontSize: 11)),
                   Wrap(
                     spacing: 4,
@@ -1602,7 +1602,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   // dad checking in) sees when this device asks to pair/sync.
                   Text(
                       L.t('Your share name (what family sees when you share):',
-                          'שם השיתוף שלך (מה שהמשפחה רואה כשאתה משתף):'),
+                          'שם השיתוף שלך (מה שהמשפחה רואה בשיתוף):'),
                       style: TextStyle(fontSize: 11)),
                   Row(
                     children: [
@@ -1669,7 +1669,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             context: context,
                             builder: (c) => AlertDialog(
                               title: Text(
-                                  L.t('Name this device', 'תן שם למכשיר')),
+                                  L.t('Name this device', 'שם למכשיר הזה')),
                               content: TextField(
                                   controller: ctrl,
                                   autofocus: true,
@@ -2105,8 +2105,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     L.t(
                         'Tick to activate. Click a combo and press new keys to change it. '
                         'Applies immediately and travels in your .bns. Not forced — use what feels good.',
-                        'סמן כדי להפעיל. לחץ על צירוף והקש מקשים חדשים כדי לשנות. '
-                        'חל מיד ונוסע עם קובץ ה-.bns שלך. שום דבר לא כפוי — השתמש במה שנעים לך.'),
+                        'מסמנים כדי להפעיל; לוחצים על צירוף ומקישים חדש כדי לשנות. '
+                        'חל מיד ונוסע עם קובץ ה-.bns שלך. שום דבר לא כפוי — מה שנעים.'),
                     style: TextStyle(
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -2198,8 +2198,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     '"Caregiver" button to set up the day right on this device.',
                     'כשהשגרה היא מה שנשאר: המכשיר הזה מציג את הרשימה, גדולה '
                     'וברורה. סימון וסיפור על בעיות נשארים; בניית היום עוברת '
-                    'למכשיר של המלווה. הדלת של המטפל: בתחתית "היום", לחיצה '
-                    'ארוכה על כפתור "מטפל" מאפשרת לסדר את היום ישר על המכשיר הזה.'),
+                    'למכשיר של המלווה. הדלת של המלווה: בתחתית "היום", לחיצה '
+                    'ארוכה על כפתור "למלווה" מאפשרת לסדר את היום ישר על המכשיר הזה.'),
                 style: const TextStyle(fontSize: 12)),
             value: _guidedMode,
             onChanged: _onGuidedSwitch,
@@ -2305,7 +2305,7 @@ class _ComboRecorderDialogState extends State<_ComboRecorderDialog> {
         FilledButton(
           onPressed:
               _combo == null ? null : () => Navigator.pop(context, _combo),
-          child: Text(L.t('Use these keys', 'השתמש במקשים האלה')),
+          child: Text(L.t('Use these keys', 'לקבוע את המקשים האלה')),
         ),
       ],
     );

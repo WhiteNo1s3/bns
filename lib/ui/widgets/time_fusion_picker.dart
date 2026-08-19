@@ -22,9 +22,13 @@ import 'package:bns/core/i18n/l.dart';
 /// that already passed (owner as user, 2026-08-18: "show all hours the
 /// day have including the past which is another bug"). Gone hours are
 /// simply not on the rail, and the ±15 steps cannot walk below them.
+/// [note] is one small quiet line under the title — for the sheets that
+/// must say what the choice does NOT do (owner, 2026-08-19: a routine's
+/// time-change is today-only, "לתת לאנשים להבין שזה חד פעמי").
 Future<TimeOfDay?> showTimeFusionSheet({
   required BuildContext context,
   required String title,
+  String? note,
   TimeOfDay? initial,
   bool quarters = true,
   int minHour = 0,
@@ -36,6 +40,7 @@ Future<TimeOfDay?> showTimeFusionSheet({
     isScrollControlled: true,
     builder: (_) => _TimeFusionSheet(
       title: title,
+      note: note,
       initial: initial ?? const TimeOfDay(hour: 10, minute: 0),
       quarters: quarters,
       minHour: minHour,
@@ -55,6 +60,7 @@ TimeOfDay nextQuarterFrom(DateTime now) {
 
 class _TimeFusionSheet extends StatefulWidget {
   final String title;
+  final String? note;
   final TimeOfDay initial;
   final bool quarters;
   final int minHour;
@@ -63,6 +69,7 @@ class _TimeFusionSheet extends StatefulWidget {
 
   const _TimeFusionSheet({
     required this.title,
+    this.note,
     required this.initial,
     required this.quarters,
     required this.minHour,
@@ -171,6 +178,14 @@ class _TimeFusionSheetState extends State<_TimeFusionSheet> {
                       style: TextStyle(
                           fontSize: 16 * scale,
                           fontWeight: FontWeight.w600)),
+                  if (widget.note != null) ...[
+                    const SizedBox(height: 4),
+                    Text(widget.note!,
+                        style: TextStyle(
+                            fontSize: 13 * scale,
+                            height: 1.3,
+                            color: cs.onSurfaceVariant)),
+                  ],
                   const SizedBox(height: 10),
                   Text(
                     _shown,

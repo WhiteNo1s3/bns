@@ -99,7 +99,7 @@ String careAlarmSeatLine({
   required String Function(String en, String he) t,
 }) {
   final who = seat.name.trim().isEmpty
-      ? t('Someone you help', 'מי שאתה מלווה')
+      ? t('Someone you help', 'מי שבליווי')
       : seat.name.trim();
   if (!seat.paired) {
     return t(

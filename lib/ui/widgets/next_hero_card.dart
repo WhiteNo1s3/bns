@@ -203,6 +203,9 @@ class NextHeroCard extends StatelessWidget {
                 rolloverHour: rolloverHour,
                 startHour: startHour,
                 onPicked: onLaterToday!,
+                // One-time truth in the sheet (owner, 2026-08-19).
+                note: L.t('Today only — the routine itself stays as it is.',
+                    'רק להיום — השגרה הקבועה לא משתנה.'),
                 textScale: textScale,
                 onHero: true,
               ),

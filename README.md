@@ -1,5 +1,7 @@
 # BNS (grokBNS iteration)
 
+> **The specification** — everything BNS is, as built, in one document: [docs/BNS-SPEC.md](docs/BNS-SPEC.md) (regenerated per wave; the PDF is produced from it by `scripts/spec-pdf.sh`).
+
 **Gentle, privacy-first support for routines, memory, reminders, and feeling good about the progress you make.**
 
 This folder is the silk rebuild of `bns`: same `.bns` format, same platforms (Android, iOS, macOS, Windows, Linux), calmer for a Level-1 mind. The person who records a memory **must see it**. That was the critical bug in the parent tree — "quick notes" saved, then every list hid them.

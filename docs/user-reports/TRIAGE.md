@@ -971,3 +971,10 @@ from them archived in docs/user-reports/forks-archive/). dist/ trimmed to
 0.17a + 0.18a. `flutter clean` done (build/ 7.6 GB gone), deps restored,
 tests run. The SDK stays. ~/dev now holds bns alone (plus unrelated
 projects). Emptying the Trash is the owner's hand.
+
+### The specification (owner: "md file pdf level with specs, levels, sync, features and all", 2026-08-21)
+
+docs/BNS-SPEC.md written from laws + docs + code; scripts/spec-pdf.sh renders
+dist/BNS-SPEC-v0.18a.pdf (14 pages). Per wave: update the spec with the
+wave's section, re-run the script. The copy-audit seat may read it as the
+map of every room.

@@ -301,3 +301,18 @@ rebuild you can clean it also."
 - **`flutter clean`** — build/ (7.6 GB) and .dart_tool/ gone; `pub get`
   restored the deps; tests run. The Flutter SDK itself
   (/opt/homebrew/share/flutter) stays — it is the toolchain, not cache.
+
+## 2026-08-21 — The specification: BNS in one document
+
+Owner: "we need md file pdf level with specs, levels, sync, features and
+all included in bns." `docs/BNS-SPEC.md` — the whole of BNS as built at
+0.18a, from the laws, the docs and the code: purpose, the eighteen laws,
+platforms and the alpha law, the person's day (owl time, the quiet Today,
+routines, plans, answering, moves, the wake anchor, tomorrow, calendar),
+memory and words, the ear, wake and reminders, the four care levels, the
+Care seat, sync and security, data and the .bns format, the settings
+inventory, the copy and map laws, Android extras, how it is proven, status
+and what is deliberately not built; appendices for routes, glossary, files.
+`scripts/spec-pdf.sh` prints it to `dist/BNS-SPEC-v<human>.pdf` (our own
+tiny Markdown→HTML + Chrome headless; nothing installed on the Mac).
+README points at it. Regenerated per wave.

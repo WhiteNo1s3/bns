@@ -1,0 +1,62 @@
+ M AGENTS.md
+ M android/app/src/main/kotlin/com/whiteno1se/bns/MainActivity.kt
+ M docs/ideas-for-handicapped-users.md
+ M docs/roadmap-and-brainstorm.md
+ M docs/testing-live.md
+ M lib/core/day_items.dart
+ M lib/core/models/quick_capture.dart
+ M lib/core/models/routine.dart
+ M lib/core/models/settings.dart
+ M lib/core/owl_time.dart
+ M lib/core/reminder_plan.dart
+ M lib/core/utils/recurrence.dart
+ M lib/data/local/isar_service.dart
+ M lib/features/calendar/day_view.dart
+ M lib/features/capture/quick_capture_screen.dart
+ M lib/features/caregiver/caregiver_home_screen.dart
+ M lib/features/sync/sync_screen.dart
+ M lib/main.dart
+ M lib/platform/android_widget.dart
+ M lib/services/desktop_reminder_service.dart
+ M lib/services/notifications_service.dart
+ M lib/ui/widgets/next_hero_card.dart
+ M lib/ui/widgets/plan_tile.dart
+ M lib/ui/widgets/routine_tile.dart
+ M linux/flutter/generated_plugin_registrant.cc
+ M linux/flutter/generated_plugins.cmake
+ M macos/Flutter/GeneratedPluginRegistrant.swift
+ M pubspec.lock
+ M pubspec.yaml
+ M test/day_items_test.dart
+ M test/next_order_test.dart
+ M test/owl_time_test.dart
+ M test/reminder_plan_test.dart
+ M test/today_order_test.dart
+ M windows/flutter/generated_plugin_registrant.cc
+ M windows/flutter/generated_plugins.cmake
+?? .l2-test-MOVED.txt
+?? CLAUDE.md
+?? GROK.md
+?? PROTOTYPER.md
+?? android/app/src/main/kotlin/com/whiteno1se/bns/AndroidFileStt.kt
+?? bns-test-shots/
+?? bns-test/
+?? changes.md
+?? level1problems.md
+?? lib/core/day_ideas.dart
+?? lib/core/didnt_happen.dart
+?? lib/core/later_today.dart
+?? lib/core/reminder_timezone.dart
+?? lib/services/android_file_stt.dart
+?? lib/ui/widgets/didnt_happen_sheet.dart
+?? lib/ui/widgets/later_today_door.dart
+?? patch_day_view.py
+?? qa-doctor.png
+?? qa-mac.png
+?? qa-mac2.png
+?? qa_add_doctor.py
+?? test/android_file_stt_test.dart
+?? test/day_ideas_test.dart
+?? test/didnt_happen_test.dart
+?? test/later_today_test.dart
+?? test/reminder_timezone_test.dart

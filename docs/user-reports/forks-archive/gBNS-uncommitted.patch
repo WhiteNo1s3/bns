@@ -1,0 +1,3283 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index b056b7d..09dbab4 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -34,6 +34,13 @@ If the person recorded it, they see it. `quick` / `remember` / `memorize` is ret
+ - Theme: dynamic_color first, then relaxing palette seeds defined in `lib/ui/theme.dart`. Progress and accents use relaxing colors or OS.
+ - Confetti and micro-celebrations are encouraged for completes, but optional "quiet mode" for low stimulation.
+ - See `docs/ideas-for-handicapped-users.md` for all awesome ideas (progress visibility, secure pairing, gentle summaries, voice-first, last-sync indicators, quiet mode, etc.). Add new ideas there.
++- **One mic (capture):** After stop, `_hearWords` reads the kept file (Apple on-device, Android on-device file ear via `EXTRA_AUDIO_SOURCE`, Windows Whisper/Vosk). Never start live STT while the recorder holds the mic on Android. The Waze SpeechPopup is last-resort only when the file ear returns empty — not the normal path after a successful take.
++- **Reminders follow the device system clock, never a hardcoded city.**
++- **The day entity is the clock** (owl time): start + end on one 24-hour
++  person-day (`dayStartHour` / `dayRolloverHour`). Later-today, the list,
++  Next, and reminders follow that day — not calendar midnight. Postpone
++  a recurring routine is **today only** (`timeByDay` keyed by logical
++  date); tomorrow the usual time returns. Future days stay read-only.
+ 
+ ## Development habits
+ - After any feature that touches data: verify roundtrip via export/import `.bns`.
+diff --git a/android/app/src/main/kotlin/com/whiteno1se/bns/MainActivity.kt b/android/app/src/main/kotlin/com/whiteno1se/bns/MainActivity.kt
+index ab0e23f..af134ed 100644
+--- a/android/app/src/main/kotlin/com/whiteno1se/bns/MainActivity.kt
++++ b/android/app/src/main/kotlin/com/whiteno1se/bns/MainActivity.kt
+@@ -51,6 +51,7 @@ class MainActivity : FlutterActivity() {
+ 
+     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+         super.configureFlutterEngine(flutterEngine)
++        AndroidFileStt.register(this, flutterEngine)
+         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bns/speech_popup")
+             .setMethodCallHandler { call, result ->
+                 if (call.method != "recognize") {
+diff --git a/docs/ideas-for-handicapped-users.md b/docs/ideas-for-handicapped-users.md
+index 8ce8ccb..4b1465a 100644
+--- a/docs/ideas-for-handicapped-users.md
++++ b/docs/ideas-for-handicapped-users.md
+@@ -24,7 +24,9 @@ This document collects all the awesome ideas for making BNS better for users wit
+ ## Daily Use & Memory Aids
+ - Quick capture always available (mic + text).
+ - Per-day view links routines + events + captures.
+-- "First step only" mode for overwhelming routines.
++- "First step only" / walk-through of open items — thin door on Today
++  ("Just this one" / "רק את זה"), shipped 2026-08-15. Same Next list
++  (plans included). Not a new product.
+ - Voice notes attached to anything.
+ - Visual but non-pressuring progress (gentle bloom/garden instead of numbers).
+ 
+@@ -91,7 +93,7 @@ A Level-1 user with cognitive reserve almost broke the phone because the app hid
+ Keep this = one microphone. It records the voice, then writes the words into the box under **הקלטה 1**, **הקלטה 2**… A new take always starts on a new line. The person edits, adds, plays the voice, and taps **להקריא את המילים** (Hebrew TTS). No second mic.
+ 
+ Wired on the must-have OSes (same button, same box):
+-- **Android** — records WAV; Hebrew words through the Waze door after stop; play + TTS.
++- **Android** — records WAV; on-device file ear writes the words (same `_hearWords` ladder as Apple); Waze door only if the file ear is empty; play + TTS.
+ - **Apple (iPhone + Mac)** — records WAV; on-device file ear writes the words; play + TTS.
+ - **Windows** — records WAV; Whisper (Hebrew) / Vosk (English) if installed on the Sync screen; play + TTS.
+ 
+@@ -234,7 +236,7 @@ Never put diary *construction* on level 4. Words yes; planning no.
+ 
+ - Device engine only (same privacy rules as TTS). No cloud STT, no AI-API subscriptions.  
+ - `DictationMicButton` is the building block for **every** person-facing text field that is a comment.  
+-- **Android:** never run STT *while* the recorder holds the mic (killed the note on the owner’s S23). Recording wins; words come **after** the voice is safely kept, or via dictation-only (no concurrent record).  
++- **Android:** never run STT *while* the recorder holds the mic (killed the note on the owner’s S23). Recording wins; words come from the kept WAV via the on-device file ear (`EXTRA_AUDIO_SOURCE` — no second listen), or via dictation-only (no concurrent record). The Waze popup is last-resort only.  
+ - **Windows:** post-file Vosk on WAV is the sequential path (no mic fight).  
+ - Hebrew locale ladder stays honest; missing language pack is said gently once, never silent dead mic.
+ 
+@@ -244,7 +246,7 @@ Never put diary *construction* on level 4. Words yes; planning no.
+ |---------|--------|--------|
+ | Today diary box | Type only | Dictation mic on the field |
+ | Long-press “what got in the way?” | Type only (or leave for full capture) | Dictation mic on the note field |
+-| Capture after Android record | “no words yet” unless user finds small mic | Gentle “Speak words for this note” once mic is free; still optional, never blocks save |
++| Capture after Android record | “no words yet” unless user finds small mic | File ear writes the words from the kept WAV; Waze card only if that ear is empty — still optional, never blocks save |
+ | Capture text / context | Already had mics | Unchanged |
+ 
+ ### Next hero + Coming up (2026-07-27) — shipped
+@@ -252,6 +254,8 @@ Never put diary *construction* on level 4. Words yes; planning no.
+ - ✅ Hero always ordered by clock “what's next”; full list below keeps morning→night or next preference.
+ - ✅ **Coming up** strip: next two open items only.
+ - ✅ Empty day: soft clear card; guided copy stays list-first.
++- ✅ **Plans stand in Next + Coming up** (2026-08-15): a 10:00 doctor
++  visit can be the Next card. Same two actions. Owl-time day.
+ 
+ ### Day complete (wave 13, 2026-07-27) — shipped
+ 
+@@ -260,9 +264,12 @@ Never put diary *construction* on level 4. Words yes; planning no.
+ - ✅ **Memorize-day auto summary** rebuilt on the pure feed builder — **mad-vents never enter**.  
+ - Entry points: Today “Today’s words”, desktop sidebar “Day diary” (Ctrl+Y), Day view book icon.
+ 
++### Shipped — offline file STT on Android (2026-08-15)
++
++- ✅ **Offline file STT on Android** — after the one mic stops, the phone reads the kept WAV with the on-device SpeechRecognizer (`createOnDeviceSpeechRecognizer` + `EXTRA_AUDIO_SOURCE`). The engine is handed a file descriptor; it does not open the microphone, so this never re-fights the recorder. Hebrew `he-IL` / `iw-IL`. Voice never leaves the device. If the phone has no on-device pack, the Waze card remains as last resort — never the default after a successful take.
++
+ ### Parked (don’t lose)
+ 
+-- **Offline file STT on Android** (transcribe after record without a second speak) — waiting on a privacy-safe engine path that doesn’t re-fight the mic model.  
+ - **Hebrew Vosk model** on Windows — optional mirror of English install.  
+ - **Doctor-share export** from the day thread / memories — vents always excluded.
+ 
+@@ -277,6 +284,7 @@ Never put diary *construction* on level 4. Words yes; planning no.
+ 
+ - “Could you speak into the diary and into ‘what got in the way’ without typing?”  
+ - “After a voice note, was adding words easy — or did it feel like a second app?”  
++- “On the phone: after you stopped, did the words appear by themselves — or did it ask you to speak again?”  
+ - “Did the mic ever feel broken or silent for no reason?”  
+ - Existing AGENTS questions still apply (confusing? mad at you? LAN safe?).
+ 
+@@ -316,13 +324,21 @@ theirs.
+   master switch has a real UI now (Sync screen → Reminders).
+ - ✅ macOS/Linux init fixed (missing platform settings made notifications
+   silently dead there).
++- ✅ **The clock is the phone's clock (2026-08-15).** Reminders were stored
++  in UTC (`tz.local` never bound). They now follow the DEVICE SYSTEM CLOCK:
++  02:00 on the phone is 02:00, in whatever zone the system is set to. If
++  they travel or change the system clock/zone, reminders follow. After a
++  reboot and across daylight-saving too. Owl-time night border is
++  unchanged — pills at 02:00 still belong to tonight.
+ 
+ ### Where it lives
+ 
+ - `lib/core/reminder_plan.dart` — PURE planning (what should be scheduled,
+   fingerprints, tap routes). Tested in `test/reminder_plan_test.dart`.
++- `lib/core/reminder_timezone.dart` — PURE bind of the device IANA zone
++  + wall-clock `TZDateTime`. Tested in `test/reminder_timezone_test.dart`.
+ - `lib/services/notifications_service.dart` — turns the plan into real
+-  scheduled notifications (channels, colors, styles).
++  scheduled notifications (channels, colors, styles, local timezone).
+ - `lib/services/desktop_reminder_service.dart` — the Windows in-app card.
+ - Settings fields: `reminderStyle`, `notificationColor`,
+   `eventReminderMinutes` (see `docs/bns-format.md`).
+@@ -331,6 +347,10 @@ theirs.
+ 
+ - "Did a reminder actually appear at the time — and after restarting the
+   phone?"
++- "Set a reminder two minutes from now — did it arrive at that minute,
++  not three hours off?"
++- "After a reboot, did the 02:00 pills still arrive at 02:00 on the
++  phone — whatever zone the system is set to?"
+ - "Was the reminder's loudness what you chose — and did the color feel
+   like yours?"
+ - "Did tapping it land you where you expected?"
+@@ -360,11 +380,17 @@ not a routine, but today it stands IN the day.
+   seed routines Hebrew-first; user-type names translated; .bns import
+   messages translated.
+ 
++### Shipped later (2026-08-15)
++
++- ✅ **Plans in Next + Coming up.** `openDayItemsInNextOrder` — one
++  list, routines and plans, owl-time. The 10:00 doctor visit can be
++  the Next card. Same "It's done" / "Something got in the way".
++- ✅ **Answered-plan ✓ on the calendar day view** — quiet check, or
++  "didn't happen" with the kept why. Day-thread feed still parked.
++
+ ### Parked (don't lose)
+ 
+-- Plans in the NEXT hero card + "Coming up" strip (today they join the
+-  list only).
+-- Answered-plan ✓ shown in the calendar day view + day thread feed.
++- Answered-plan ✓ in the day thread feed (day view has it now).
+ - Per-app language for widget buttons (today they follow the phone's
+   language, which is right for almost everyone).
+ 
+@@ -373,6 +399,8 @@ not a routine, but today it stands IN the day.
+ - "Did your doctor appointment show up inside your day, in its place?"
+ - "Did ticking it feel exactly like ticking a routine?"
+ - "Is every word on the home widgets in your language?"
++- "If you have a doctor at 10:00 — does it show as Next, or in Coming up?"
++- "After you mark the doctor done, does the next thing take its place?"
+ 
+ ## Wave: silky sync (2026-08-09, owner QA in his own words: "sync is
+ ## getting out of hand... I also want it silky")
+@@ -439,6 +467,9 @@ owlMinutesOf, actualMomentOf.
+ 
+ - ✅ **Setting** `dayRolloverHour` (0 = midnight, the old world; clamped
+   0..6; rides the .bns).
++- ✅ **Setting** `dayStartHour` (0 = midnight; 0..23). The same 24-hour
++  day entity — start AND end. Ben: 15:00 → 05:00. Later-today, the
++  list, Next, and reminders all read this pair. Not a second clock.
+ - ✅ **Today's list**: 02:00 pills sort at the END of today, after the
+   23:00 things; at 01:30 the screen still shows TONIGHT's list, ticks
+   land on tonight's date, "what's next" knows the pills are nearest.
+@@ -518,9 +549,11 @@ owlMinutesOf, actualMomentOf.
+ 
+ - iOS/macOS shade actions need Darwin notification categories — Android
+   first (flagship), Darwin still opens the app on tap.
+-- A "walk me through the open ones" guided catch-up flow (one at a
+-  time, big buttons) — candidate for guided mode later.
++- ✅ Thin "Just this one" / "רק את זה" door on Today (2026-08-15) —
++  one open item at a time, same Next card, same done/skip paths,
++  Close / "לא עכשיו". Level 1–2 only; guided stays list-only.
+ - The catch-up card could offer its own long-press voice door directly.
++- A fuller guided-mode walk (level 4) is still later — not this door.
+ 
+ ### Live test questions
+ 
+@@ -573,6 +606,9 @@ opposite ends, and each had half the answer.
+   Waze door (`SpeechPopup`) still existed but was called from nowhere.
+   Restored as a plain, skippable **"להגיד את זה במילים"** card after the
+   voice is kept.
++- **Android file ear (2026-08-15).** `_hearWords` now reads the kept WAV
++  on-device (`bns/android_stt`). The Waze card is last-resort only when
++  that ear returns empty — not the normal path after a successful take.
+ - **Only the last take's voice was saved.** Earlier recordings were
+   orphaned on disk, referenced by nothing. `QuickCapture.extraAudioPaths`
+   now carries every take through JSON, `.bns` export/import and the
+@@ -599,3 +635,102 @@ opposite ends, and each had half the answer.
+ - "From the calendar, mark something 'didn't happen' and say why — is the
+   reason actually on the skip afterwards?"
+ - "Can you get everywhere with the bottom doors, without reading icons?"
++
++---
++
++## Wave 17 — plans stand in Next (2026-08-15)
++
++Owner pain: a doctor visit "stands IN the day" on the list, but Next
++and Coming up ignored plans. That filter is gone.
++
++### Shipped
++
++- ✅ **Next hero + Coming up include plans.** One ordered list
++  (`openDayItemsInNextOrder` in `lib/core/day_items.dart`): open
++  routines and unanswered plans, owl-time "what's next". A 10:00
++  doctor visit can be the big card. Same actions: **It's done** /
++  **בוצע**, **Something got in the way** / **משהו הפריע**.
++- ✅ **Answered-plan ✓** on the calendar day view (quiet, no
++  scoreboard). Day-thread feed still parked.
++- ✅ Thin **"Just this one" / "רק את זה"** door — same list, one
++  card, **Not now** / **לא עכשיו** to leave. No motion. Guided
++  (level 4) stays list-only.
++
++### Live test questions
++
++- "If you have a doctor at 10:00 — do you see it as Next (or Coming up)?"
++- "After you mark it done, does the next thing appear in the same place?"
++- "Did 'Just this one' feel like help, or like another app?"
++- "Did it ever feel like it was mad at you?"
++
++## Wave 18 — later today (2026-08-15)
++
++Owner pain: something is at 15:00 and they cannot do it then. They
++still want to do it — just later. Not a skip. Not "didn't happen".
++No shame.
++
++### Shipped this pass
++
++- ✅ **Later today / עוד היום** — a labeled door on the Next card
++  AND on the day tile (routine and plan). 48dp. Never a lone glyph.
++- ✅ **Picker in place** (static, no slide): later quarter-hours
++  from now+15 minutes through the END of THIS person-day (the day
++  entity: start → owl-time end), not calendar midnight.
++  Tomorrow is not offered.
++- ✅ **Postpone is today only.** A recurring routine keeps its usual
++  `time`. The new clock lives in `timeByDay` keyed by the person's
++  logical day — 15:00 → 17:30 today is 15:00 again tomorrow. A
++  one-time plan still updates its own `time` (that visit is only
++  that day). Next, Coming up, reminders, and `.bns` honor the
++  override for that day only.
++- ✅ **Reminders follow the device system clock.** Fingerprint
++  includes the override, so today's 17:30 fires today and
++  tomorrow's 15:00 is restored. Never a hardcoded city.
++- ✅ **Owl-time night is still tonight.** Postponed 02:00 with a
++  04:00 border stays on tonight's list, after the evening.
++- ✅ If nothing later remains today: a kind line, time left as-is.
++  The skip path that already exists is still there.
++- ✅ Guided (level 4) does not get the door — the inspector builds
++  the day.
++
++### Live test questions
++
++- "Did later today move the doctor and the reminder?"
++- "Pills at 15:00 — pick 17:30. Does the tile say 17:30? Does Next
++  become whatever is next? Does the reminder arrive at 17:30 on
++  the phone's clock? Tomorrow, are they back at 15:00?"
++- "Day starts 15:00 and ends 05:00: at 16:00, does later today
++  offer 17:30 and 02:00, and not 06:00?"
++- "Late at night: does it say nothing later is left, without
++  offering tomorrow?"
++- "Did it ever feel like it was mad at you?"
++
++## Wave 19 — one quiet ✓, the day does not jump (2026-08-17)
++
++Owner live (S23): Done asked again (“זה נעשה?” / “Is it done?”),
++dumped the person to Sync, undid checks; a finished tile jumped.
++At 20:30 an 08:00 item still sat as **הבא**. FAB covered leftover
++actions.
++
++### Shipped
++
++- ✅ **L1–2 Today: Done is a quiet ✓.** Tap **בוצע** / It's done
++  (hero or tile) marks it immediately on the same tile, same clock
++  slot. No confirm dialog. No second question. Words stay behind
++  long-press. Skip / “something got in the way” is a different door
++  and is still there.
++- ✅ **Stay on Today.** Done never navigates to Sync or anywhere else.
++- ✅ **The day stays steady.** Weave order is morning→night / owl.
++  A ✓ does not sink, jump, or reshuffle. Next may advance to the
++  next *open* item; a done 08:00 at 20:30 is a quiet ✓ in the
++  morning slot — it is not Next.
++- ✅ **L4 only** may still ask “Is it done?” (`todayDoneNeedsConfirm`,
++  gated on `guidedMode`). Not used on ordinary Today.
++
++### Live test questions
++
++- "Did Done stay a quiet ✓ without asking again or leaving Today?"
++- "After בוצע, is the ✓ on the same clock slot? Did the list jump?"
++- "At night, is a done morning item still Next — or a quiet ✓ in
++  the morning place?"
++- "Did it ever feel like it was mad at you?"
+diff --git a/docs/roadmap-and-brainstorm.md b/docs/roadmap-and-brainstorm.md
+index eb1ed0c..326a657 100644
+--- a/docs/roadmap-and-brainstorm.md
++++ b/docs/roadmap-and-brainstorm.md
+@@ -189,13 +189,18 @@ Periodically diff it (`git status`/`git diff` inside it) and port the *ideas* he
+ - ✅ Tests: `test/day_feed_test.dart` (order, mad exclusion, summary, care glance, search).
+ - Still verify on two machines: LAN + `.bns` roundtrip with transcripts/reasons (manual live checklist).
+ 
++## 2026-08-15 — reminder timezone is the phone's (after Android file-ear)
++- ✅ **Was UTC-naive.** `timezone` defaults `tz.local` to UTC. `zonedSchedule` stored wall-clock times in UTC, so a 02:00 night-owl plan could fire shifted (DST, travel, reboot restore).
++- ✅ **Now the device system clock.** `flutter_timezone` 5.1.0 reads the device IANA name (AGP 9 / Flutter 3.44 ladder-safe — applies `kotlin-android` when `android.builtInKotlin=false`). `lib/core/reminder_timezone.dart` binds `tz.local` and builds wall-clock `TZDateTime`s. 02:00 on the phone is 02:00, in whatever zone the system is set to. If they travel or change the system clock/zone, reminders follow. Never a hardcoded city. Owl-time day border unchanged (pills at 02:00 still belong to tonight).
++- Tests: `test/reminder_timezone_test.dart` (New York, London, and Jerusalem as one example). Existing reminder-plan / owl-time tests untouched.
++- Verify on device: set a reminder 2 minutes out; after a reboot the 02:00 pills must still arrive at 02:00 on that phone's clock.
++
+ ## Needed / to do (next passes)
+ - **Verify `.bns` roundtrip on-device** after any settings change (export → import → keybinds + madModeUntil intact). AGENTS.md rule.
+ - **Two-machine LAN sync test** (PC + phone/second PC): pair with typed code, push/pull, auto-sync.
+ - ~~Android widget native side~~ — DONE in wave 5 (three-widget bundle, receivers + layouts + deep links).
+ - **Old-audio re-encode tier** (Ben's "compress sound files older than 2 days"): a small MediaCodec platform channel that re-encodes >2-day-old .m4a to ~24 kbps mono in place (hash updates on next imaging). Real size win where gzip has none. Waiting on: first real-device profiling of how much space old audio actually takes at the new 48 kbps birth rate.
+ - **Voice-note subject via on-device speech recognition** (Ben: subject line = start of the recording, free platform recognizer, NO cloud AI subscriptions): add `speech_to_text`-style plugin AFTER verifying it survives the AGP 9.0.1 / legacy-Kotlin build ladder (see Android build notes). One-shot transcribe of the first seconds → capture title.
+-- Notifications: timezone is UTC until we wire `flutter_timezone` to set `tz.local` (reminders may fire at shifted times).
+ - Pairing hardening: PBKDF2 (or SPAKE2) instead of single sha256 for key derivation; rate-limit attempts.
+ - Keyboard navigation for Routines manager and Memories list (same ↑↓/Enter pattern as Today — reuse, keep semi-homogenous).
+ - Global "mark done" toast when triggered from another screen (currently navigates to Today first — works, could be smoother).
+diff --git a/docs/testing-live.md b/docs/testing-live.md
+index ef5cf92..460ef14 100644
+--- a/docs/testing-live.md
++++ b/docs/testing-live.md
+@@ -82,8 +82,16 @@ flutter pub get && flutter test && flutter build linux --release
+ 1. `flutter test` (20 tests — containers, tamper, family share, keybinds).
+ 2. Phone: install fresh APK → open → Today renders? add task → widget updates?
+    🎤 widget button → app opens already recording?
++   Reminder clock: set one 2 minutes out — it must arrive at that minute
++   (not ~3 hours off). Reboot: 02:00 on the phone is 02:00, in whatever
++   zone the system is set to. If they travel or change the system
++   clock/zone, reminders follow.
+ 3. Phone ↔ PC exe on one Wi-Fi: pair (share name shows!), sync, verify data.
+ 4. Graceful close → `Documents\exports\BNS_Latest_*.bns` exists → open it in
+    the Explorer (`dist\bns-web.html`) → seal verified banner.
+ 5. Family file: mark an event "family can know" → Make the family file →
+    open in Explorer → only that event visible.
++
++6. Plans in Next: add a 10:00 doctor visit for today. On Today, does it
++   stand as the Next card (or in Coming up if something else is sooner)?
++   Mark it done — does the next open thing take the same card's place?
+diff --git a/lib/core/day_items.dart b/lib/core/day_items.dart
+index 02aa120..978a423 100644
+--- a/lib/core/day_items.dart
++++ b/lib/core/day_items.dart
+@@ -28,9 +28,10 @@ List<Object> weaveDayList({
+   required DateTime now,
+   int rolloverHour = 0,
+ }) {
++  final dayKey = logicalDayKey(now, rolloverHour);
+   int minutesOf(Object item) {
+     String? t;
+-    if (item is Routine) t = item.time;
++    if (item is Routine) t = item.timeOn(dayKey);
+     if (item is CalendarEvent) t = item.isAllDay ? null : item.time;
+     if (t == null) return 24 * 60; // timeless goes last
+     final p = t.split(':');
+@@ -56,3 +57,65 @@ List<Object> weaveDayList({
+   });
+   return list;
+ }
++
++/// Id of a woven day item (routine or plan).
++String dayItemId(Object item) =>
++    item is Routine ? item.id : (item as CalendarEvent).id;
++
++/// Title of a woven day item.
++String dayItemTitle(Object item) =>
++    item is Routine ? item.title : (item as CalendarEvent).title;
++
++/// Clock time of a woven day item — null for timeless / all-day plans.
++/// Pass [dayKey] (or [now] + [rolloverHour]) so a today-only postpone
++/// shows 17:30 today and the usual time on any other logical day.
++String? dayItemTime(
++  Object item, {
++  String? dayKey,
++  DateTime? now,
++  int rolloverHour = 0,
++}) {
++  final key = dayKey ?? (now != null ? logicalDayKey(now, rolloverHour) : null);
++  if (item is Routine) return item.timeOn(key);
++  if (item is CalendarEvent) return item.isAllDay ? null : item.time;
++  return null;
++}
++
++/// Open (unanswered) routines AND plans in "what's next" clock order.
++///
++/// This is the list the Next hero, Coming up, and the thin "Just this one"
++/// walk share. A doctor visit at 10:00 can be Next — plans are not a
++/// second list (owner, 2026-08-09 / 2026-08-15).
++///
++/// Answered items (routine ✓ / skip, plan ✓ / didn't-happen) leave this
++/// list, so the next open thing stands in place. Owl-time [rolloverHour]
++/// is the same border as the rest of Today.
++List<Object> openDayItemsInNextOrder({
++  required List<Routine> routines,
++  required List<CalendarEvent> plans,
++  required Set<String> doneRoutineIds,
++  required Set<String> skippedRoutineIds,
++  required DateTime now,
++  int rolloverHour = 0,
++}) {
++  final openRoutines = routines
++      .where((r) =>
++          !doneRoutineIds.contains(r.id) && !skippedRoutineIds.contains(r.id))
++      .toList();
++  final openPlans = plans.where((p) => !p.isAnswered).toList();
++  return weaveDayList(
++    routines: openRoutines,
++    plans: openPlans,
++    doneRoutineIds: const {},
++    skippedRoutineIds: const {},
++    nextFirst: true,
++    now: now,
++    rolloverHour: rolloverHour,
++  );
++}
++
++/// L1–2 Today: a tap IS the ✓. No confirm, no second question.
++/// Only guided mode (level 4) may still ask "Is it done?" — that
++/// acceptance is tracked for the person and the inspector.
++/// Never use the L4 dialog on ordinary Today.
++bool todayDoneNeedsConfirm({required bool guidedMode}) => guidedMode;
+diff --git a/lib/core/models/quick_capture.dart b/lib/core/models/quick_capture.dart
+index 633cb0b..46130aa 100644
+--- a/lib/core/models/quick_capture.dart
++++ b/lib/core/models/quick_capture.dart
+@@ -27,6 +27,9 @@ class QuickCapture {
+   final String?
+       contextNote; // "what happened / why the crisis or event in the routine"
+   final bool isDayMemory; // capture the day itself
++  /// The calendar day this idea is FOR. Written tonight, waiting tomorrow.
++  /// Empty = belongs to the day it was recorded ([at]).
++  final String? forDate; // YYYY-MM-DD
+   final DateTime? deletedAt; // trash: null = active; auto-remove after 3 days
+ 
+   const QuickCapture({
+@@ -42,6 +45,7 @@ class QuickCapture {
+     this.memoryLevel = MemoryLevel.quick,
+     this.contextNote,
+     this.isDayMemory = false,
++    this.forDate,
+     this.deletedAt,
+   });
+ 
+@@ -58,6 +62,7 @@ class QuickCapture {
+     MemoryLevel? memoryLevel,
+     Object? contextNote = _unset,
+     bool? isDayMemory,
++    Object? forDate = _unset,
+     Object? deletedAt = _unset,
+   }) {
+     return QuickCapture(
+@@ -79,6 +84,7 @@ class QuickCapture {
+       contextNote:
+           contextNote == _unset ? this.contextNote : contextNote as String?,
+       isDayMemory: isDayMemory ?? this.isDayMemory,
++      forDate: forDate == _unset ? this.forDate : forDate as String?,
+       deletedAt: deletedAt == _unset ? this.deletedAt : deletedAt as DateTime?,
+     );
+   }
+@@ -100,6 +106,7 @@ class QuickCapture {
+         'memoryLevel': memoryLevel.name,
+         'contextNote': contextNote,
+         'isDayMemory': isDayMemory,
++        'forDate': forDate,
+         'deletedAt': deletedAt?.toIso8601String(),
+       };
+ 
+@@ -118,6 +125,7 @@ class QuickCapture {
+             MemoryLevel.quick,
+         contextNote: json['contextNote'] as String?,
+         isDayMemory: json['isDayMemory'] as bool? ?? false,
++        forDate: json['forDate'] as String?,
+         deletedAt: json['deletedAt'] == null
+             ? null
+             : DateTime.tryParse(json['deletedAt'] as String),
+diff --git a/lib/core/models/routine.dart b/lib/core/models/routine.dart
+index fd00f2c..c312020 100644
+--- a/lib/core/models/routine.dart
++++ b/lib/core/models/routine.dart
+@@ -37,6 +37,11 @@ class Routine {
+   // For weekly / custom: 0=Sun ... 6=Sat. Empty means all for daily.
+   final List<int> daysOfWeek;
+   final String? time; // "HH:mm" local, optional — always on a quarter hour
++  /// One-day clock overrides, keyed by the person's logical day
++  /// (`yyyy-MM-dd` from owl time). Later-today writes here so a daily
++  /// 15:00 moved to 17:30 today is 15:00 again tomorrow. After that
++  /// day ends the key no longer matches and the usual [time] returns.
++  final Map<String, String> timeByDay;
+   final bool isActive;
+   final List<String> tags;
+   final bool firstStepOnlyDefault;
+@@ -52,6 +57,7 @@ class Routine {
+     required this.recurrenceType,
+     this.daysOfWeek = const [],
+     this.time,
++    this.timeByDay = const {},
+     this.isActive = true,
+     this.tags = const [],
+     this.firstStepOnlyDefault = false,
+@@ -67,6 +73,7 @@ class Routine {
+     RecurrenceType? recurrenceType,
+     List<int>? daysOfWeek,
+     Object? time = _unset,
++    Map<String, String>? timeByDay,
+     bool? isActive,
+     List<String>? tags,
+     bool? firstStepOnlyDefault,
+@@ -82,6 +89,7 @@ class Routine {
+       recurrenceType: recurrenceType ?? this.recurrenceType,
+       daysOfWeek: daysOfWeek ?? this.daysOfWeek,
+       time: time == _unset ? this.time : time as String?,
++      timeByDay: timeByDay ?? this.timeByDay,
+       isActive: isActive ?? this.isActive,
+       tags: tags ?? this.tags,
+       firstStepOnlyDefault: firstStepOnlyDefault ?? this.firstStepOnlyDefault,
+@@ -98,6 +106,7 @@ class Routine {
+         'recurrenceType': recurrenceType.name,
+         'daysOfWeek': daysOfWeek,
+         'time': time,
++        if (timeByDay.isNotEmpty) 'timeByDay': timeByDay,
+         'isActive': isActive,
+         'tags': tags,
+         'firstStepOnlyDefault': firstStepOnlyDefault,
+@@ -117,6 +126,8 @@ class Routine {
+             .map((e) => (e as num).toInt())
+             .toList(),
+         time: json['time'] as String?,
++        timeByDay: (json['timeByDay'] as Map? ?? const {})
++            .map((k, v) => MapEntry(k.toString(), v.toString())),
+         isActive: json['isActive'] as bool? ?? true,
+         tags: (json['tags'] as List? ?? const []).cast<String>(),
+         firstStepOnlyDefault: json['firstStepOnlyDefault'] as bool? ?? false,
+@@ -130,6 +141,22 @@ class Routine {
+             DateTime.now(),
+       );
+ 
++  /// Clock for one logical day: today's override if it exists, else [time].
++  String? timeOn(String? dayKey) {
++    if (dayKey != null) {
++      final o = timeByDay[dayKey];
++      if (o != null && o.isNotEmpty) return o;
++    }
++    return time;
++  }
++
++  /// Later-today: keep [time], remember [hhmm] for this logical day only.
++  /// Replaces any older override — they are not expecting more than a day.
++  Routine postponeOn(String dayKey, String hhmm) => copyWith(
++        timeByDay: {dayKey: hhmm},
++        updatedAt: DateTime.now(),
++      );
++
+   // Convenience: does this routine apply on a given local date?
+   bool appliesOn(DateTime date) {
+     if (!isActive) return false;
+diff --git a/lib/core/models/settings.dart b/lib/core/models/settings.dart
+index eabe9cd..e1b87df 100644
+--- a/lib/core/models/settings.dart
++++ b/lib/core/models/settings.dart
+@@ -51,6 +51,12 @@ class AppSettings {
+   // they sleep. Clamped to 0..6 (lib/core/owl_time.dart).
+   final int dayRolloverHour;
+ 
++  // When THIS person's 24-hour day entity begins (0 = midnight, the old
++  // world). Ben wakes at 15:00 and the day runs 15:00 → 05:00. Same clock
++  // as [dayRolloverHour] — later-today, the list, Next, and reminders
++  // all read this pair. Clamped to 0..23.
++  final int dayStartHour;
++
+   final bool hapticsEnabled;
+   final DateTime? lastFullSyncAt;
+ 
+@@ -166,6 +172,7 @@ class AppSettings {
+     this.notificationsEnabled = true,
+     this.reminderStyle = 'gentle',
+     this.dayRolloverHour = 0,
++    this.dayStartHour = 0,
+     this.notificationColor = 'auto',
+     this.eventReminderMinutes = 30,
+     this.reminderTimeoutMinutes = 120,
+@@ -206,6 +213,7 @@ class AppSettings {
+     bool? notificationsEnabled,
+     String? reminderStyle,
+     int? dayRolloverHour,
++    int? dayStartHour,
+     String? notificationColor,
+     int? eventReminderMinutes,
+     int? reminderTimeoutMinutes,
+@@ -240,6 +248,7 @@ class AppSettings {
+       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+       reminderStyle: reminderStyle ?? this.reminderStyle,
+       dayRolloverHour: dayRolloverHour ?? this.dayRolloverHour,
++      dayStartHour: dayStartHour ?? this.dayStartHour,
+       notificationColor: notificationColor ?? this.notificationColor,
+       eventReminderMinutes: eventReminderMinutes ?? this.eventReminderMinutes,
+       reminderTimeoutMinutes:
+@@ -282,6 +291,7 @@ class AppSettings {
+         'notificationsEnabled': notificationsEnabled,
+         'reminderStyle': reminderStyle,
+         'dayRolloverHour': dayRolloverHour,
++        'dayStartHour': dayStartHour,
+         'notificationColor': notificationColor,
+         'eventReminderMinutes': eventReminderMinutes,
+         'reminderTimeoutMinutes': reminderTimeoutMinutes,
+@@ -321,6 +331,8 @@ class AppSettings {
+         reminderStyle: json['reminderStyle'] as String? ?? 'gentle',
+         dayRolloverHour:
+             ((json['dayRolloverHour'] as num?)?.toInt() ?? 0).clamp(0, 6),
++        dayStartHour:
++            ((json['dayStartHour'] as num?)?.toInt() ?? 0).clamp(0, 23),
+         notificationColor: json['notificationColor'] as String? ?? 'auto',
+         eventReminderMinutes:
+             (json['eventReminderMinutes'] as num?)?.toInt() ?? 30,
+diff --git a/lib/core/owl_time.dart b/lib/core/owl_time.dart
+index 41e3f32..5288827 100644
+--- a/lib/core/owl_time.dart
++++ b/lib/core/owl_time.dart
+@@ -9,7 +9,9 @@
+ /// day while the person sleeps, never in their face.
+ ///
+ /// Everything here is pure and tested. `rolloverHour` 0 = midnight, the
+-/// exact old behavior; owls pick 1..6.
++/// exact old behavior; owls pick 1..6. `startHour` is when THIS person
++/// begins their day on that same 24-hour entity (Ben: 15:00 → 05:00).
++/// One clock — never a second one, never a hardcoded city.
+ library;
+ 
+ /// The border can sit at most here — a "day" that ends later than 06:00
+@@ -19,6 +21,22 @@ const int kMaxRolloverHour = 6;
+ int _clampRollover(int rolloverHour) =>
+     rolloverHour < 0 ? 0 : (rolloverHour > kMaxRolloverHour ? kMaxRolloverHour : rolloverHour);
+ 
++/// A day can begin at any clock hour. 0 = midnight (the old world).
++const int kMaxStartHour = 23;
++
++int _clampStart(int startHour) =>
++    startHour < 0 ? 0 : (startHour > kMaxStartHour ? kMaxStartHour : startHour);
++
++/// When this person-day began (or will begin): the logical date at
++/// [startHour]. With start 15:00 / end 05:00: at 16:00 that is today
++/// 15:00; at 04:00 that is yesterday 15:00 (still this day); at 06:00
++/// the day has already flipped, so it is today 15:00 — still ahead.
++DateTime personDayStart(DateTime now, int startHour, int rolloverHour) {
++  final logical = logicalDateOf(now, rolloverHour);
++  return DateTime(
++      logical.year, logical.month, logical.day, _clampStart(startHour));
++}
++
+ /// The date this moment BELONGS to: before the border, it is still
+ /// "yesterday" — the night is part of the day it grew out of.
+ DateTime logicalDateOf(DateTime now, int rolloverHour) {
+diff --git a/lib/core/reminder_plan.dart b/lib/core/reminder_plan.dart
+index b9dd6ca..130d2e6 100644
+--- a/lib/core/reminder_plan.dart
++++ b/lib/core/reminder_plan.dart
+@@ -5,6 +5,7 @@
+ library;
+ 
+ import 'package:bns/core/i18n/l.dart';
++import 'package:bns/core/later_today.dart';
+ import 'package:bns/core/models/models.dart';
+ import 'package:bns/core/owl_time.dart';
+ 
+@@ -68,10 +69,40 @@ List<PlannedReminder> planReminders({
+   final planned = <PlannedReminder>[];
+ 
+   // ---- Routines: repeating, at their own time, on their own days ----
++  final rollover = settings.dayRolloverHour;
++  final todayLogical = logicalDateOf(now, rollover);
++  final todayKey = dayKeyOf(todayLogical);
++
+   for (final r in routines) {
+     if (!r.isActive || r.time == null) continue;
+     final hm = _parseTime(r.time!);
+     if (hm == null) continue;
++    final todayClock = r.timeOn(todayKey);
++    final todayOverridden = todayClock != null && todayClock != r.time;
++
++    // Today-only postpone: fire the override once today, then the usual
++    // clock from the next person-day (15:00 again tomorrow).
++    if (todayOverridden && r.appliesOn(todayLogical)) {
++      final ov = _parseTime(todayClock);
++      if (ov != null) {
++        final at = actualMomentOf(todayLogical, ov.$1, ov.$2, rollover);
++        if (at.isAfter(now)) {
++          planned.add(PlannedReminder(
++            id: _stableId('r.${r.id}.p.$todayKey'),
++            title: L.t('Gentle reminder', 'תזכורת עדינה'),
++            body: L.t('${r.title} — whenever you\'re ready',
++                '${r.title} — מתי שנוח לך'),
++            firstAt: at,
++            repeat: PlannedRepeat.none,
++            payload: 'routine:${r.id}',
++          ));
++        }
++      }
++    }
++
++    final searchFrom = todayOverridden
++        ? laterTodayEndExclusive(now, rollover)
++        : now;
+ 
+     switch (r.recurrenceType) {
+       case RecurrenceType.daily:
+@@ -80,7 +111,7 @@ List<PlannedReminder> planReminders({
+           title: L.t('Gentle reminder', 'תזכורת עדינה'),
+           body: L.t('${r.title} — whenever you\'re ready',
+               '${r.title} — מתי שנוח לך'),
+-          firstAt: _nextDailyOccurrence(now, hm.$1, hm.$2),
++          firstAt: _nextDailyOccurrence(searchFrom, hm.$1, hm.$2),
+           repeat: PlannedRepeat.daily,
+           payload: 'routine:${r.id}',
+         ));
+@@ -98,13 +129,13 @@ List<PlannedReminder> planReminders({
+           // means the NIGHT of that weekday — "Tuesday pills at 02:00"
+           // fire on calendar Wednesday 02:00, which IS Tuesday night.
+           final calendarDow =
+-              hm.$1 < settings.dayRolloverHour ? (dow + 1) % 7 : dow;
++              hm.$1 < rollover ? (dow + 1) % 7 : dow;
+           planned.add(PlannedReminder(
+             id: _stableId('r.${r.id}.$dow'),
+             title: L.t('Gentle reminder', 'תזכורת עדינה'),
+             body: L.t('${r.title} — whenever you\'re ready',
+                 '${r.title} — מתי שנוח לך'),
+-            firstAt: _nextWeeklyOccurrence(now, calendarDow, hm.$1, hm.$2),
++            firstAt: _nextWeeklyOccurrence(searchFrom, calendarDow, hm.$1, hm.$2),
+             repeat: PlannedRepeat.weekly,
+             payload: 'routine:${r.id}',
+           ));
+@@ -161,18 +192,17 @@ String routeForReminderPayload(String? payload) {
+   return '/';
+ }
+ 
+-/// Where the shade's "didn't happen — tell why" action lands: a routine
+-/// opens capture pre-linked (the why gets voice first, per the laws); a
+-/// plan opens its own day, where its gentle answer sheet lives.
++/// Where the shade's "didn't happen — tell why" action lands: Today,
++/// with the miss sheet already open. The why is written onto the skip
++/// — never a detached capture whose Save goes to Memories.
+ String whyRouteForReminderPayload(String? payload) {
+   if (payload == null) return '/';
+   final parts = payload.split(':');
+-  if (parts.length >= 3 && parts[0] == 'event') {
+-    return '/day?date=${parts[2]}';
++  if (parts.length >= 2 && parts[0] == 'event') {
++    return '/?didntHappenPlan=${Uri.encodeQueryComponent(parts[1])}';
+   }
+   if (parts.length >= 2 && parts[0] == 'routine') {
+-    return '/capture?linkedRoutineId=${Uri.encodeQueryComponent(parts[1])}'
+-        '&tags=need-help,routine';
++    return '/?didntHappen=${Uri.encodeQueryComponent(parts[1])}';
+   }
+   return '/';
+ }
+@@ -196,11 +226,15 @@ String reminderFingerprint({
+     ..write('|${settings.relaxingPalette.name}')
+     ..write('|${settings.eventReminderMinutes}')
+     ..write('|${settings.reminderTimeoutMinutes}')
+-    ..write('|${settings.dayRolloverHour}');
++    ..write('|${settings.dayRolloverHour}')
++    ..write('|${settings.dayStartHour}');
+   for (final r in routines) {
+     if (!r.isActive || r.time == null) continue;
++    final ov = r.timeByDay.entries.toList()
++      ..sort((a, b) => a.key.compareTo(b.key));
+     b.write('|r:${r.id},${r.title},${r.time},${r.recurrenceType.name},'
+-        '${(r.daysOfWeek.toList()..sort()).join('.')}');
++        '${(r.daysOfWeek.toList()..sort()).join('.')},'
++        '${ov.map((e) => '${e.key}=${e.value}').join(',')}');
+   }
+   final horizon = now.add(const Duration(days: kEventReminderHorizonDays + 1));
+   for (final e in events) {
+diff --git a/lib/core/utils/recurrence.dart b/lib/core/utils/recurrence.dart
+index 2bbfb94..884543b 100644
+--- a/lib/core/utils/recurrence.dart
++++ b/lib/core/utils/recurrence.dart
+@@ -11,8 +11,9 @@ class RecurrenceUtils {
+       routinesForDate(all, DateTime.now());
+ 
+   /// Simple string for display, e.g. "Daily • 08:15" or "Weekdays"
+-  static String describe(Routine r) {
+-    final time = r.time != null ? ' • ${r.time}' : '';
++  static String describe(Routine r, {String? dayKey}) {
++    final clock = r.timeOn(dayKey);
++    final time = clock != null ? ' • $clock' : '';
+     switch (r.recurrenceType) {
+       case RecurrenceType.daily:
+         return 'Daily$time';
+diff --git a/lib/data/local/isar_service.dart b/lib/data/local/isar_service.dart
+index 785742b..d1679be 100644
+--- a/lib/data/local/isar_service.dart
++++ b/lib/data/local/isar_service.dart
+@@ -352,6 +352,14 @@ class IsarService {
+     return withId;
+   }
+ 
++  static Future<void> updateEvent(CalendarEvent event) async {
++    final d = await _load();
++    final updated = event.copyWith(updatedAt: DateTime.now());
++    d.events.removeWhere((e) => e.id == updated.id);
++    d.events.add(updated);
++    await _persist();
++  }
++
+   /// Answer a plan: 'done' (the quiet ✓), 'skipped' (didn't happen, with an
+   /// optional kept why), or null — the answer taken back, the plan simply
+   /// open again (never secretly something else).
+diff --git a/lib/features/calendar/day_view.dart b/lib/features/calendar/day_view.dart
+index 7f0d17a..e18dd56 100644
+--- a/lib/features/calendar/day_view.dart
++++ b/lib/features/calendar/day_view.dart
+@@ -11,6 +11,7 @@ import 'package:bns/features/capture/quick_capture_screen.dart';
+ import 'package:bns/services/audio_playback_service.dart';
+ import 'package:bns/services/tts_service.dart';
+ import 'package:bns/ui/widgets/bns_app_bar.dart';
++import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
+ 
+ /// Day detail view.
+ /// Shows:
+@@ -90,7 +91,8 @@ class _DayViewState extends State<DayView> {
+     QuickCapture? best;
+     for (final c in _captures) {
+       if (c.linkedRoutineId != routineId) continue;
+-      if (!c.tags.contains('need-help')) continue;
++      // Any linked words — old skips said "See linked capture" and hid
++      // the why when the note was not tagged need-help.
+       if (best == null || c.at.isAfter(best.at)) best = c;
+     }
+     if (best == null) return null;
+@@ -172,36 +174,21 @@ class _DayViewState extends State<DayView> {
+   Future<void> _skipRoutine(Routine r) async {
+     if (_isFutureDay) return; // future days are not ours to touch yet
+     final dateStr = DateFormat('yyyy-MM-dd').format(_date);
+-    // Open quick capture pre-linked
+-    final result = await Navigator.push(
+-      context,
+-      MaterialPageRoute(
+-        builder: (_) => QuickCaptureScreen(
+-          linkedRoutineId: r.id,
+-          initialText: 'Skipped: ',
+-          initialTags: const ['routine', 'need-help'],
+-        ),
+-      ),
++    final existing = _whyForRoutine(r.id);
++    final result = await showDidntHappenSheet(
++      context: context,
++      title: r.title,
++      confirmLabel: L.t('It didn\'t happen today', 'זה לא קרה היום'),
++      initialReason: existing ?? '',
+     );
+-    if (result == true) {
+-      // Put the person's own words into the skip record itself — the why
+-      // must live in the container, not behind a "see elsewhere" pointer.
+-      final captures = await IsarService.getAllCaptures();
+-      String? words;
+-      for (final c in captures) {
+-        if (c.linkedRoutineId == r.id) {
+-          words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
+-          break; // captures come newest-first
+-        }
+-      }
+-      await IsarService.logCompletion(
+-        routineId: r.id,
+-        date: dateStr,
+-        status: CompletionStatus.skipped,
+-        reason: (words == null || words.isEmpty) ? null : words,
+-      );
+-      await _loadData();
+-    }
++    if (!result.skipped) return;
++    await IsarService.logCompletion(
++      routineId: r.id,
++      date: dateStr,
++      status: CompletionStatus.skipped,
++      reason: result.reason,
++    );
++    await _loadData();
+   }
+ 
+   Future<void> _addEvent() async {
+@@ -436,9 +423,30 @@ class _DayViewState extends State<DayView> {
+                     )
+                   else
+                     ..._events.map((e) => ListTile(
+-                          leading: const Icon(Icons.event_note),
+-                          title: Text(e.title),
+-                          subtitle: Text(e.time ?? L.t('All day', 'כל היום')),
++                          leading: Icon(
++                            e.isDone
++                                ? Icons.check
++                                : (e.isSkipped
++                                    ? Icons.wb_twilight
++                                    : Icons.event_note),
++                          ),
++                          title: Text(
++                            e.title,
++                            style: e.isDone
++                                ? const TextStyle(
++                                    decoration: TextDecoration.lineThrough)
++                                : null,
++                          ),
++                          subtitle: Text([
++                            e.time ?? L.t('All day', 'כל היום'),
++                            if (e.isDone) L.t('Done', 'בוצע'),
++                            if (e.isSkipped)
++                              ((e.answerReason ?? '').trim().isEmpty
++                                  ? L.t('Didn\'t happen', 'לא קרה')
++                                  : L.t(
++                                      'Didn\'t happen — “${e.answerReason}”',
++                                      'לא קרה — ״${e.answerReason}״')),
++                          ].join(' · ')),
+                           trailing: IconButton(
+                             icon: Icon(
+                               e.shareWithFamily
+diff --git a/lib/features/capture/quick_capture_screen.dart b/lib/features/capture/quick_capture_screen.dart
+index 9c3aba1..3143f31 100644
+--- a/lib/features/capture/quick_capture_screen.dart
++++ b/lib/features/capture/quick_capture_screen.dart
+@@ -32,6 +32,8 @@ class QuickCaptureScreen extends StatefulWidget {
+   /// True when arriving from the home-widget 🎤 button: start recording
+   /// immediately — one tap from home screen to talking.
+   final bool autoRecord;
++  /// Calendar day this idea is for (YYYY-MM-DD). Tonight's bag for tomorrow.
++  final String? forDate;
+ 
+   const QuickCaptureScreen({
+     super.key,
+@@ -40,6 +42,7 @@ class QuickCaptureScreen extends StatefulWidget {
+     this.initialText,
+     this.initialTags,
+     this.autoRecord = false,
++    this.forDate,
+   });
+ 
+   @override
+@@ -358,6 +361,9 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
+     if (_memoryLevel == MemoryLevel.memorize) tags.add('memorize-this');
+     tags.addAll(
+         _selectedTags); // include user chosen tags like crisis, good, felt safe etc.
++    if (widget.forDate != null && widget.forDate!.trim().isNotEmpty) {
++      tags.add('day-idea');
++    }
+ 
+     // EVERY take is kept, not just the last one: a person who recorded
+     // three times said three things, and a voice that was recorded must
+@@ -386,6 +392,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
+       contextNote: _contextController.text.trim().isEmpty
+           ? null
+           : _contextController.text.trim(),
++      forDate: widget.forDate,
+     );
+ 
+     try {
+diff --git a/lib/features/caregiver/caregiver_home_screen.dart b/lib/features/caregiver/caregiver_home_screen.dart
+index 12d8ece..e3b21e5 100644
+--- a/lib/features/caregiver/caregiver_home_screen.dart
++++ b/lib/features/caregiver/caregiver_home_screen.dart
+@@ -45,6 +45,7 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
+   List<CompletionLog> _todayLogs = const [];
+   String _personName = '';
+   DateTime? _lastSync;
++  String _todayKey = '';
+ 
+   @override
+   void initState() {
+@@ -70,8 +71,16 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
+ 
+     if (!mounted) return;
+     setState(() {
++      _todayKey = dateStr;
+       _todayRoutines = routines.where((r) => r.appliesOn(logicalDay)).toList()
+-        ..sort((a, b) => (a.time ?? '99:99').compareTo(b.time ?? '99:99'));
++        ..sort((a, b) {
++          final ta = a.timeOn(dateStr);
++          final tb = b.timeOn(dateStr);
++          if (ta == null && tb == null) return 0;
++          if (ta == null) return 1;
++          if (tb == null) return -1;
++          return ta.compareTo(tb);
++        });
+       _todayLogs = logs;
+       // A helper is trusted with the hard moments too — that is the whole
+       // point of level 3 ("the frustration IS the signal").
+@@ -301,10 +310,10 @@ class _CaregiverHomeScreenState extends State<CaregiverHomeScreen> {
+                           subtitle: Column(
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+-                              Text((r.time == null
++                              Text((r.timeOn(_todayKey) == null
+                                       ? ''
+-                                      : '${r.time}  ·  ') +
+-                                  RecurrenceUtils.describe(r)),
++                                      : '${r.timeOn(_todayKey)}  ·  ') +
++                                  RecurrenceUtils.describe(r, dayKey: _todayKey)),
+                               if (skipped)
+                                 Text(
+                                   why.isEmpty
+diff --git a/lib/features/sync/sync_screen.dart b/lib/features/sync/sync_screen.dart
+index 5089e38..19547c6 100644
+--- a/lib/features/sync/sync_screen.dart
++++ b/lib/features/sync/sync_screen.dart
+@@ -12,7 +12,6 @@ import 'package:bns/data/local/bns_home.dart';
+ import 'package:bns/features/sync/pairing_dialogs.dart';
+ import 'package:bns/providers/app_providers.dart';
+ import 'package:bns/data/export/bns_exporter.dart';
+-import 'package:bns/data/export/bns_save_out.dart';
+ import 'package:bns/data/local/isar_service.dart';
+ import 'package:bns/data/sync/lan_sync_service.dart'
+     show BnsPeer, LanSyncService;
+@@ -59,8 +58,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+   int _eventReminderMinutes = 30;
+   // How long an untouched reminder waits in the shade (0 = until seen).
+   int _reminderTimeoutMinutes = 120;
+-  // Owl time: the hour the person's day ends (0 = midnight).
++  // Owl time: the person's 24-hour day entity (start + end).
+   int _dayRolloverHour = 0;
++  int _dayStartHour = 0;
+   bool _sttEnabled = true;
+   bool _autoImage = true;
+   String _homePath = '';
+@@ -104,6 +104,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+     _eventReminderMinutes = settings.eventReminderMinutes;
+     _reminderTimeoutMinutes = settings.reminderTimeoutMinutes;
+     _dayRolloverHour = settings.dayRolloverHour;
++    _dayStartHour = settings.dayStartHour;
+     _sttEnabled = settings.sttEnabled;
+     _autoImage = settings.autoImageEnabled;
+     _keybinds = Map<String, String>.from(settings.keybinds);
+@@ -159,6 +160,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+         _eventReminderMinutes = s.eventReminderMinutes;
+         _reminderTimeoutMinutes = s.reminderTimeoutMinutes;
+         _dayRolloverHour = s.dayRolloverHour;
++        _dayStartHour = s.dayStartHour;
+         _sttEnabled = s.sttEnabled;
+         _autoImage = s.autoImageEnabled;
+         _fullCareMode = s.fullCareMode;
+@@ -326,6 +328,27 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+                 'מהלילה הזה — ינשופים הם הנורמלים כאן.'))));
+   }
+ 
++  /// Same day entity: when the person begins. Later-today, the list,
++  /// Next, and reminders all read this start with the end above.
++  Future<void> _setDayStartHour(int v) async {
++    final s = await IsarService.getSettings();
++    await IsarService.updateSettings(s.copyWith(dayStartHour: v));
++    await NotificationsService.rescheduleAll(force: true);
++    AndroidBnsWidget.updateWidget();
++    await _loadRetention();
++    if (!mounted) return;
++    final hh = v.toString().padLeft(2, '0');
++    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
++        content: Text(v == 0
++            ? L.t('Your day starts at midnight — the classic way.',
++                'היום שלך מתחיל בחצות — הדרך הקלאסית.')
++            : L.t(
++                'Your day now starts at $hh:00. Later today follows '
++                'your day, not the calendar\'s midnight.',
++                'היום שלך מתחיל עכשיו ב-$hh:00. עוד היום הולך לפי '
++                'היום שלך, לא לפי חצות של הלוח.'))));
++  }
++
+   /// Person-facing names for the user types (values stay identifiers).
+   static String _userTypeName(String key) => switch (key) {
+         'normal' => L.t('Regular', 'רגיל'),
+@@ -910,45 +933,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+ 
+   Future<void> _manualExport() async {
+     final f = await _service.manualExport();
+-    if (!mounted) return;
+-    // A backup the person cannot find is not a backup: the phone gets the
+-    // system save sheet so the file lands in a real folder they chose
+-    // (owner QA, 2026-08-15 — it "saved" into app-private storage, which
+-    // no file manager can open and an uninstall erases).
+-    final out = await BnsSaveOut.saveCopy(
+-      f,
+-      dialogTitle: L.t('Where should the backup go?', 'לאן לשמור את הגיבוי?'),
++    ScaffoldMessenger.of(context).showSnackBar(
++      SnackBar(
++          content: Text(L.t(
++              'Saved: ${f.path.split(Platform.pathSeparator).last}',
++              'נשמר: ${f.path.split(Platform.pathSeparator).last}'))),
+     );
+-    if (!mounted) return;
+-    _tellWhereItWent(out, f);
+-  }
+-
+-  /// Say plainly where a .bns ended up — folder and all. "Saved: name.bns"
+-  /// told the person nothing they could act on.
+-  void _tellWhereItWent(SavedOut out, File internal) {
+-    final String msg;
+-    if (out.cancelled) {
+-      msg = L.t(
+-          'Not saved out. The backup is still kept inside BNS — you can '
+-              'export it again any time.',
+-          'לא נשמר החוצה. הגיבוי עדיין שמור בתוך BNS — אפשר לייצא שוב מתי שרוצים.');
+-    } else if (out.reachable && BnsSaveOut.needsSystemSheet) {
+-      msg = L.t('Backup saved where you chose. ✓',
+-          'הגיבוי נשמר איפה שבחרת. ✓');
+-    } else if (out.reachable) {
+-      msg = L.t('Backup saved in: ${BnsSaveOut.folderOf(out.path!)}',
+-          'הגיבוי נשמר בתיקייה: ${BnsSaveOut.folderOf(out.path!)}');
+-    } else {
+-      msg = L.t(
+-          'The backup is kept inside BNS, but this device would not let it '
+-              'be saved out. Sync to another device to keep a copy safe.',
+-          'הגיבוי שמור בתוך BNS, אבל המכשיר הזה לא אפשר לשמור אותו החוצה. '
+-              'אפשר לסנכרן למכשיר אחר כדי לשמור עותק בטוח.');
+-    }
+-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+-      content: Text(msg),
+-      duration: const Duration(seconds: 6),
+-    ));
+   }
+ 
+   Future<void> _manualImport() async {
+@@ -968,34 +958,19 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+   Future<void> _exportFamilyShare() async {
+     final f = await BnsExporter.exportFamilyShare();
+     if (!mounted) return;
+-    // This file exists to be HANDED to someone — it has to be able to
+-    // leave the phone, or the family sharing spectrum stops at level 1.
+-    final out = await BnsSaveOut.saveCopy(
+-      f,
+-      dialogTitle:
+-          L.t('Where should the family file go?', 'לאן לשמור את קובץ המשפחה?'),
+-    );
+-    if (!mounted) return;
+-    if (out.cancelled) {
+-      _tellWhereItWent(out, f);
+-      return;
+-    }
+-    final where = out.reachable && !BnsSaveOut.needsSystemSheet
+-        ? L.t(' — in: ${BnsSaveOut.folderOf(out.path!)}',
+-            ' — בתיקייה: ${BnsSaveOut.folderOf(out.path!)}')
+-        : '';
+     ScaffoldMessenger.of(context).showSnackBar(
+       SnackBar(
+-          duration: const Duration(seconds: 6),
+           content: Text(_fullCareMode
+               ? L.t(
+-                  'Family file saved$where — full care: everything is inside, '
+-                      'for the people who care.',
+-                  'קובץ המשפחה נשמר$where — טיפול מלא: הכול בפנים, '
+-                      'בשביל האנשים שאכפת להם.')
++                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
++                      'full care: everything is inside, for the people who care.',
++                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
++                      'טיפול מלא: הכול בפנים, בשביל האנשים שאכפת להם.')
+               : L.t(
+-                  'Family file saved$where — only what you marked, nothing else.',
+-                  'קובץ המשפחה נשמר$where — רק מה שסימנת, שום דבר מעבר.'))),
++                  'Family file saved: ${f.path.split(Platform.pathSeparator).last} — '
++                      'only what you marked, nothing else.',
++                  'קובץ המשפחה נשמר: ${f.path.split(Platform.pathSeparator).last} — '
++                      'רק מה שסימנת, שום דבר מעבר.'))),
+     );
+   }
+ 
+@@ -1610,6 +1585,55 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+                   // (owner, 2026-08-10: "my day isn't done in 00:00...
+                   // I cannot set pills at 2:00 and be normal like
+                   // everyone" — now they can, and they are). ----
++                  ListTile(
++                    dense: true,
++                    contentPadding: EdgeInsets.zero,
++                    leading: const Icon(Icons.wb_twilight_outlined),
++                    title: Text(
++                        L.t('When does your day start?',
++                            'מתי היום שלך מתחיל?'),
++                        style: Theme.of(context).textTheme.titleSmall),
++                    subtitle: Text(
++                        L.t(
++                            'Your own day. If you wake at 15:00, pick '
++                            '15:00 — later today and the list follow '
++                            'that day, not midnight.',
++                            'היום שלך. אם אתם קמים ב-15:00, בחרו '
++                            '15:00 — עוד היום והרשימה הולכים לפי '
++                            'היום הזה, לא לפי חצות.'),
++                        style: const TextStyle(fontSize: 12)),
++                  ),
++                  Wrap(
++                    spacing: 8,
++                    runSpacing: 8,
++                    children: [
++                      for (final h in {
++                        0, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
++                        _dayStartHour,
++                      }.toList()
++                        ..sort())
++                        OutlinedButton(
++                          onPressed: () => _setDayStartHour(h),
++                          style: OutlinedButton.styleFrom(
++                            minimumSize: const Size(72, 48),
++                            foregroundColor: _dayStartHour == h
++                                ? Theme.of(context)
++                                    .colorScheme
++                                    .onPrimaryContainer
++                                : Theme.of(context).colorScheme.primary,
++                            backgroundColor: _dayStartHour == h
++                                ? Theme.of(context)
++                                    .colorScheme
++                                    .primaryContainer
++                                : null,
++                          ),
++                          child: Text(h == 0
++                              ? L.t('Midnight', 'חצות')
++                              : '${h.toString().padLeft(2, '0')}:00'),
++                        ),
++                    ],
++                  ),
++                  const SizedBox(height: 16),
+                   ListTile(
+                     dense: true,
+                     contentPadding: EdgeInsets.zero,
+@@ -1631,16 +1655,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
+                         style: const TextStyle(fontSize: 12)),
+                   ),
+                   Wrap(
+-                    spacing: 4,
+-                    runSpacing: 4,
++                    spacing: 8,
++                    runSpacing: 8,
+                     children: [
+                       for (final h in const [0, 1, 2, 3, 4, 5, 6])
+-                        ChoiceChip(
+-                          label: Text(h == 0
++                        OutlinedButton(
++                          onPressed: () => _setDayRolloverHour(h),
++                          style: OutlinedButton.styleFrom(
++                            minimumSize: const Size(72, 48),
++                            foregroundColor: _dayRolloverHour == h
++                                ? Theme.of(context)
++                                    .colorScheme
++                                    .onPrimaryContainer
++                                : Theme.of(context).colorScheme.primary,
++                            backgroundColor: _dayRolloverHour == h
++                                ? Theme.of(context)
++                                    .colorScheme
++                                    .primaryContainer
++                                : null,
++                          ),
++                          child: Text(h == 0
+                               ? L.t('Midnight', 'חצות')
+                               : '0$h:00'),
+-                          selected: _dayRolloverHour == h,
+-                          onSelected: (_) => _setDayRolloverHour(h),
+                         ),
+                     ],
+                   ),
+diff --git a/lib/main.dart b/lib/main.dart
+index 128bb04..e39028e 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -13,6 +13,7 @@ import 'package:bns/core/models/models.dart';
+ import 'package:bns/providers/app_providers.dart';
+ import 'package:bns/core/day_items.dart';
+ import 'package:bns/core/owl_time.dart';
++import 'package:bns/core/later_today.dart';
+ import 'package:bns/ui/widgets/routine_tile.dart';
+ import 'package:bns/ui/widgets/plan_tile.dart';
+ import 'package:bns/ui/widgets/next_hero_card.dart';
+@@ -20,6 +21,7 @@ import 'package:bns/ui/widgets/quick_capture_bar.dart';
+ import 'package:bns/ui/widgets/kept_memories_strip.dart';
+ import 'package:bns/core/kept_memory.dart';
+ import 'package:bns/ui/widgets/dictation_mic_button.dart';
++import 'package:bns/ui/widgets/didnt_happen_sheet.dart';
+ import 'package:bns/ui/widgets/bns_app_bar.dart';
+ import 'package:bns/ui/widgets/bns_desktop_shell.dart';
+ import 'package:bns/features/capture/quick_capture_screen.dart';
+@@ -165,8 +167,16 @@ final _router = GoRouter(
+       // THEIR person's day — a caregiver landing on their own empty Today
+       // was useless, and the routines that arrive by sync were never theirs
+       // to tick. Same app, same release: one build knows both hats.
+-      builder: (context, state) => _wrapForDesktop(
+-          context, const _HomeForThisDevice(), state.uri.toString()),
++      builder: (context, state) {
++        final q = state.uri.queryParameters;
++        return _wrapForDesktop(
++            context,
++            _HomeForThisDevice(
++              didntHappenRoutineId: q['didntHappen'],
++              didntHappenPlanId: q['didntHappenPlan'],
++            ),
++            state.uri.toString());
++      },
+     ),
+     GoRoute(
+       path: '/calendar',
+@@ -234,13 +244,22 @@ final _router = GoRouter(
+ /// this copy belongs to a helper — the day of the person they help.
+ /// Watches settings, so flipping the switch re-homes the app instantly.
+ class _HomeForThisDevice extends ConsumerWidget {
+-  const _HomeForThisDevice();
++  final String? didntHappenRoutineId;
++  final String? didntHappenPlanId;
++
++  const _HomeForThisDevice({
++    this.didntHappenRoutineId,
++    this.didntHappenPlanId,
++  });
+ 
+   @override
+   Widget build(BuildContext context, WidgetRef ref) {
+     final settings = ref.watch(settingsProvider).asData?.value;
+     if (settings?.caregiverDevice == true) return const CaregiverHomeScreen();
+-    return const TodayScreen();
++    return TodayScreen(
++      openDidntHappenRoutineId: didntHappenRoutineId,
++      openDidntHappenPlanId: didntHappenPlanId,
++    );
+   }
+ }
+ 
+@@ -566,7 +585,16 @@ class TodayHooks {
+ /// Positive, forgiving, linked to calendar and capture.
+ /// Confetti + skip-with-reason flow preserved.
+ class TodayScreen extends ConsumerStatefulWidget {
+-  const TodayScreen({super.key});
++  /// Shade «לא קרה — לספר למה» lands here and opens the miss sheet
++  /// so the why is written onto the skip, not a detached capture.
++  final String? openDidntHappenRoutineId;
++  final String? openDidntHappenPlanId;
++
++  const TodayScreen({
++    super.key,
++    this.openDidntHappenRoutineId,
++    this.openDidntHappenPlanId,
++  });
+ 
+   @override
+   ConsumerState<TodayScreen> createState() => _TodayScreenState();
+@@ -608,11 +636,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+   Map<String, int> _stepProgress = const {}; // routineId → parts done today
+   bool _nextFirstOrder = false; // false = morning→night (default)
+   bool _guidedMode = false; // level 4: only the list, inspector builds
++  // Thin "Just this one" walk — same open list as Next (plans included).
++  // Off by default; Close / Not now leaves no leftover state.
++  bool _walking = false;
+   String? _lastSyncLine; // cached "last synced" note (no per-frame queries)
+   // OWL TIME: the hour the person's day ends (0 = midnight). Everything
+   // "today" on this screen goes through these two, so a 02:00 pill at
+   // 01:30 still belongs to TONIGHT's list for a person with a 04:00 border.
+   int _rolloverHour = 0;
++  int _startHour = 0;
+ 
+   DateTime get _logicalToday => logicalDateOf(DateTime.now(), _rolloverHour);
+   String get _todayKey => logicalDayKey(DateTime.now(), _rolloverHour);
+@@ -628,6 +660,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+     TodayHooks.markNextDone = _markNextDone;
+     _loadUserAdapt();
+     _refreshDoneToday();
++    WidgetsBinding.instance.addPostFrameCallback((_) {
++      _maybeOpenShadeDidntHappen();
++    });
+     // Data can change UNDERNEATH this screen — a sync arriving, a .bns
+     // imported. The person must see it instantly; a restart-to-refresh is
+     // fine for a power user and impossible at level 4 (owner, 2026-08-10).
+@@ -650,6 +685,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+     // date "today" even is before anything else is fetched.
+     final settings = await IsarService.getSettings();
+     _rolloverHour = settings.dayRolloverHour;
++    _startHour = settings.dayStartHour;
+     final todayStr = _todayKey;
+     final logs = await IsarService.getLogsForDate(todayStr);
+     final trusted = await IsarService.getTrustedDevices();
+@@ -886,6 +922,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                 _showKeptWords(r.title, _keptByRoutine[r.id] ?? const []),
+             onToggle: () => _toggleComplete(r),
+             onSkip: () => _openDidntHappenSheet(r),
++            onLaterToday: (_guidedMode || r.time == null)
++                ? null
++                : (hhmm) => _postponeItem(r, hhmm),
++            rolloverHour: _rolloverHour,
++            startHour: _startHour,
++            dayKey: _todayKey,
+           ),
+         ));
+       } else if (item is CalendarEvent) {
+@@ -896,6 +938,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+             big: _guidedMode,
+             onToggle: () => _togglePlanDone(item),
+             onSkip: () => _openPlanDidntHappenSheet(item),
++            onLaterToday: (_guidedMode || item.time == null || item.isAllDay)
++                ? null
++                : (hhmm) => _postponeItem(item, hhmm),
++            rolloverHour: _rolloverHour,
++            startHour: _startHour,
+           ),
+         ));
+       }
+@@ -903,6 +950,69 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+     return tiles;
+   }
+ 
++  void _onOpenItemDone(Object item) {
++    if (item is Routine) {
++      _toggleComplete(item);
++    } else if (item is CalendarEvent) {
++      _togglePlanDone(item);
++    }
++  }
++
++  void _onOpenItemProblem(Object item) {
++    if (item is Routine) {
++      _openDidntHappenSheet(item);
++    } else if (item is CalendarEvent) {
++      _openPlanDidntHappenSheet(item);
++    }
++  }
++
++  Widget _nextHeroFor(Object hero, {required bool resuming}) {
++    final routine = hero is Routine ? hero : null;
++    final clock = dayItemTime(hero, dayKey: _todayKey);
++    return NextHeroCard(
++      item: hero,
++      textScale: _textScale,
++      resuming: resuming,
++      stepsDone: routine == null ? 0 : (_stepProgress[routine.id] ?? 0),
++      recentNote: routine == null ? null : _recentNoteText[routine.id],
++      onDone: () => _onOpenItemDone(hero),
++      onProblem: () => _onOpenItemProblem(hero),
++      onStepDone: routine != null && routine.steps.isNotEmpty
++          ? () => _advanceStep(routine)
++          : null,
++      onLaterToday: (_guidedMode || clock == null)
++          ? null
++          : (hhmm) => _postponeItem(hero, hhmm),
++      rolloverHour: _rolloverHour,
++      startHour: _startHour,
++      dayKey: _todayKey,
++    );
++  }
++
++  /// Still this day — a later clock. Not a skip. A recurring routine
++  /// keeps its usual time; only THIS logical day moves. A one-time
++  /// plan updates its own time (that visit is only today).
++  Future<void> _postponeItem(Object item, String newTime) async {
++    final now = DateTime.now();
++    if (!isLaterTodaySlot(newTime,
++        now: now, rolloverHour: _rolloverHour, startHour: _startHour)) {
++      if (!mounted) return;
++      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
++        content: Text(L.t('Nothing later left today. That\'s okay.',
++            'אין יותר שעות היום. זה בסדר.')),
++      ));
++      return;
++    }
++    if (item is Routine) {
++      await IsarService.updateRoutine(item.postponeOn(_todayKey, newTime));
++      ref.invalidate(routinesProvider);
++    } else if (item is CalendarEvent) {
++      await IsarService.updateEvent(item.copyWith(time: newTime));
++    }
++    await _refreshDoneToday();
++    AndroidBnsWidget.updateWidget();
++  }
++
+   Future<void> _toggleTodayOrder() async {
+     final s = await IsarService.getSettings();
+     final next = !_nextFirstOrder;
+@@ -919,14 +1029,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+   }
+ 
+   /// One more part of this routine handled — quiet micro-win. When the last
+-  /// part lands, the normal gentle "Is it done?" takes over.
++  /// part lands, the same quiet ✓ as a tap on Done (L4 may still ask).
+   Future<void> _advanceStep(Routine r) async {
+     final todayStr = _todayKey;
+     final done =
+         await IsarService.advanceStep(r.id, todayStr, r.steps.length);
+     await _refreshDoneToday();
+     if (done >= r.steps.length && mounted) {
+-      await _toggleComplete(r); // asks "Is it done?" — the person decides
++      await _toggleComplete(r);
+     }
+   }
+ 
+@@ -939,6 +1049,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+         _madActive = mad;
+         _guidedMode = s.guidedMode;
+         _rolloverHour = s.dayRolloverHour;
++        _startHour = s.dayStartHour;
+       });
+       // Reassurance, never alarm: every change was already saved as it
+       // happened, so an ungentle close costs nothing. Say so once.
+@@ -993,25 +1104,48 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+     );
+   }
+ 
+-  /// Complete the next unfinished routine (used by FAB and the mark_done keybind).
++  /// Complete whatever is Next — same item as the hero, same quiet ✓.
++  /// Used by the FAB and the mark_done keybind. Never walks away from Today.
+   Future<void> _markNextDone() async {
+     final today = _logicalToday;
+-    final todayStr = _todayKey;
+     final routines = await IsarService.getAllRoutines();
+     final todayR =
+         routines.where((r) => r.appliesOn(today) && r.isActive).toList();
+-    for (final r in todayR) {
+-      if (!await _isDoneToday(r.id, todayStr)) {
+-        await _toggleComplete(r);
++    final open = openDayItemsInNextOrder(
++      routines: todayR,
++      plans: _todayPlans,
++      doneRoutineIds: _doneTodayIds,
++      skippedRoutineIds: _skippedTodayIds,
++      now: DateTime.now(),
++      rolloverHour: _rolloverHour,
++    );
++    final started = open.whereType<Routine>().where((r) {
++      final n = _stepProgress[r.id] ?? 0;
++      return r.steps.isNotEmpty && n > 0 && n < r.steps.length;
++    }).toList();
++    final Object? next =
++        started.isNotEmpty ? started.first : (open.isNotEmpty ? open.first : null);
++    if (next == null) {
++      if (mounted) {
++        ScaffoldMessenger.of(context).showSnackBar(
++          SnackBar(
++              content: Text(L.t('Everything for today is already done. Amazing!',
++                  'כל מה שהיה להיום כבר נעשה. מדהים!'))),
++        );
++      }
++      return;
++    }
++    if (next is Routine) {
++      final n = _stepProgress[next.id] ?? 0;
++      if (next.steps.isNotEmpty && n < next.steps.length) {
++        await _advanceStep(next);
+         return;
+       }
++      await _toggleComplete(next);
++      return;
+     }
+-    if (mounted) {
+-      ScaffoldMessenger.of(context).showSnackBar(
+-        SnackBar(
+-            content: Text(L.t('Everything for today is already done. Amazing!',
+-                'כל מה שהיה להיום כבר נעשה. מדהים!'))),
+-      );
++    if (next is CalendarEvent) {
++      await _togglePlanDone(next);
+     }
+   }
+ 
+@@ -1054,96 +1188,98 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+     return KeyEventResult.ignored;
+   }
+ 
+-  /// The checkbox, with a gentle guard in BOTH directions (owner,
+-  /// 2026-07-08): a stray tap shouldn't fake a win, and a real ✓ must be
+-  /// takeable-back. Unchecking removes the log entirely — the day just has
+-  /// no answer again, it never secretly becomes a "skip".
++  /// The checkbox. L1–2: a tap IS the quiet ✓ — same tile, same clock
++  /// slot, no dialog, no navigation (owner, 2026-08-14: done = a quiet ✓,
++  /// never a follow-up question). L4 (guided) may still ask "Is it done?"
++  /// so the person and the inspector both see the acceptance.
++  /// Unchecking removes the log entirely — the day just has no answer
++  /// again, it never secretly becomes a "skip".
+   Future<void> _toggleComplete(Routine r) async {
+     final todayStr = _todayKey;
+     final isDone = await _isDoneToday(r.id, todayStr);
+     if (!mounted) return;
+ 
+-    if (!isDone) {
+-      // Consent over notes (owner, 2026-07-08): if the person wrote about a
+-      // problem with this one, checking done must show it — the note STAYS
+-      // kept either way; accepting done just stops today's reminding.
+-      final allCaptures = await IsarService.getAllCaptures();
+-      final problemNote = allCaptures
+-          .where((c) =>
+-              c.linkedRoutineId == r.id &&
+-              c.tags.contains('need-help') &&
+-              c.deletedAt == null)
+-          .fold<QuickCapture?>(
+-              null, (best, c) => best == null || c.at.isAfter(best.at) ? c : best);
+-      if (!mounted) return;
++    final settings = await IsarService.getSettings();
++    if (!mounted) return;
++    final ask = todayDoneNeedsConfirm(guidedMode: settings.guidedMode);
+ 
+-      final noteWords = problemNote?.text ?? problemNote?.contextNote ?? '';
+-      final sure = await showDialog<bool>(
+-        context: context,
+-        builder: (c) => AlertDialog(
+-          title: Text(r.title),
+-          content: problemNote == null
+-              ? Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿'))
+-              : Text(L.t(
+-                  'You wrote about this one:\n\n'
+-                      '“$noteWords”\n\n'
+-                      'The note stays kept either way. Done anyway?',
+-                  'כתבת על המשימה הזאת:\n\n'
+-                      '“$noteWords”\n\n'
+-                      'הפתק נשאר שמור בכל מקרה. לסמן שנעשה בכל זאת?')),
+-          actions: [
+-            TextButton(
+-                onPressed: () => Navigator.pop(c, false),
+-                child: Text(L.t('Not yet', 'עוד לא'))),
+-            FilledButton(
+-                onPressed: () => Navigator.pop(c, true),
+-                child: Text(problemNote == null
+-                    ? L.t('Done ✓', 'נעשה ✓')
+-                    : L.t('Yes — done, keep the note ✓',
+-                        'כן — נעשה, והפתק נשאר ✓'))),
+-          ],
+-        ),
+-      );
+-      if (sure != true) return;
++    if (!isDone) {
++      if (ask) {
++        // L4 only: gentle acceptance. Notes stay kept either way.
++        final allCaptures = await IsarService.getAllCaptures();
++        final problemNote = allCaptures
++            .where((c) =>
++                c.linkedRoutineId == r.id &&
++                c.tags.contains('need-help') &&
++                c.deletedAt == null)
++            .fold<QuickCapture?>(
++                null, (best, c) => best == null || c.at.isAfter(best.at) ? c : best);
++        if (!mounted) return;
++
++        final noteWords = problemNote?.text ?? problemNote?.contextNote ?? '';
++        final sure = await showDialog<bool>(
++          context: context,
++          builder: (c) => AlertDialog(
++            title: Text(r.title),
++            content: problemNote == null
++                ? Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿'))
++                : Text(L.t(
++                    'You wrote about this one:\n\n'
++                        '“$noteWords”\n\n'
++                        'The note stays kept either way. Done anyway?',
++                    'כתבת על המשימה הזאת:\n\n'
++                        '“$noteWords”\n\n'
++                        'הפתק נשאר שמור בכל מקרה. לסמן שנעשה בכל זאת?')),
++            actions: [
++              TextButton(
++                  onPressed: () => Navigator.pop(c, false),
++                  child: Text(L.t('Not yet', 'עוד לא'))),
++              FilledButton(
++                  onPressed: () => Navigator.pop(c, true),
++                  child: Text(problemNote == null
++                      ? L.t('Done ✓', 'נעשה ✓')
++                      : L.t('Yes — done, keep the note ✓',
++                          'כן — נעשה, והפתק נשאר ✓'))),
++            ],
++          ),
++        );
++        if (sure != true) return;
++      }
+       await IsarService.logCompletion(
+         routineId: r.id,
+         date: todayStr,
+         status: CompletionStatus.done,
+       );
+-      final settings = await IsarService.getSettings();
+       if (!settings.quietMode) {
+         _confetti.play();
+       }
+     } else {
+-      final takeBack = await showDialog<bool>(
+-        context: context,
+-        builder: (c) => AlertDialog(
+-          title: Text(r.title),
+-          content: Text(L.t('Take the ✓ back? That happens — no harm.',
+-              'להוריד את ה-✓? קורה — שום נזק.')),
+-          actions: [
+-            TextButton(
+-                onPressed: () => Navigator.pop(c, false),
+-                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
+-            FilledButton(
+-                onPressed: () => Navigator.pop(c, true),
+-                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
+-          ],
+-        ),
+-      );
+-      if (takeBack != true) return;
++      if (ask) {
++        final takeBack = await showDialog<bool>(
++          context: context,
++          builder: (c) => AlertDialog(
++            title: Text(r.title),
++            content: Text(L.t('Take the ✓ back? That happens — no harm.',
++                'להוריד את ה-✓? קורה — שום נזק.')),
++            actions: [
++              TextButton(
++                  onPressed: () => Navigator.pop(c, false),
++                  child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
++              FilledButton(
++                  onPressed: () => Navigator.pop(c, true),
++                  child: Text(L.t('Take it back', 'להוריד את הסימון'))),
++            ],
++          ),
++        );
++        if (takeBack != true) return;
++      }
+       await IsarService.removeCompletion(routineId: r.id, date: todayStr);
+     }
+ 
+-    // Refresh
++    // Stay on Today. The ✓ in place is the whole answer.
+     ref.invalidate(routinesProvider);
+     await _refreshDoneToday();
+-
+-    // Update Android widget (gadget) with fresh data
+     AndroidBnsWidget.updateWidget();
+-
+-    // The ✓ appearing (+ confetti unless quiet) IS the celebration.
+-    // No snackbar, no follow-up question — words live behind long-press.
+   }
+ 
+   Future<bool> _isDoneToday(String routineId, String date) async {
+@@ -1152,194 +1288,114 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+         (l) => l.routineId == routineId && l.status == CompletionStatus.done);
+   }
+ 
+-  /// Long-press = "it didn't happen" (owner, 2026-07-08). The checkbox is
+-  /// for done; THIS is for the problem: the person states it didn't happen
+-  /// and can write what got in the way — remembered, so it can get help.
+-  /// No Done button here; done lives on the checkbox where it belongs.
+-  /// Copy the newest linked note's words into today's skip record, so the
+-  /// why lives in the container of itself even when it was spoken on the
+-  /// capture screen a minute after the skip was logged.
+-  Future<void> _adoptReasonFromCapture(String routineId, String date) async {
+-    final captures = await IsarService.getAllCaptures();
+-    for (final c in captures) {
+-      // captures arrive newest-first
+-      if (c.linkedRoutineId != routineId) continue;
+-      final words = (c.text ?? c.transcript ?? c.contextNote ?? '').trim();
+-      if (words.isEmpty) continue;
+-      await IsarService.logCompletion(
+-        routineId: routineId,
+-        date: date,
+-        status: CompletionStatus.skipped,
+-        reason: words,
+-      );
+-      return;
++  /// Shade «לא קרה — לספר למה» opens the same miss sheet. The why is
++  /// written onto the skip here — not a detached capture on Memories.
++  bool _openedShadeDidntHappen = false;
++
++  Future<void> _maybeOpenShadeDidntHappen() async {
++    if (_openedShadeDidntHappen || !mounted) return;
++    final rid = widget.openDidntHappenRoutineId;
++    final pid = widget.openDidntHappenPlanId;
++    if (rid == null && pid == null) return;
++    _openedShadeDidntHappen = true;
++    if (rid != null) {
++      final routines = await IsarService.getAllRoutines();
++      Routine? r;
++      for (final x in routines) {
++        if (x.id == rid) {
++          r = x;
++          break;
++        }
++      }
++      if (r != null && mounted) await _openDidntHappenSheet(r);
++    } else if (pid != null) {
++      final events = await IsarService.getAllEvents();
++      CalendarEvent? plan;
++      for (final x in events) {
++        if (x.id == pid) {
++          plan = x;
++          break;
++        }
++      }
++      if (plan != null && mounted) await _openPlanDidntHappenSheet(plan);
+     }
++    if (mounted) context.go('/');
+   }
+ 
+-  void _openDidntHappenSheet(Routine r) {
++  /// Long-press = "it didn't happen" (owner, 2026-07-08). The checkbox is
++  /// for done; THIS is for the problem: the person states it didn't happen
++  /// and can write what got in the way — remembered, so it can get help.
++  /// Close / tap-out with those words logs the skip. Empty close is just
++  /// close. One door — the reason on the sheet IS the skip.
++  Future<void> _openDidntHappenSheet(Routine r) async {
++    if (!mounted) return;
+     final todayStr = _todayKey;
+-    final noteCtrl = TextEditingController();
+-    var noteSaved = false;
+-
+-    // ROBUST (owner, 2026-07-08): typed words are never lost — whichever
+-    // way the sheet closes (button, Close, tapping outside), a non-empty
+-    // note saves exactly once.
+-    Future<void> saveProblemNote() async {
+-      final text = noteCtrl.text.trim();
+-      if (text.isEmpty || noteSaved) return;
+-      noteSaved = true;
+-      await IsarService.addCapture(QuickCapture(
+-        id: '',
+-        at: DateTime.now(),
+-        text: text,
+-        linkedRoutineId: r.id,
+-        tags: const ['routine', 'need-help'],
+-        memoryLevel: MemoryLevel.remember,
+-        contextNote: L.t('What got in the way of: ${r.title}',
+-            'מה הפריע ל: ${r.title}'),
+-      ));
+-    }
+-
+-    showModalBottomSheet(
++    final result = await showDidntHappenSheet(
+       context: context,
+-      isScrollControlled: true,
+-      builder: (ctx) => Padding(
+-        padding: EdgeInsets.fromLTRB(
+-            24, 24, 24, 40 + MediaQuery.of(ctx).viewInsets.bottom),
+-        child: Column(
+-          mainAxisSize: MainAxisSize.min,
+-          crossAxisAlignment: CrossAxisAlignment.start,
+-          children: [
+-            Text(r.title,
+-                style: const TextStyle(
+-                    fontSize: 22, fontWeight: FontWeight.w600)),
+-            const SizedBox(height: 8),
+-            Text(L.t(
+-                'Didn\'t happen? That\'s okay. If something got in the way, '
+-                    'write it down — it will be remembered, so it can get help.',
+-                'לא קרה? זה בסדר גמור. אם משהו הפריע, אפשר לכתוב אותו כאן — '
+-                    'הוא ייזכר, כדי שיהיה אפשר לעזור.')),
+-            const SizedBox(height: 16),
+-            TextField(
+-              controller: noteCtrl,
+-              maxLines: 3,
+-              minLines: 1,
+-              autofocus: true,
+-              decoration: InputDecoration(
+-                hintText: L.t(
+-                    'What got in the way? (tap the mic to speak)',
+-                    'מה הפריע? (הקשה על המיקרופון כדי לדבר)'),
+-                border: const OutlineInputBorder(),
+-                // STT on every comment (wave 12): long-press is level 4's
+-                // main problem door — typing alone is not enough.
+-                suffixIcon: DictationMicButton(controller: noteCtrl),
+-              ),
+-            ),
+-            const SizedBox(height: 12),
+-            QuickCaptureBar(
+-              onTap: () async {
+-                // The skip is logged BEFORE wandering into capture — the
+-                // "didn't happen" must never depend on finishing a note.
+-                await saveProblemNote();
+-                await IsarService.logCompletion(
+-                  routineId: r.id,
+-                  date: todayStr,
+-                  status: CompletionStatus.skipped,
+-                  reason: noteCtrl.text.trim().isEmpty
+-                      ? null
+-                      : noteCtrl.text.trim(),
+-                );
+-                if (ctx.mounted) Navigator.pop(ctx);
+-                if (!mounted) return;
+-                await context.push('/capture', extra: {
+-                  'linkedRoutineId': r.id,
+-                  'tags': ['need-help'],
+-                });
+-                // The words said INSIDE capture belong to the skip too
+-                // (owner, 2026-07-26: the reason came back empty because it
+-                // was written before the person had spoken). Re-read the
+-                // newest linked note and put its words in the record.
+-                await _adoptReasonFromCapture(r.id, todayStr);
+-                ref.invalidate(routinesProvider);
+-                await _refreshDoneToday();
+-              },
+-            ),
+-            const SizedBox(height: 16),
+-            FilledButton(
+-              onPressed: () async {
+-                await saveProblemNote();
+-                if (ctx.mounted) Navigator.pop(ctx);
+-                // The why lives IN the skip record itself (owner,
+-                // 2026-07-26: "written in the container of itself") — not
+-                // only in a linked note that might wander or be deleted.
+-                await IsarService.logCompletion(
+-                  routineId: r.id,
+-                  date: todayStr,
+-                  status: CompletionStatus.skipped,
+-                  reason: noteCtrl.text.trim().isEmpty
+-                      ? null
+-                      : noteCtrl.text.trim(),
+-                );
+-                ref.invalidate(routinesProvider);
+-                await _refreshDoneToday();
+-              },
+-              child: Text(L.t('It didn\'t happen today', 'זה לא קרה היום')),
+-            ),
+-            const SizedBox(height: 8),
+-            Center(
+-              child: TextButton(
+-                onPressed: () => Navigator.pop(ctx),
+-                child: Text(L.t('Close', 'סגירה')),
+-              ),
+-            ),
+-          ],
+-        ),
+-      ),
+-      // However the sheet closes, typed words are kept.
+-    ).whenComplete(saveProblemNote);
++      title: r.title,
++      confirmLabel: L.t('It didn\'t happen today', 'זה לא קרה היום'),
++    );
++    if (!result.skipped) return;
++    await IsarService.logCompletion(
++      routineId: r.id,
++      date: todayStr,
++      status: CompletionStatus.skipped,
++      reason: result.reason,
++    );
++    if (!mounted) return;
++    ref.invalidate(routinesProvider);
++    await _refreshDoneToday();
+   }
+ 
+-  /// A plan's checkbox — the same gentle guard in both directions as a
+-  /// routine's: a stray tap must not fake a win, a real ✓ stays takeable-back.
++  /// A plan's checkbox — same quiet ✓ as a routine. L1–2: tap is the
++  /// answer, stay on Today. L4 may still ask. Uncheck clears the answer
++  /// (never a silent flip to skipped).
+   Future<void> _togglePlanDone(CalendarEvent plan) async {
++    final settings = await IsarService.getSettings();
++    if (!mounted) return;
++    final ask = todayDoneNeedsConfirm(guidedMode: settings.guidedMode);
++
+     if (!plan.isDone) {
+-      final sure = await showDialog<bool>(
+-        context: context,
+-        builder: (c) => AlertDialog(
+-          title: Text(plan.title),
+-          content: Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿')),
+-          actions: [
+-            TextButton(
+-                onPressed: () => Navigator.pop(c, false),
+-                child: Text(L.t('Not yet', 'עוד לא'))),
+-            FilledButton(
+-                onPressed: () => Navigator.pop(c, true),
+-                child: Text(L.t('Done ✓', 'נעשה ✓'))),
+-          ],
+-        ),
+-      );
+-      if (sure != true) return;
++      if (ask) {
++        final sure = await showDialog<bool>(
++          context: context,
++          builder: (c) => AlertDialog(
++            title: Text(plan.title),
++            content: Text(L.t('Is it done? 🌿', 'זה נעשה? 🌿')),
++            actions: [
++              TextButton(
++                  onPressed: () => Navigator.pop(c, false),
++                  child: Text(L.t('Not yet', 'עוד לא'))),
++              FilledButton(
++                  onPressed: () => Navigator.pop(c, true),
++                  child: Text(L.t('Done ✓', 'נעשה ✓'))),
++            ],
++          ),
++        );
++        if (sure != true) return;
++      }
+       await IsarService.answerEvent(plan.id, 'done');
+-      final settings = await IsarService.getSettings();
+       if (!settings.quietMode) _confetti.play();
+     } else {
+-      final takeBack = await showDialog<bool>(
+-        context: context,
+-        builder: (c) => AlertDialog(
+-          title: Text(plan.title),
+-          content: Text(L.t('Take the ✓ back? That happens — no harm.',
+-              'להוריד את ה-✓? קורה — שום נזק.')),
+-          actions: [
+-            TextButton(
+-                onPressed: () => Navigator.pop(c, false),
+-                child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
+-            FilledButton(
+-                onPressed: () => Navigator.pop(c, true),
+-                child: Text(L.t('Take it back', 'להוריד את הסימון'))),
+-          ],
+-        ),
+-      );
+-      if (takeBack != true) return;
++      if (ask) {
++        final takeBack = await showDialog<bool>(
++          context: context,
++          builder: (c) => AlertDialog(
++            title: Text(plan.title),
++            content: Text(L.t('Take the ✓ back? That happens — no harm.',
++                'להוריד את ה-✓? קורה — שום נזק.')),
++            actions: [
++              TextButton(
++                  onPressed: () => Navigator.pop(c, false),
++                  child: Text(L.t('Keep it done', 'להשאיר שנעשה'))),
++              FilledButton(
++                  onPressed: () => Navigator.pop(c, true),
++                  child: Text(L.t('Take it back', 'להוריד את הסימון'))),
++            ],
++          ),
++        );
++        if (takeBack != true) return;
++      }
+       await IsarService.answerEvent(plan.id, null);
+     }
+     await _refreshDoneToday();
+@@ -1347,64 +1403,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+   }
+ 
+   /// Long-press on a plan = "it didn't happen" — same kind door as
+-  /// routines: state it, optionally say what got in the way, kept forever.
+-  void _openPlanDidntHappenSheet(CalendarEvent plan) {
+-    final noteCtrl = TextEditingController(text: plan.answerReason ?? '');
+-    showModalBottomSheet(
++  /// routines. Close with words logs the skip. Empty close does not.
++  Future<void> _openPlanDidntHappenSheet(CalendarEvent plan) async {
++    if (!mounted) return;
++    final result = await showDidntHappenSheet(
+       context: context,
+-      isScrollControlled: true,
+-      builder: (ctx) => Padding(
+-        padding: EdgeInsets.fromLTRB(
+-            24, 24, 24, 40 + MediaQuery.of(ctx).viewInsets.bottom),
+-        child: Column(
+-          mainAxisSize: MainAxisSize.min,
+-          crossAxisAlignment: CrossAxisAlignment.start,
+-          children: [
+-            Text(plan.title,
+-                style: const TextStyle(
+-                    fontSize: 22, fontWeight: FontWeight.w600)),
+-            const SizedBox(height: 8),
+-            Text(L.t(
+-                'Didn\'t happen? That\'s okay — plans move. If something got '
+-                    'in the way, write it down so it can get help.',
+-                'לא קרה? זה בסדר — תוכניות זזות. אם משהו הפריע, אפשר לכתוב '
+-                    'אותו כאן כדי שיהיה אפשר לעזור.')),
+-            const SizedBox(height: 16),
+-            TextField(
+-              controller: noteCtrl,
+-              maxLines: 3,
+-              minLines: 1,
+-              autofocus: true,
+-              decoration: InputDecoration(
+-                hintText: L.t('What got in the way? (tap the mic to speak)',
+-                    'מה הפריע? (הקשה על המיקרופון כדי לדבר)'),
+-                border: const OutlineInputBorder(),
+-                suffixIcon: DictationMicButton(controller: noteCtrl),
+-              ),
+-            ),
+-            const SizedBox(height: 16),
+-            FilledButton(
+-              onPressed: () async {
+-                if (ctx.mounted) Navigator.pop(ctx);
+-                await IsarService.answerEvent(plan.id, 'skipped',
+-                    reason: noteCtrl.text.trim().isEmpty
+-                        ? null
+-                        : noteCtrl.text.trim());
+-                await _refreshDoneToday();
+-              },
+-              child: Text(L.t('It didn\'t happen', 'זה לא קרה')),
+-            ),
+-            const SizedBox(height: 8),
+-            Center(
+-              child: TextButton(
+-                onPressed: () => Navigator.pop(ctx),
+-                child: Text(L.t('Close', 'סגירה')),
+-              ),
+-            ),
+-          ],
+-        ),
+-      ),
++      title: plan.title,
++      body: L.t(
++          'Didn\'t happen? That\'s okay — plans move. If something got '
++          'in the way, write it down so it can get help.',
++          'לא קרה? זה בסדר — תוכניות זזות. אם משהו הפריע, אפשר לכתוב '
++          'אותו כאן כדי שיהיה אפשר לעזור.'),
++      confirmLabel: L.t('It didn\'t happen', 'זה לא קרה'),
++      initialReason: plan.answerReason ?? '',
+     );
++    if (!result.skipped) return;
++    await IsarService.answerEvent(plan.id, 'skipped', reason: result.reason);
++    if (!mounted) return;
++    await _refreshDoneToday();
+   }
+ 
+   /// A one-time thing lands in today without touching routines (owner,
+@@ -1794,7 +1810,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                               _skippedTodayIds.contains(item.id)) {
+                             continue;
+                           }
+-                          t = item.time;
++                          t = item.timeOn(_todayKey);
+                         } else if (item is CalendarEvent) {
+                           if (item.isAnswered || item.isAllDay) continue;
+                           t = item.time;
+@@ -1812,27 +1828,33 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+ 
+                       // Hero always uses clock "what's next" order — the
+                       // list below can still follow the person's preference.
+-                      final openNext = openRoutinesInNextOrder(
+-                        todays: todaysRoutines,
+-                        doneIds: _doneTodayIds,
+-                        skippedIds: _skippedTodayIds,
++                      // Plans stand here too (owner, 2026-08-15): a 10:00
++                      // doctor visit can be Next, same as a routine.
++                      final openNext = openDayItemsInNextOrder(
++                        routines: todaysRoutines,
++                        plans: _todayPlans,
++                        doneRoutineIds: _doneTodayIds,
++                        skippedRoutineIds: _skippedTodayIds,
++                        now: DateTime.now(),
++                        rolloverHour: _rolloverHour,
+                       );
+                       // ALWAYS RETURN: something already started outranks
+                       // the clock. Half-done work is the easiest thing in
+                       // the world to lose and the hardest to come back to —
+                       // so the app carries the place, not the person.
+-                      final started = openNext.where((r) {
++                      final started = openNext.whereType<Routine>().where((r) {
+                         final done = _stepProgress[r.id] ?? 0;
+                         return r.steps.isNotEmpty &&
+                             done > 0 &&
+                             done < r.steps.length;
+                       }).toList();
+-                      final hero = started.isNotEmpty
++                      final Object? hero = started.isNotEmpty
+                           ? started.first
+                           : (openNext.isNotEmpty ? openNext.first : null);
+                       final resuming = started.isNotEmpty;
+                       final coming = openNext
+-                          .where((r) => r.id != hero?.id)
++                          .where((item) =>
++                              hero == null || dayItemId(item) != dayItemId(hero))
+                           .take(2)
+                           .toList();
+ 
+@@ -1873,7 +1895,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                           // Waking mid-day: one warm line of orientation.
+                           // Earlier things are OPEN, not missed — late is
+                           // fully fine, and saying "didn't happen" counts.
+-                          if (openFromEarlier >= 2) ...[
++                          if (openFromEarlier >= 2 && !_walking) ...[
+                             Card(
+                               color: Theme.of(context)
+                                   .colorScheme
+@@ -1903,21 +1925,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                             ),
+                             const SizedBox(height: 16),
+                           ],
++                          // Thin walk: one open item, same card, same
++                          // done/skip paths. No list staring back.
++                          if (_walking) ...[
++                            if (hero != null)
++                              _nextHeroFor(hero, resuming: resuming)
++                            else
++                              DayClearCard(
++                                  guided: _guidedMode, textScale: _textScale),
++                            const SizedBox(height: 16),
++                            TextButton(
++                              onPressed: () =>
++                                  setState(() => _walking = false),
++                              style: TextButton.styleFrom(
++                                minimumSize: const Size.fromHeight(48),
++                              ),
++                              child: Text(L.t('Not now', 'לא עכשיו')),
++                            ),
++                          ] else ...[
+                           // —— NEXT HERO (clean, big, one job) ——
+                           if (hero != null)
+-                            NextHeroCard(
+-                              routine: hero,
+-                              textScale: _textScale,
+-                              resuming: resuming,
+-                              stepsDone: _stepProgress[hero.id] ?? 0,
+-                              recentNote: _recentNoteText[hero.id],
+-                              onDone: () => _toggleComplete(hero),
+-                              onProblem: () =>
+-                                  _openDidntHappenSheet(hero),
+-                              onStepDone: hero.steps.isNotEmpty
+-                                  ? () => _advanceStep(hero)
+-                                  : null,
+-                            )
++                            _nextHeroFor(hero, resuming: resuming)
+                           else
+                             DayClearCard(
+                                 guided: _guidedMode, textScale: _textScale),
+@@ -1927,14 +1955,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                             ComingUpStrip(
+                               textScale: _textScale,
+                               items: coming
+-                                  .map((r) => (
+-                                        routine: r,
+-                                        timeLabel: r.time,
++                                  .map((item) => (
++                                        title: dayItemTitle(item),
++                                        timeLabel: dayItemTime(item, dayKey: _todayKey),
++                                        isPlan: item is CalendarEvent,
+                                       ))
+                                   .toList(),
+                             ),
+                           ],
+ 
++                          if (!_guidedMode && hero != null) ...[
++                            const SizedBox(height: 12),
++                            OutlinedButton(
++                              onPressed: () =>
++                                  setState(() => _walking = true),
++                              style: OutlinedButton.styleFrom(
++                                minimumSize: const Size.fromHeight(48),
++                              ),
++                              child: Text(L.t('Just this one', 'רק את זה')),
++                            ),
++                          ],
++
+                           const SizedBox(height: 28),
+                           Text(
+                               L.t('Today\'s gentle steps',
+@@ -2016,6 +2057,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                               ],
+                             ),
+                           ),
++                          ],
+                         ],
+                       );
+                     },
+@@ -2025,13 +2067,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                         Text(L.t('Error loading: $e', 'שגיאה בטעינה: $e')),
+                   ),
+ 
+-                  const SizedBox(height: 24),
++                  if (!_walking) const SizedBox(height: 24),
+ 
+                   // Today's storms, kept — "what I got mad at this day",
+                   // said sweetly and revisitable at the end of the rows, so
+                   // it can be told to the right person when things are calm
+                   // ("I didn't remember who tells me what").
+-                  if (_madToday.isNotEmpty) ...[
++                  if (_madToday.isNotEmpty && !_walking) ...[
+                     Card(
+                       child: ListTile(
+                         leading: Icon(Icons.air,
+@@ -2056,7 +2098,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                   // somewhere. A thought saved and then invisible is the
+                   // same as a thought lost (owner QA, 2026-08-14: "I give
+                   // text and voices to the void").
+-                  if (_recentKept.isNotEmpty && !_guidedMode) ...[
++                  if (_recentKept.isNotEmpty && !_guidedMode && !_walking) ...[
+                     KeptMemoriesStrip(memories: _recentKept),
+                     const SizedBox(height: 24),
+                   ],
+@@ -2065,7 +2107,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                   // (Copy is for the person, never for the developer.)
+                   // Guided mode (level 4): no building, no diary box —
+                   // only the list; words go through long-press or capture.
+-                  if (!_guidedMode) ...[
++                  if (!_guidedMode && !_walking) ...[
+                     Text(L.t('Diary', 'יומן'),
+                         style: Theme.of(context).textTheme.titleMedium),
+                     const SizedBox(height: 8),
+@@ -2105,6 +2147,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                     ),
+                   ],
+ 
++                  if (!_walking) ...[
+                   const SizedBox(height: 24),
+                   QuickCaptureBar(
+                     onTap: () async {
+@@ -2177,12 +2220,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+                     ),
+                   ],
+ 
+-                  // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26):
+-                  // the floating ✓ button used to sit ON the last button
+-                  // (Memory section) — unreadable, untappable. The list now
+-                  // ends with clear air taller than the button, so every
+-                  // last control scrolls fully past it.
+-                  const SizedBox(height: 100),
++                  ],
++                  // TODAY NEVER HIDES ITSELF (owner's phone, 2026-07-26 /
++                  // leftover-actions, 2026-08-17): the floating ✓ must not
++                  // sit on skip / later-today / leftover tiles. Clear air
++                  // taller than the labeled FAB so every last control
++                  // scrolls fully past it.
++                  const SizedBox(height: 160),
+                 ],
+               ),
+             ),
+@@ -2207,7 +2251,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
+       ),
+       // Shorter words on the floating button (owner's phone, 2026-07-26):
+       // the long label made a WIDE pill that sat on top of the last row.
+-      floatingActionButton: FloatingActionButton.extended(
++      floatingActionButton: _walking
++          ? null
++          : FloatingActionButton.extended(
+         onPressed: _markNextDone,
+         label: Text(L.t('Mark next ✓', 'לסמן את הבא ✓')),
+         icon: const Icon(Icons.check_rounded),
+diff --git a/lib/platform/android_widget.dart b/lib/platform/android_widget.dart
+index 2944263..cb8f3a1 100644
+--- a/lib/platform/android_widget.dart
++++ b/lib/platform/android_widget.dart
+@@ -58,7 +58,8 @@ class AndroidBnsWidget {
+ 
+       final missionLines = todayRoutines.map((r) {
+         final mark = handledIds.contains(r.id) ? '✓ ' : '• ';
+-        final time = r.time != null ? '  (${r.time})' : '';
++        final clock = r.timeOn(todayStr);
++        final time = clock != null ? '  ($clock)' : '';
+         return '$mark${r.title}$time';
+       }).join('\n');
+ 
+diff --git a/lib/services/desktop_reminder_service.dart b/lib/services/desktop_reminder_service.dart
+index e7fd79e..1300db0 100644
+--- a/lib/services/desktop_reminder_service.dart
++++ b/lib/services/desktop_reminder_service.dart
+@@ -63,8 +63,14 @@ class DesktopReminderService {
+     for (final r in routines) {
+       if (!r.appliesOn(logicalDay) || r.time == null) continue;
+       if (answered.contains(r.id)) continue;
+-      final at = _timeOn(now, r.time!);
+-      if (at == null || !_inWindow(now, at)) continue;
++      final hhmm = r.timeOn(todayStr);
++      if (hhmm == null) continue;
++      final hm = hhmm.split(':');
++      final h = int.tryParse(hm[0]);
++      final m = hm.length > 1 ? int.tryParse(hm[1]) : null;
++      if (h == null || m == null) continue;
++      final at = actualMomentOf(logicalDay, h, m, rollover);
++      if (!_inWindow(now, at)) continue;
+       final key = '$todayStr|r|${r.id}';
+       if (!_fired.add(key)) continue;
+       _show(
+@@ -105,15 +111,6 @@ class DesktopReminderService {
+   static bool _inWindow(DateTime now, DateTime at) =>
+       !now.isBefore(at) && now.isBefore(at.add(_window));
+ 
+-  static DateTime? _timeOn(DateTime day, String hhmm) {
+-    final parts = hhmm.split(':');
+-    if (parts.length < 2) return null;
+-    final h = int.tryParse(parts[0]);
+-    final m = int.tryParse(parts[1]);
+-    if (h == null || m == null) return null;
+-    return DateTime(day.year, day.month, day.day, h, m);
+-  }
+-
+   static void _show(AppSettings settings, String text,
+       {required String route}) {
+     final messenger = messengerKey.currentState;
+diff --git a/lib/services/notifications_service.dart b/lib/services/notifications_service.dart
+index 9d35d4b..9f44333 100644
+--- a/lib/services/notifications_service.dart
++++ b/lib/services/notifications_service.dart
+@@ -1,12 +1,12 @@
+ import 'dart:async';
+ import 'dart:io' show Platform;
+ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+-import 'package:timezone/timezone.dart' as tz;
+-import 'package:timezone/data/latest.dart' as tzdata;
++import 'package:flutter_timezone/flutter_timezone.dart';
+ import 'package:bns/core/i18n/l.dart';
+ import 'package:bns/core/models/models.dart';
+ import 'package:bns/core/owl_time.dart';
+ import 'package:bns/core/reminder_plan.dart';
++import 'package:bns/core/reminder_timezone.dart';
+ import 'package:bns/data/local/isar_service.dart';
+ import 'package:bns/platform/android_widget.dart';
+ import 'package:bns/ui/theme.dart';
+@@ -37,7 +37,10 @@ class NotificationsService {
+   static Future<void> init() async {
+     if (_initialized || !_supported) return;
+ 
+-    tzdata.initializeTimeZones();
++    // Bind tz.local to the phone's clock (whatever zone the system is in)
++    // BEFORE any zonedSchedule. The timezone package defaults to UTC —
++    // that was the shifted-fire bug. Never a hardcoded city.
++    await _bindDeviceTimezone();
+ 
+     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+     const darwin = DarwinInitializationSettings(
+@@ -92,10 +95,9 @@ class NotificationsService {
+       return;
+     }
+     if (actionId == 'bns_why') {
+-      // Saying "didn't happen" is a decision — a win. The skip is logged
+-      // and the kind door opens for the why (voice first), exactly like
+-      // the in-app sheet. Closing without a word is always allowed.
+-      await _answerFromShade(payload, done: false);
++      // Do not log a blank skip here. The miss sheet is the skip —
++      // typed why + Close becomes the reason. Empty close is no skip.
++      // Going to /capture used to leave the words on Memories instead.
+       onOpen?.call(whyRouteForReminderPayload(payload));
+       return;
+     }
+@@ -139,6 +141,19 @@ class NotificationsService {
+     await rescheduleAll(force: true);
+   }
+ 
++  /// Bind [tz.local] to the phone's clock — whatever IANA zone the
++  /// system is in. Failures fall back to the process timezone
++  /// abbreviation so a missing plugin never kills reminders — they
++  /// may then use a fixed offset, not UTC. Never a hardcoded city.
++  static Future<void> _bindDeviceTimezone() async {
++    try {
++      final info = await FlutterTimezone.getLocalTimezone();
++      applyDeviceTimezone(info.identifier);
++    } catch (_) {
++      applyDeviceTimezone(DateTime.now().timeZoneName);
++    }
++  }
++
+   /// Cancel all (used for settings toggle)
+   static Future<void> cancelAll() async {
+     if (!_initialized) return;
+@@ -166,8 +181,8 @@ class NotificationsService {
+     final events = await IsarService.getAllEvents();
+     final now = DateTime.now();
+ 
+-    final fingerprint = reminderFingerprint(
+-        routines: routines, events: events, settings: settings, now: now);
++    final fingerprint =
++        '${reminderFingerprint(routines: routines, events: events, settings: settings, now: now)}|tz:${currentReminderTimezoneName()}';
+     if (!force && fingerprint == _lastFingerprint) return;
+ 
+     final plan = planReminders(
+@@ -182,7 +197,10 @@ class NotificationsService {
+           p.id,
+           p.title,
+           p.body,
+-          tz.TZDateTime.from(p.firstAt, tz.local),
++          // Wall-clock on the phone's clock (whatever zone the system
++          // is in), not TZDateTime.from(..., UTC) — that was the
++          // shifted fire.
++          zonedFromWallClock(p.firstAt),
+           _detailsFor(settings, p),
+           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+           uiLocalNotificationDateInterpretation:
+diff --git a/lib/ui/widgets/next_hero_card.dart b/lib/ui/widgets/next_hero_card.dart
+index c01689c..76b0638 100644
+--- a/lib/ui/widgets/next_hero_card.dart
++++ b/lib/ui/widgets/next_hero_card.dart
+@@ -1,6 +1,9 @@
+ import 'package:flutter/material.dart';
++import 'package:bns/core/day_items.dart';
+ import 'package:bns/core/i18n/l.dart';
++import 'package:bns/core/models/calendar_event.dart';
+ import 'package:bns/core/models/routine.dart';
++import 'package:bns/ui/widgets/later_today_door.dart';
+ 
+ /// Big, calm "what's next" for Today.
+ ///
+@@ -9,13 +12,22 @@ import 'package:bns/core/models/routine.dart';
+ /// primaryContainer surface, large type, two clear actions (done / problem).
+ /// No stickers, no badges, no motion.
+ class NextHeroCard extends StatelessWidget {
+-  final Routine routine;
++  /// A [Routine] or a [CalendarEvent] (a plan). Plans stand here the
++  /// same as routines — a 10:00 doctor visit can be Next.
++  final Object item;
+   final int stepsDone;
+   final String? helpingNote;
+   final String? recentNote;
+   final VoidCallback onDone;
+   final VoidCallback onProblem;
+   final VoidCallback? onStepDone;
++  /// Later today — still this day, a later clock. Null hides the door
++  /// (guided / no time / already answered).
++  final ValueChanged<String>? onLaterToday;
++  final int rolloverHour;
++  final int startHour;
++  final String? dayKey;
++  final DateTime? now;
+   final double textScale;
+ 
+   /// This one was already STARTED and left in the middle (owner, 2026-07-29:
+@@ -27,13 +39,18 @@ class NextHeroCard extends StatelessWidget {
+ 
+   const NextHeroCard({
+     super.key,
+-    required this.routine,
++    required this.item,
+     required this.onDone,
+     required this.onProblem,
+     this.stepsDone = 0,
+     this.helpingNote,
+     this.recentNote,
+     this.onStepDone,
++    this.onLaterToday,
++    this.rolloverHour = 0,
++    this.startHour = 0,
++    this.dayKey,
++    this.now,
+     this.textScale = 1.0,
+     this.resuming = false,
+   });
+@@ -41,12 +58,22 @@ class NextHeroCard extends StatelessWidget {
+   @override
+   Widget build(BuildContext context) {
+     final cs = Theme.of(context).colorScheme;
+-    final time = routine.time;
+-    final hasParts = routine.steps.isNotEmpty &&
+-        stepsDone < routine.steps.length;
+-    final nextPart = hasParts ? routine.steps[stepsDone] : null;
++    final routine = item is Routine ? item as Routine : null;
++    final plan = item is CalendarEvent ? item as CalendarEvent : null;
++    final time = routine != null
++        ? routine.timeOn(dayKey)
++        : (plan != null && !plan.isAllDay ? plan.time : null);
++    final title = routine?.title ?? plan?.title ?? '';
++    final hasParts = routine != null &&
++        routine.steps.isNotEmpty &&
++        stepsDone < routine!.steps.length;
++    final nextPart = hasParts ? routine!.steps[stepsDone] : null;
+     final partNote = nextPart?.note?.trim();
+-    final help = (helpingNote ?? partNote ?? routine.description)?.trim();
++    final help = (helpingNote ??
++            partNote ??
++            routine?.description ??
++            plan?.notes)
++        ?.trim();
+ 
+     return Card(
+       elevation: 0,
+@@ -93,8 +120,20 @@ class NextHeroCard extends StatelessWidget {
+                   color: cs.onPrimaryContainer.withValues(alpha: 0.8),
+                 ),
+               ),
++            if (plan != null)
++              Padding(
++                padding: const EdgeInsets.only(bottom: 2),
++                child: Text(
++                  L.t('A plan', 'תוכנית'),
++                  style: TextStyle(
++                    fontSize: 13 * textScale,
++                    fontWeight: FontWeight.w600,
++                    color: cs.onPrimaryContainer.withValues(alpha: 0.7),
++                  ),
++                ),
++              ),
+             Text(
+-              routine.title,
++              title,
+               style: TextStyle(
+                 fontSize: 26 * textScale,
+                 fontWeight: FontWeight.w700,
+@@ -106,8 +145,8 @@ class NextHeroCard extends StatelessWidget {
+               const SizedBox(height: 8),
+               Text(
+                 L.t(
+-                    'Part ${stepsDone + 1} of ${routine.steps.length}: ${nextPart.title}',
+-                    'חלק ${stepsDone + 1} מתוך ${routine.steps.length}: ${nextPart.title}'),
++                    'Part ${stepsDone + 1} of ${routine!.steps.length}: ${nextPart.title}',
++                    'חלק ${stepsDone + 1} מתוך ${routine!.steps.length}: ${nextPart.title}'),
+                 style: TextStyle(
+                   fontSize: 16 * textScale,
+                   fontWeight: FontWeight.w600,
+@@ -182,6 +221,17 @@ class NextHeroCard extends StatelessWidget {
+                 style: TextStyle(fontSize: 15 * textScale),
+               ),
+             ),
++            if (onLaterToday != null && time != null) ...[
++              const SizedBox(height: 8),
++              LaterTodayDoor(
++                now: now ?? DateTime.now(),
++                rolloverHour: rolloverHour,
++                startHour: startHour,
++                onPicked: onLaterToday!,
++                textScale: textScale,
++                onHero: true,
++              ),
++            ],
+           ],
+         ),
+       ),
+@@ -191,7 +241,7 @@ class NextHeroCard extends StatelessWidget {
+ 
+ /// Quiet list of the next few after the hero — not competing with Next.
+ class ComingUpStrip extends StatelessWidget {
+-  final List<({Routine routine, String? timeLabel})> items;
++  final List<({String title, String? timeLabel, bool isPlan})> items;
+   final double textScale;
+ 
+   const ComingUpStrip({
+@@ -238,7 +288,9 @@ class ComingUpStrip extends StatelessWidget {
+                 ],
+                 Expanded(
+                   child: Text(
+-                    item.routine.title,
++                    item.isPlan
++                        ? L.t('${item.title} · a plan', '${item.title} · תוכנית')
++                        : item.title,
+                     style: TextStyle(
+                       fontSize: 16 * textScale,
+                       color: cs.onSurface,
+@@ -255,33 +307,24 @@ class ComingUpStrip extends StatelessWidget {
+ }
+ 
+ /// Pick open (not done, not skipped) routines in "what's next" clock order.
++///
++/// Thin wrapper over [openDayItemsInNextOrder] (routines only). Prefer that
++/// helper when plans must stand too — Next and Coming up use it.
+ List<Routine> openRoutinesInNextOrder({
+   required List<Routine> todays,
+   required Set<String> doneIds,
+   required Set<String> skippedIds,
+   DateTime? now,
++  int rolloverHour = 0,
+ }) {
+-  final n = now ?? DateTime.now();
+-  final nowMin = n.hour * 60 + n.minute;
+-
+-  int minutes(Routine r) {
+-    if (r.time == null) return 24 * 60;
+-    final p = r.time!.split(':');
+-    return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+-  }
+-
+-  final open = todays
+-      .where((r) => !doneIds.contains(r.id) && !skippedIds.contains(r.id))
+-      .toList();
+-
+-  open.sort((a, b) {
+-    final am = minutes(a), bm = minutes(b);
+-    int rank(int m) => m >= 24 * 60 ? 2 : (m >= nowMin ? 0 : 1);
+-    final ra = rank(am), rb = rank(bm);
+-    if (ra != rb) return ra.compareTo(rb);
+-    return am.compareTo(bm);
+-  });
+-  return open;
++  return openDayItemsInNextOrder(
++    routines: todays,
++    plans: const [],
++    doneRoutineIds: doneIds,
++    skippedRoutineIds: skippedIds,
++    now: now ?? DateTime.now(),
++    rolloverHour: rolloverHour,
++  ).whereType<Routine>().toList();
+ }
+ 
+ /// Gentle empty hero when the open list is empty.
+diff --git a/lib/ui/widgets/plan_tile.dart b/lib/ui/widgets/plan_tile.dart
+index 69808c5..94dff18 100644
+--- a/lib/ui/widgets/plan_tile.dart
++++ b/lib/ui/widgets/plan_tile.dart
+@@ -1,6 +1,7 @@
+ import 'package:flutter/material.dart';
+ import 'package:bns/core/i18n/l.dart';
+ import 'package:bns/core/models/calendar_event.dart';
++import 'package:bns/ui/widgets/later_today_door.dart';
+ 
+ /// A PLAN standing in the day (owner, 2026-08-09): a doctor appointment, a
+ /// one-time thing — not a routine, but today it carries the same weight as
+@@ -12,6 +13,11 @@ class PlanTile extends StatelessWidget {
+   final VoidCallback onToggle;
+   final VoidCallback onSkip;
+   final bool big;
++  /// Later today — still this day, a later clock. Null hides the door.
++  final ValueChanged<String>? onLaterToday;
++  final int rolloverHour;
++  final int startHour;
++  final DateTime? now;
+ 
+   const PlanTile({
+     super.key,
+@@ -19,6 +25,10 @@ class PlanTile extends StatelessWidget {
+     required this.onToggle,
+     required this.onSkip,
+     this.big = false,
++    this.onLaterToday,
++    this.rolloverHour = 0,
++    this.startHour = 0,
++    this.now,
+   });
+ 
+   @override
+@@ -26,8 +36,16 @@ class PlanTile extends StatelessWidget {
+     final colorScheme = Theme.of(context).colorScheme;
+     final isDone = plan.isDone;
+ 
++    final showLater = onLaterToday != null &&
++        !plan.isAnswered &&
++        !plan.isAllDay &&
++        plan.time != null;
++
+     return Card(
+-      child: InkWell(
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.stretch,
++        children: [
++      InkWell(
+         onTap: onToggle,
+         onLongPress: onSkip,
+         borderRadius: BorderRadius.circular(20),
+@@ -130,6 +148,18 @@ class PlanTile extends StatelessWidget {
+           ),
+         ),
+       ),
++        if (showLater)
++          Padding(
++            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
++            child: LaterTodayDoor(
++              now: now ?? DateTime.now(),
++              rolloverHour: rolloverHour,
++              startHour: startHour,
++              onPicked: onLaterToday!,
++            ),
++          ),
++        ],
++      ),
+     );
+   }
+ }
+diff --git a/lib/ui/widgets/routine_tile.dart b/lib/ui/widgets/routine_tile.dart
+index 997e7e2..ce2241e 100644
+--- a/lib/ui/widgets/routine_tile.dart
++++ b/lib/ui/widgets/routine_tile.dart
+@@ -3,6 +3,7 @@ import 'package:bns/core/i18n/l.dart';
+ import 'package:bns/core/models/routine.dart';
+ import 'package:bns/core/utils/recurrence.dart';
+ import 'package:bns/services/tts_service.dart';
++import 'package:bns/ui/widgets/later_today_door.dart';
+ 
+ /// Reusable tile for routines — a CHECKBOX row (owner, 2026-07-08: "V is
+ /// for checkboxes"). Tap anywhere ticks the box; long-press is only for
+@@ -30,6 +31,12 @@ class RoutineTile extends StatelessWidget {
+   // How many things were told about this one TODAY.
+   final int keptCount;
+   final VoidCallback? onShowKept;
++  /// Later today — still this day, a later clock. Null hides the door.
++  final ValueChanged<String>? onLaterToday;
++  final int rolloverHour;
++  final int startHour;
++  final String? dayKey;
++  final DateTime? now;
+ 
+   const RoutineTile({
+     super.key,
+@@ -46,6 +53,11 @@ class RoutineTile extends StatelessWidget {
+     this.recentNoteWhen,
+     this.keptCount = 0,
+     this.onShowKept,
++    this.onLaterToday,
++    this.rolloverHour = 0,
++    this.startHour = 0,
++    this.dayKey,
++    this.now,
+   });
+ 
+   @override
+@@ -59,6 +71,11 @@ class RoutineTile extends StatelessWidget {
+         ? Border.all(color: primary.withOpacity(0.5), width: 1.5)
+         : null;
+ 
++    final showLater = onLaterToday != null &&
++        !isDone &&
++        !skippedToday &&
++        routine.time != null;
++
+     return Card(
+       color: cardColor,
+       shape: border != null
+@@ -67,7 +84,10 @@ class RoutineTile extends StatelessWidget {
+               side: border.top, // reuse for all sides
+             )
+           : null,
+-      child: InkWell(
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.stretch,
++        children: [
++      InkWell(
+         onTap: onToggle,
+         onLongPress: onSkip,
+         borderRadius: BorderRadius.circular(20),
+@@ -108,7 +128,7 @@ class RoutineTile extends StatelessWidget {
+                     ),
+                     const SizedBox(height: 2),
+                     Text(
+-                      RecurrenceUtils.describe(routine),
++                      RecurrenceUtils.describe(routine, dayKey: dayKey),
+                       style: TextStyle(
+                         fontSize: 13,
+                         color: colorScheme.onSurfaceVariant,
+@@ -255,6 +275,18 @@ class RoutineTile extends StatelessWidget {
+           ),
+         ),
+       ),
++        if (showLater)
++          Padding(
++            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
++            child: LaterTodayDoor(
++              now: now ?? DateTime.now(),
++              rolloverHour: rolloverHour,
++              startHour: startHour,
++              onPicked: onLaterToday!,
++            ),
++          ),
++        ],
++      ),
+     );
+   }
+ }
+diff --git a/linux/flutter/generated_plugin_registrant.cc b/linux/flutter/generated_plugin_registrant.cc
+index 145c9eb..676f0a1 100644
+--- a/linux/flutter/generated_plugin_registrant.cc
++++ b/linux/flutter/generated_plugin_registrant.cc
+@@ -7,12 +7,16 @@
+ #include "generated_plugin_registrant.h"
+ 
+ #include <audioplayers_linux/audioplayers_linux_plugin.h>
++#include <flutter_timezone/flutter_timezone_plugin.h>
+ #include <record_linux/record_linux_plugin.h>
+ 
+ void fl_register_plugins(FlPluginRegistry* registry) {
+   g_autoptr(FlPluginRegistrar) audioplayers_linux_registrar =
+       fl_plugin_registry_get_registrar_for_plugin(registry, "AudioplayersLinuxPlugin");
+   audioplayers_linux_plugin_register_with_registrar(audioplayers_linux_registrar);
++  g_autoptr(FlPluginRegistrar) flutter_timezone_registrar =
++      fl_plugin_registry_get_registrar_for_plugin(registry, "FlutterTimezonePlugin");
++  flutter_timezone_plugin_register_with_registrar(flutter_timezone_registrar);
+   g_autoptr(FlPluginRegistrar) record_linux_registrar =
+       fl_plugin_registry_get_registrar_for_plugin(registry, "RecordLinuxPlugin");
+   record_linux_plugin_register_with_registrar(record_linux_registrar);
+diff --git a/linux/flutter/generated_plugins.cmake b/linux/flutter/generated_plugins.cmake
+index 1bc58dd..fe7ceff 100644
+--- a/linux/flutter/generated_plugins.cmake
++++ b/linux/flutter/generated_plugins.cmake
+@@ -4,6 +4,7 @@
+ 
+ list(APPEND FLUTTER_PLUGIN_LIST
+   audioplayers_linux
++  flutter_timezone
+   record_linux
+ )
+ 
+diff --git a/macos/Flutter/GeneratedPluginRegistrant.swift b/macos/Flutter/GeneratedPluginRegistrant.swift
+index b1c911f..8b8ac5d 100644
+--- a/macos/Flutter/GeneratedPluginRegistrant.swift
++++ b/macos/Flutter/GeneratedPluginRegistrant.swift
+@@ -8,6 +8,7 @@ import Foundation
+ import audioplayers_darwin
+ import file_picker
+ import flutter_local_notifications
++import flutter_timezone
+ import flutter_tts
+ import path_provider_foundation
+ import record_macos
+@@ -17,6 +18,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+   AudioplayersDarwinPlugin.register(with: registry.registrar(forPlugin: "AudioplayersDarwinPlugin"))
+   FilePickerPlugin.register(with: registry.registrar(forPlugin: "FilePickerPlugin"))
+   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
++  FlutterTimezonePlugin.register(with: registry.registrar(forPlugin: "FlutterTimezonePlugin"))
+   FlutterTtsPlugin.register(with: registry.registrar(forPlugin: "FlutterTtsPlugin"))
+   PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
+   RecordMacOsPlugin.register(with: registry.registrar(forPlugin: "RecordMacOsPlugin"))
+diff --git a/pubspec.lock b/pubspec.lock
+index d557e67..ab8ba02 100644
+--- a/pubspec.lock
++++ b/pubspec.lock
+@@ -185,6 +185,14 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "5.0.3"
++  equatable:
++    dependency: transitive
++    description:
++      name: equatable
++      sha256: "3bce007a596ff8b3119c45d68aaef631272537c03d30e5d4534dd24bf4c5eaa2"
++      url: "https://pub.dev"
++    source: hosted
++    version: "2.1.0"
+   fake_async:
+     dependency: transitive
+     description:
+@@ -296,6 +304,14 @@ packages:
+     description: flutter
+     source: sdk
+     version: "0.0.0"
++  flutter_timezone:
++    dependency: "direct main"
++    description:
++      name: flutter_timezone
++      sha256: "869677426fde92dbe170fb7d2d4929f2a8343c2f5f62f08b0bb64f908630b073"
++      url: "https://pub.dev"
++    source: hosted
++    version: "5.1.0"
+   flutter_tts:
+     dependency: "direct main"
+     description:
+diff --git a/pubspec.yaml b/pubspec.yaml
+index 578d3c0..305c054 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -39,6 +39,10 @@ dependencies:
+   # Reminders & notifications (not supported on Windows — guarded in code)
+   flutter_local_notifications: ^17.2.1
+   timezone: ^0.9.4
++  # Device IANA name so zonedSchedule uses the phone's clock, not UTC.
++  # 5.1.0 applies kotlin-android when Flutter 3.44 leaves
++  # android.builtInKotlin=false (same AGP 9 ladder as the rest).
++  flutter_timezone: ^5.1.0
+ 
+   # Voice quick capture
+   # 6.x is the newest line compatible with the legacy-Kotlin Gradle path (see file_picker note)
+diff --git a/test/day_items_test.dart b/test/day_items_test.dart
+index 6483a57..5b97336 100644
+--- a/test/day_items_test.dart
++++ b/test/day_items_test.dart
+@@ -93,4 +93,121 @@ void main() {
+     expect(reopened.isAnswered, isFalse);
+     expect(reopened.answerReason, isNull);
+   });
++
++  test('a 10:00 plan is Next at 09:00 — doctor visits stand in the hero', () {
++    final open = openDayItemsInNextOrder(
++      routines: [r('pills', '08:00')],
++      plans: [p('doc', '10:00')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 9, 9, 0),
++    );
++    // Upcoming first: 10:00 doctor, then the leftover 08:00 pills.
++    expect(ids(open), 'doc,pills');
++    expect(open.first, isA<CalendarEvent>());
++    expect(dayItemTitle(open.first), 'P doc');
++  });
++
++  test('answered plan leaves the next open item as Next', () {
++    final before = openDayItemsInNextOrder(
++      routines: [r('eve', '18:00')],
++      plans: [p('doc', '10:00')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 9, 9, 0),
++    );
++    expect(ids(before), 'doc,eve');
++
++    final afterDone = openDayItemsInNextOrder(
++      routines: [r('eve', '18:00')],
++      plans: [p('doc', '10:00', answer: 'done')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 9, 9, 0),
++    );
++    expect(ids(afterDone), 'eve');
++
++    final afterSkip = openDayItemsInNextOrder(
++      routines: [r('eve', '18:00')],
++      plans: [p('doc', '10:00', answer: 'skipped')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 9, 9, 0),
++    );
++    expect(ids(afterSkip), 'eve');
++  });
++
++  test('owl-time: 02:00 plan at 01:30 with border 04:00 is still tonight and Next',
++      () {
++    final open = openDayItemsInNextOrder(
++      routines: [r('wind', '23:00')],
++      plans: [p('night-pills', '02:00')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 10, 1, 30),
++      rolloverHour: 4,
++    );
++    // 02:00 is still upcoming tonight; 23:00 already passed this night.
++    expect(ids(open), 'night-pills,wind');
++    expect(open.first, isA<CalendarEvent>());
++  });
++
++  test('Coming up after Next includes the next open plan', () {
++    final open = openDayItemsInNextOrder(
++      routines: [r('soon', '09:30')],
++      plans: [p('doc', '10:00'), p('errand', '16:00')],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 8, 9, 9, 0),
++    );
++    expect(ids(open), 'soon,doc,errand');
++    final hero = open.first;
++    final coming = open.skip(1).take(2).toList();
++    expect(dayItemId(hero), 'soon');
++    expect(coming.map(dayItemId).toList(), ['doc', 'errand']);
++    expect(coming.first, isA<CalendarEvent>());
++  });
++
++  test('L1 done does not require a dialog; only guided (L4) may ask', () {
++    expect(todayDoneNeedsConfirm(guidedMode: false), isFalse);
++    expect(todayDoneNeedsConfirm(guidedMode: true), isTrue);
++  });
++
++  test(
++      'a done 08:00 at 20:30 stays in the morning slot — it is not Next',
++      () {
++    final morning = r('pills', '08:00');
++    final eve = r('eve', '21:00');
++    final now = DateTime(2026, 8, 9, 20, 30);
++
++    final before = weaveDayList(
++      routines: [morning, eve],
++      plans: const [],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      nextFirst: false,
++      now: now,
++    );
++    final after = weaveDayList(
++      routines: [morning, eve],
++      plans: const [],
++      doneRoutineIds: {'pills'},
++      skippedRoutineIds: const {},
++      nextFirst: false,
++      now: now,
++    );
++    expect(ids(before), 'pills,eve');
++    expect(ids(after), ids(before),
++        reason: 'answering must not move the morning tile');
++
++    final open = openDayItemsInNextOrder(
++      routines: [morning, eve],
++      plans: const [],
++      doneRoutineIds: {'pills'},
++      skippedRoutineIds: const {},
++      now: now,
++    );
++    expect(ids(open), 'eve',
++        reason: 'a done 08:00 is a quiet ✓ in place, never Next at 20:30');
++  });
+ }
+diff --git a/test/next_order_test.dart b/test/next_order_test.dart
+index aa2d77b..8d170ba 100644
+--- a/test/next_order_test.dart
++++ b/test/next_order_test.dart
+@@ -1,5 +1,7 @@
+ import 'package:flutter_test/flutter_test.dart';
+ import 'package:bns/core/models/routine.dart';
++import 'package:bns/core/day_items.dart';
++import 'package:bns/core/models/calendar_event.dart';
+ import 'package:bns/ui/widgets/next_hero_card.dart';
+ 
+ void main() {
+@@ -45,4 +47,27 @@ void main() {
+     );
+     expect(open.single.id, 'b');
+   });
++
++  test('a plan can be Next — the filter no longer drops calendar events', () {
++    final now = DateTime(2026, 7, 27, 9, 0);
++    final open = openDayItemsInNextOrder(
++      routines: [r('a', '18:00', 'Evening')],
++      plans: [
++        CalendarEvent(
++          id: 'doc',
++          title: 'Doctor',
++          date: '2026-07-27',
++          time: '10:00',
++          createdAt: DateTime(2026, 7, 1),
++          updatedAt: DateTime(2026, 7, 1),
++        ),
++      ],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: now,
++    );
++    expect(open, isNotEmpty);
++    expect(open.first, isA<CalendarEvent>());
++    expect((open.first as CalendarEvent).title, 'Doctor');
++  });
+ }
+diff --git a/test/owl_time_test.dart b/test/owl_time_test.dart
+index cd36329..94a3649 100644
+--- a/test/owl_time_test.dart
++++ b/test/owl_time_test.dart
+@@ -202,4 +202,34 @@ void main() {
+           0);
+     });
+   });
++
++  group('person-day entity — start 15:00 / end 05:00', () {
++    test('02:00 after a 15:00 start is still this day', () {
++      expect(logicalDateOf(DateTime(2026, 8, 10, 2, 0), 5),
++          DateTime(2026, 8, 9));
++      expect(
++        personDayStart(DateTime(2026, 8, 10, 2, 0), 15, 5),
++        DateTime(2026, 8, 9, 15),
++      );
++    });
++
++    test('06:00 after a 05:00 end is the next day', () {
++      expect(logicalDateOf(DateTime(2026, 8, 10, 6, 0), 5),
++          DateTime(2026, 8, 10));
++      expect(
++        personDayStart(DateTime(2026, 8, 10, 6, 0), 15, 5),
++        DateTime(2026, 8, 10, 15),
++      );
++    });
++
++    test('dayStartHour roundtrips and clamps to 0..23', () {
++      final s = const AppSettings().copyWith(dayStartHour: 15);
++      expect(AppSettings.fromJson(s.toJson()).dayStartHour, 15);
++      expect(
++          AppSettings.fromJson(const {'id': 'singleton', 'dayStartHour': 30})
++              .dayStartHour,
++          23);
++      expect(AppSettings.fromJson(const {'id': 'singleton'}).dayStartHour, 0);
++    });
++  });
+ }
+diff --git a/test/reminder_plan_test.dart b/test/reminder_plan_test.dart
+index 8c1b618..dc900cc 100644
+--- a/test/reminder_plan_test.dart
++++ b/test/reminder_plan_test.dart
+@@ -231,6 +231,17 @@ void main() {
+     });
+   });
+ 
++  group('whyRouteForReminderPayload — shade tell-why', () {
++    test('lands on Today miss sheet, never /capture', () {
++      expect(whyRouteForReminderPayload('routine:a'), '/?didntHappen=a');
++      expect(whyRouteForReminderPayload('event:e1:2026-08-08'),
++          '/?didntHappenPlan=e1');
++      expect(whyRouteForReminderPayload(null), '/');
++      expect(whyRouteForReminderPayload('junk'), '/');
++      expect(whyRouteForReminderPayload('routine:a'), isNot(contains('/capture')));
++    });
++  });
++
+   group('AppSettings reminder fields', () {
+     test('roundtrip via JSON keeps the choices', () {
+       final s = settings.copyWith(
+diff --git a/test/today_order_test.dart b/test/today_order_test.dart
+index 0a5da68..1a4c101 100644
+--- a/test/today_order_test.dart
++++ b/test/today_order_test.dart
+@@ -1,5 +1,11 @@
++import 'package:flutter/material.dart';
+ import 'package:flutter_test/flutter_test.dart';
++import 'package:bns/core/i18n/l.dart';
++import 'package:bns/ui/widgets/routine_tile.dart';
++import 'package:bns/ui/widgets/plan_tile.dart';
+ 
++import 'package:bns/core/day_items.dart';
++import 'package:bns/core/models/calendar_event.dart';
+ import 'package:bns/core/models/routine.dart';
+ import 'package:bns/ui/widgets/next_hero_card.dart';
+ 
+@@ -93,4 +99,94 @@ void main() {
+     expect(hero.id, 'n',
+         reason: 'half-done bedtime comes back on top, not the 07:00 task');
+   });
++
++  test('a 10:00 plan is Next at 09:00 — same clock as routines', () {
++    final open = openDayItemsInNextOrder(
++      routines: [morning],
++      plans: [
++        CalendarEvent(
++          id: 'doc',
++          title: 'רופא',
++          date: '2026-07-29',
++          time: '10:00',
++          createdAt: DateTime(2026, 7, 29),
++          updatedAt: DateTime(2026, 7, 29),
++        ),
++      ],
++      doneRoutineIds: const {},
++      skippedRoutineIds: const {},
++      now: DateTime(2026, 7, 29, 9, 0),
++    );
++    expect(open.first, isA<CalendarEvent>());
++    expect((open.first as CalendarEvent).id, 'doc');
++  });
++
++
++  testWidgets('L1 Next Done is a quiet tap — no dialog, stays on the card',
++      (tester) async {
++    L.lang = 'he';
++    var tapped = false;
++    await tester.pumpWidget(MaterialApp(
++      home: Scaffold(
++        body: NextHeroCard(
++          item: morning,
++          onDone: () => tapped = true,
++          onProblem: () {},
++        ),
++      ),
++    ));
++    await tester.tap(find.text('בוצע'));
++    await tester.pump();
++    expect(tapped, isTrue);
++    expect(find.byType(AlertDialog), findsNothing);
++    expect(find.text('זה נעשה? 🌿'), findsNothing);
++    expect(find.text('Is it done? 🌿'), findsNothing);
++  });
++
++  testWidgets('L1 routine tile Done is a quiet tap — no dialog', (tester) async {
++    L.lang = 'he';
++    var tapped = false;
++    await tester.pumpWidget(MaterialApp(
++      home: Scaffold(
++        body: RoutineTile(
++          routine: morning,
++          isDone: false,
++          onToggle: () => tapped = true,
++          onSkip: () {},
++        ),
++      ),
++    ));
++    await tester.tap(find.text('תרופות הבוקר'));
++    await tester.pump();
++    expect(tapped, isTrue);
++    expect(find.byType(AlertDialog), findsNothing);
++    expect(find.text('זה נעשה? 🌿'), findsNothing);
++  });
++
++  testWidgets('L1 plan tile Done is a quiet tap — no dialog', (tester) async {
++    L.lang = 'he';
++    var tapped = false;
++    final plan = CalendarEvent(
++      id: 'doc',
++      title: 'רופא',
++      date: '2026-07-29',
++      time: '10:00',
++      createdAt: DateTime(2026, 7, 29),
++      updatedAt: DateTime(2026, 7, 29),
++    );
++    await tester.pumpWidget(MaterialApp(
++      home: Scaffold(
++        body: PlanTile(
++          plan: plan,
++          onToggle: () => tapped = true,
++          onSkip: () {},
++        ),
++      ),
++    ));
++    await tester.tap(find.text('רופא'));
++    await tester.pump();
++    expect(tapped, isTrue);
++    expect(find.byType(AlertDialog), findsNothing);
++    expect(find.text('זה נעשה? 🌿'), findsNothing);
++  });
+ }
+diff --git a/windows/flutter/generated_plugin_registrant.cc b/windows/flutter/generated_plugin_registrant.cc
+index 8e37668..521770d 100644
+--- a/windows/flutter/generated_plugin_registrant.cc
++++ b/windows/flutter/generated_plugin_registrant.cc
+@@ -7,6 +7,7 @@
+ #include "generated_plugin_registrant.h"
+ 
+ #include <audioplayers_windows/audioplayers_windows_plugin.h>
++#include <flutter_timezone/flutter_timezone_plugin_c_api.h>
+ #include <flutter_tts/flutter_tts_plugin.h>
+ #include <permission_handler_windows/permission_handler_windows_plugin.h>
+ #include <record_windows/record_windows_plugin_c_api.h>
+@@ -15,6 +16,8 @@
+ void RegisterPlugins(flutter::PluginRegistry* registry) {
+   AudioplayersWindowsPluginRegisterWithRegistrar(
+       registry->GetRegistrarForPlugin("AudioplayersWindowsPlugin"));
++  FlutterTimezonePluginCApiRegisterWithRegistrar(
++      registry->GetRegistrarForPlugin("FlutterTimezonePluginCApi"));
+   FlutterTtsPluginRegisterWithRegistrar(
+       registry->GetRegistrarForPlugin("FlutterTtsPlugin"));
+   PermissionHandlerWindowsPluginRegisterWithRegistrar(
+diff --git a/windows/flutter/generated_plugins.cmake b/windows/flutter/generated_plugins.cmake
+index 033f168..7de0b5d 100644
+--- a/windows/flutter/generated_plugins.cmake
++++ b/windows/flutter/generated_plugins.cmake
+@@ -4,6 +4,7 @@
+ 
+ list(APPEND FLUTTER_PLUGIN_LIST
+   audioplayers_windows
++  flutter_timezone
+   flutter_tts
+   permission_handler_windows
+   record_windows

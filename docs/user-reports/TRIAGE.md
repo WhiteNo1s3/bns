@@ -925,3 +925,9 @@ kill-first works). **S23 NOT installed — the phone was unplugged when the
 build landed** (deploy-all said so; adb devices empty). The APK waits at
 dist/BNS-android-v0.17a.apk (built from 0.17.1+11); one `adb install -r`
 with the cable in, then dumpsys must say versionCode=11.
+
+**Phone proof landed (2026-08-21, cable in):** `adb install -r` Success →
+dumpsys **versionName=0.17.1 / versionCode=11** on the S23, data kept. The
+nine mouths and the take-queue are in the owner's hand. Next lived:
+speak a routine's name in the editor; speak twice fast in capture and
+watch «עוד כותבים את המילים הקודמות» instead of a frozen mic.

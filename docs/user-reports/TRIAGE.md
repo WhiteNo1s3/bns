@@ -963,3 +963,11 @@ sandbox denies, both stores written at launch. Personas and seats that
 remember `~/dev/gBNS/.l2-test`: it is `~/dev/bns/.l2-test` now
 (breadcrumb left behind). gBNS/ and grokBNS/ now hold nothing the loop
 uses — archive/delete is the owner's word.
+
+### The clean (owner: "remove them... you can clean it also", 2026-08-21)
+
+Forks gBNS/grokBNS + gBNS.zip → Trash (history on GitHub; what we read
+from them archived in docs/user-reports/forks-archive/). dist/ trimmed to
+0.17a + 0.18a. `flutter clean` done (build/ 7.6 GB gone), deps restored,
+tests run. The SDK stays. ~/dev now holds bns alone (plus unrelated
+projects). Emptying the Trash is the owner's hand.

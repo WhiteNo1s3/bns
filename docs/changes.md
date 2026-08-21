@@ -282,3 +282,22 @@ harness copies), and real clutter. The clutter went:
 - Left alone on purpose: gBNS/ and grokBNS/ (nothing we use lives there
   now — archive or delete is the owner's word), `flutter clean` (~11 GB
   reclaimable, at the price of one slow rebuild).
+
+## 2026-08-21 — The clean: the forks retired, the build residue gone
+
+Owner: "the folders and files that are not needed lets remove them...
+if its old cache needs refresh at some point its nothing for me to
+rebuild you can clean it also."
+
+- **gBNS/ and grokBNS/ (+ gBNS.zip) retired** — both remotes are
+  github.com/WhiteNo1s3/grokBNS, so their committed history lives on;
+  what the loop ever read from them (the Prototyper's iterate list with
+  Eagered's notes, the seat files, the fork changelog) and each fork's
+  uncommitted work as a text patch sit in docs/user-reports/forks-archive/.
+  The trees went to the Trash (recoverable until the owner empties it) —
+  not hard-deleted.
+- **dist/ keeps only the living wave and the one before** (0.17a, 0.18a);
+  0.11–0.16 artifacts went to the Trash too.
+- **`flutter clean`** — build/ (7.6 GB) and .dart_tool/ gone; `pub get`
+  restored the deps; tests run. The Flutter SDK itself
+  (/opt/homebrew/share/flutter) stays — it is the toolchain, not cache.

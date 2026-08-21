@@ -27,6 +27,7 @@ import 'package:bns/services/whisper_ear.dart';
 import 'package:bns/services/whisper_service.dart';
 import 'package:bns/ui/theme.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:path/path.dart' as path_util;
 import 'package:path_provider/path_provider.dart';
 import 'package:bns/ui/snack.dart';
@@ -1680,6 +1681,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                   labelText: L.t('Name people see',
                                       'השם שאנשים רואים'),
                                   hintText: L.t('e.g. Yossi', 'למשל: יוסי'),
+                                  suffixIcon:
+                                      DictationMicButton(controller: ctrl),
                                 ),
                               ),
                               actions: [
@@ -1687,8 +1690,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                     onPressed: () => Navigator.pop(c),
                                     child: Text(L.t('Cancel', 'ביטול'))),
                                 FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(c, ctrl.text),
+                                    onPressed: () async {
+                                      // A spoken name still being written
+                                      // lands first (the skip-why lesson).
+                                      await DictationMicButton.settle(ctrl);
+                                      if (c.mounted) Navigator.pop(c, ctrl.text);
+                                    },
                                     child: Text(L.t('Save', 'שמירה'))),
                               ],
                             ),
@@ -1731,14 +1738,20 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                   onSubmitted: (v) => Navigator.pop(c, v),
                                   decoration: InputDecoration(
                                       labelText:
-                                          L.t('Device name', 'שם המכשיר'))),
+                                          L.t('Device name', 'שם המכשיר'),
+                                      suffixIcon:
+                                          DictationMicButton(controller: ctrl))),
                               actions: [
                                 TextButton(
                                     onPressed: () => Navigator.pop(c),
                                     child: Text(L.t('Cancel', 'ביטול'))),
                                 FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(c, ctrl.text),
+                                    onPressed: () async {
+                                      // A spoken name still being written
+                                      // lands first (the skip-why lesson).
+                                      await DictationMicButton.settle(ctrl);
+                                      if (c.mounted) Navigator.pop(c, ctrl.text);
+                                    },
                                     child: Text(L.t('Save', 'שמירה'))),
                               ],
                             ),

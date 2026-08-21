@@ -7,6 +7,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/audio_playback_service.dart';
 import 'package:bns/services/tts_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/snack.dart';
 
 /// The day-as-diary thread: everything said and done on one day, morning → night.
@@ -43,6 +44,12 @@ class _DayThreadScreenState extends State<DayThreadScreen> {
     _date = _parseDate(widget.initialDate) ?? DateTime.now();
     _date = DateTime(_date.year, _date.month, _date.day);
     _load();
+    // A dictated word must search too (STT everywhere): listen to the
+    // controller, not only to keystrokes.
+    _searchCtrl.addListener(() {
+      if (_query == _searchCtrl.text || !mounted) return;
+      setState(() => _query = _searchCtrl.text);
+    });
   }
 
   @override
@@ -285,6 +292,7 @@ class _DayThreadScreenState extends State<DayThreadScreen> {
                           'Search words, reasons, plans…',
                           'חיפוש מילים, סיבות, תוכניות…'),
                       prefixIcon: const Icon(Icons.search),
+                      suffixIcon: DictationMicButton(controller: _searchCtrl),
                       border: const OutlineInputBorder(),
                       isDense: true,
                     ),

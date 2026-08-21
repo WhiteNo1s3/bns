@@ -213,3 +213,21 @@ The night's leftovers, worked in order:
   the switcher; sync frozen until L1 clean).
 
 Tests 357.
+
+## 2026-08-20 — STT everywhere, for real: the nine fields that had no mouth
+
+Owner: "did we take the android advice and use sst like in android in
+all the applications?" Audit answer: not yet — every field a person
+writes in was supposed to wear the mic (the STT-everywhere law), and
+nine did not. Now they do, through the one DictationMicButton / Ear /
+VoiceTake mouth: the ROUTINES EDITOR (title, description, every step's
+title and note — the biggest hole: you could not speak a routine's
+name), the capture room's context field, the two search boxes (memories
+«למצוא זיכרון…», day-thread «חיפוש מילים…» — wired through controller
+listeners so a dictated word actually searches), and the sync screen's
+share-name and device-name dialogs. Every one of their saves settles the
+mic first (the skip-why lesson).
+
+Deliberately still without a mic: the three caregiver-password fields
+(obscured), the numeric pairing code, and the two typed-confirmation
+gates («מקלידים את שם השיתוף») — deliberate typing IS their point.

@@ -448,6 +448,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
     // A field dictation still being written lands first — Save must
     // never beat the ear to the words (the skip-why lesson).
     await DictationMicButton.settle(_textController);
+    await DictationMicButton.settle(_contextController);
     final text = _textController.text.trim();
     if (text.isEmpty && _takes.isEmpty) {
       _leaveWithoutSaving();
@@ -801,6 +802,7 @@ class _QuickCaptureScreenState extends State<QuickCaptureScreen> {
                   labelText: L.t('What was around it? (context)',
                       'מה היה מסביב? (הקשר)'),
                   border: const OutlineInputBorder(),
+                  suffixIcon: DictationMicButton(controller: _contextController),
                 ),
               ),
             ],

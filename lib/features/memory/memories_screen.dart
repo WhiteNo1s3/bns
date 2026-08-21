@@ -9,6 +9,7 @@ import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/features/capture/quick_capture_screen.dart';
 import 'package:bns/features/memory/memory_view_screen.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/snack.dart';
 
 /// The person's kept thoughts — every recording and note they saved.
@@ -29,6 +30,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   bool _loading = true;
   bool _showTrash = false;
   bool _showSearch = false;
+  final _searchCtrl = TextEditingController();
 
   /// "Show me the hard ones" — one chosen mark narrows the list.
   /// Null = every memory. Canonical keys from [flairTagsOf].
@@ -40,11 +42,19 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     super.initState();
     _load();
     IsarService.dataRevision.addListener(_onData);
+    // The search box listens to its controller, not only to typing — a
+    // dictated word must search too (STT everywhere).
+    _searchCtrl.addListener(() {
+      if (_search == _searchCtrl.text) return;
+      _search = _searchCtrl.text;
+      _apply();
+    });
   }
 
   @override
   void dispose() {
     IsarService.dataRevision.removeListener(_onData);
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -172,10 +182,12 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: TextField(
+                      controller: _searchCtrl,
                       autofocus: true,
                       decoration: InputDecoration(
                         hintText: L.t('Find a memory…', 'למצוא זיכרון…'),
                         prefixIcon: const Icon(Icons.search),
+                        suffixIcon: DictationMicButton(controller: _searchCtrl),
                         border: const OutlineInputBorder(),
                       ),
                       onChanged: (val) {
@@ -223,6 +235,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                     _showSearch = !_showSearch;
                                     if (!_showSearch) {
                                       _search = '';
+                                      _searchCtrl.clear();
                                       _apply();
                                     }
                                   }),

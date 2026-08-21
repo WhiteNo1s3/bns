@@ -6,6 +6,7 @@ import 'package:bns/core/models/models.dart';
 import 'package:bns/core/utils/recurrence.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/ui/widgets/bns_app_bar.dart';
+import 'package:bns/ui/widgets/dictation_mic_button.dart';
 import 'package:bns/ui/snack.dart';
 
 /// Dedicated screen for managing all routines (CRUD).
@@ -413,7 +414,15 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
+    // Spoken words still being written land first (the skip-why lesson):
+    // Save must never beat the ear to a name or a step.
+    await DictationMicButton.settle(_titleController);
+    await DictationMicButton.settle(_descController);
+    for (final c in [..._stepTitles, ..._stepNotes]) {
+      await DictationMicButton.settle(c);
+    }
+    if (!mounted) return;
     if (_titleController.text.trim().isEmpty) {
       BnsSnack.show(context, 
         SnackBar(
@@ -495,6 +504,9 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                 labelText: L.t('Title (keep it short and kind)',
                     'כותרת (קצרה ונעימה)'),
                 border: const OutlineInputBorder(),
+                // STT EVERYWHERE (owner): every field a person writes in
+                // can be spoken into — a routine's name included.
+                suffixIcon: DictationMicButton(controller: _titleController),
               ),
             ),
             const SizedBox(height: 12),
@@ -506,6 +518,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                     'Description (optional – helps when memory is fuzzy)',
                     'תיאור (לא חובה – עוזר כשהזיכרון מעורפל)'),
                 border: const OutlineInputBorder(),
+                suffixIcon: DictationMicButton(controller: _descController),
               ),
             ),
 
@@ -548,6 +561,8 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                                 'מה קורה בחלק הזה?'),
                             isDense: true,
                             border: const OutlineInputBorder(),
+                            suffixIcon:
+                                DictationMicButton(controller: _stepTitles[i]),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -558,6 +573,8 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
                                 'פתק שעוזר (לא חובה)'),
                             isDense: true,
                             border: const OutlineInputBorder(),
+                            suffixIcon:
+                                DictationMicButton(controller: _stepNotes[i]),
                           ),
                           style: const TextStyle(fontSize: 13),
                         ),

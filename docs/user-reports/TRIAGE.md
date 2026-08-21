@@ -945,3 +945,10 @@ popup, the shade's קמתי ✓, and the Today door «היום מתחיל ב-XX 
 door just hushes until the next open); a time picker for "I actually woke
 earlier" (a wall — the ring's קמתי already anchors at the alarm, and
 שינוי שעה corrects a single row).
+
+**Wave proof (2026-08-21, cable in):** deploy-all green — S23 dumpsys
+**versionName=0.18.0 / versionCode=12**, /Applications, L3/L4 + gBNS L2
+harness re-dressed. Lived next (owner): open Today on a new person-day →
+«היום מתחיל ב-15:00 — קמת?» → קמתי → the list wears the wake hour and
+הבא follows; «עוד לא קמתי» hushes till the next open; the ring's קמתי ✓
+anchors the same way. Tests 378.

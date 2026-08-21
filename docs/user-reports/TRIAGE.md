@@ -952,3 +952,14 @@ harness re-dressed. Lived next (owner): open Today on a new person-day →
 «היום מתחיל ב-15:00 — קמת?» → קמתי → the list wears the wake hour and
 הבא follows; «עוד לא קמתי» hushes till the next open; the ring's קמתי ✓
 anchors the same way. Tests 378.
+
+### The tidy (owner: "the tidy", 2026-08-21)
+
+Four stale root docs removed (docs/ copies are the living ones; all links
+already pointed there). The L2 harness pair moved gBNS/.l2-test →
+**bns/.l2-test** (launcher, both entitlements, container pointers,
+deploy-all L2DIR, gitignore); re-signed; lived from the new home — no
+sandbox denies, both stores written at launch. Personas and seats that
+remember `~/dev/gBNS/.l2-test`: it is `~/dev/bns/.l2-test` now
+(breadcrumb left behind). gBNS/ and grokBNS/ now hold nothing the loop
+uses — archive/delete is the owner's word.

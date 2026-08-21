@@ -67,9 +67,9 @@ done
 # THE L2 PAIR AGES TOO (lived 2026-08-19: the seated windows showed
 # BNS-Care.app still answering «מתי היום שלך מתחיל?» — a person question
 # on a Care seat, because that app predated the data-dir pin and read
-# bundle documents instead of .l2-test/caregiver). The gBNS harness pair
-# now rides every wave with everyone else. Missing dir = reported, never
-# fatal (this Mac may not carry the fork).
+# bundle documents instead of .l2-test/caregiver). The L2 pair (home:
+# bns/.l2-test since the 2026-08-21 tidy) rides every wave with everyone
+# else. Missing dir = reported, never fatal.
 L2DIR="$HOME/dev/bns/.l2-test"
 if [ -d "$L2DIR" ]; then
   echo "== harness L2 pair =="

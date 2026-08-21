@@ -259,3 +259,26 @@ to the day of a user that wakes up in different hours."
   never see it.
 
 v0.18a / 0.18.0+12.
+
+## 2026-08-21 — The tidy: four stale root docs out, the L2 harness comes home
+
+Owner: "I don't understand how so we are still having so many folders."
+The folder was three things wearing one name: the source git holds (~400
+files), ~12 GB of ignored build residue (build/, .dart_tool/, dist/, the
+harness copies), and real clutter. The clutter went:
+
+- **Four root docs that lived twice** — bns-format / ideas-for-
+  handicapped-users / sync-security-and-progress / packaging-and-
+  associations — root copies from July, docs/ copies current, every link
+  already pointing at docs/. `git rm` of the root copies.
+- **The L2 harness pair came home**: gBNS/.l2-test → bns/.l2-test next to
+  its L3/L4 siblings (owner, 2026-08-17: "focus our files into bns folder
+  not gbns"). LAUNCH.sh, both entitlements' sandbox path exception, the
+  container pointers (bns_home.txt) and deploy-all's L2DIR follow; the
+  apps were re-signed with the moved exception; `.l2-test/` joined the
+  gitignore; a breadcrumb sits at gBNS/.l2-test-MOVED.txt. Lived: the
+  pair launched from the new home, zero sandbox denies, both stores
+  written at launch.
+- Left alone on purpose: gBNS/ and grokBNS/ (nothing we use lives there
+  now — archive or delete is the owner's word), `flutter clean` (~11 GB
+  reclaimable, at the price of one slow rebuild).

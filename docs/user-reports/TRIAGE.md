@@ -906,3 +906,22 @@ the new one — LAUNCH.sh now kills the pair first; the launcher
 launches THE BUILD. Leftover for Ben's sit-down: the fresh signature
 re-asks macOS Local Network for BNS-L2 — the dialog waits on the
 person window («Allow» is his to tap).
+
+### STT everywhere + the patch (owner: "did we use sst like in android in all the applications?", answered 2026-08-21)
+
+Audit: nine fields had no mouth — the ROUTINES EDITOR (title, description,
+every step title/note), the capture context field, both search boxes, the
+sync share-name/device-name dialogs. All wear DictationMicButton now,
+saves settle the mic first; passwords, the pairing code and the two
+typed-confirmation gates stay typed on purpose (c64a7bb). The other seat's
+queue fix rode along (7d969e8: takes queue inside Ear, the mic never
+freezes when you speak twice; «עוד כותבים את המילים הקודמות»; AGENTS.md
+gains THE EAR IS OURS / no censor). Fix-only on a shipped wave →
+**0.17.1+11** (human 0.17a). Tests 362.
+
+Deploy proof, honest: Mac side green (/Applications, L3/L4 harness, gBNS
+L2 pair re-dressed; pair relaunched fresh — new PIDs, the launcher's
+kill-first works). **S23 NOT installed — the phone was unplugged when the
+build landed** (deploy-all said so; adb devices empty). The APK waits at
+dist/BNS-android-v0.17a.apk (built from 0.17.1+11); one `adb install -r`
+with the cable in, then dumpsys must say versionCode=11.

@@ -10,6 +10,7 @@ import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/reminder_plan.dart';
 import 'package:bns/core/wake_words.dart';
 import 'package:bns/data/local/isar_service.dart';
+import 'package:bns/services/wake_anchor_service.dart';
 import 'package:bns/platform/android_widget.dart';
 import 'package:bns/ui/theme.dart';
 
@@ -92,6 +93,9 @@ class NotificationsService {
     // to shut down the alarm... no other screen than accept or snooze").
     if (actionId == 'wake_up') {
       await stopWakeRing();
+      // The shade's קמתי ✓ is the same wake as the popup's: the day's
+      // routines slide to this hour (owner, 2026-08-21).
+      await WakeAnchorService.anchorToday();
       onOpen?.call('/');
       return;
     }

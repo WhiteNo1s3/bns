@@ -21,6 +21,9 @@ import 'package:bns/ui/widgets/bns_menu_screen.dart';
 import 'package:bns/ui/widgets/next_hero_card.dart';
 import 'package:bns/ui/widgets/day_quiet_row.dart';
 import 'package:bns/ui/widgets/day_start_door.dart';
+import 'package:bns/ui/widgets/wake_anchor_door.dart';
+import 'package:bns/core/wake_anchor.dart';
+import 'package:bns/services/wake_anchor_service.dart';
 import 'package:bns/ui/widgets/quick_capture_bar.dart';
 import 'package:bns/ui/widgets/kept_memories_strip.dart';
 import 'package:bns/core/day_feed.dart';
@@ -744,6 +747,19 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   int _rolloverHour = 0;
   // When the person-day begins (later-today offers slots from here on).
   int _dayStartHour = 0;
+  // THE DAY STARTS WHEN YOU WAKE (owner, 2026-08-21): the usual clock of
+  // today's first routine (the shape's head), and the wake kept for today
+  // once קמתי was pressed. A Care seat never asks — it does not wake.
+  String? _dayHeadToday;
+  String? _wokeAtToday;
+  bool _careSeat = false;
+
+  bool get _showWakeAnchorDoor =>
+      !_guidedMode &&
+      !_careSeat &&
+      _wokeAtToday == null &&
+      _dayHeadToday != null &&
+      !WakeAnchorService.notYetDays.contains(_todayKey);
 
   DateTime get _logicalToday => logicalDateOf(DateTime.now(), _rolloverHour);
   String get _todayKey => logicalDayKey(DateTime.now(), _rolloverHour);
@@ -787,9 +803,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     setState(() {
       _rolloverHour = settings.dayRolloverHour;
       _dayStartHour = settings.dayStartHour;
+      _careSeat = settings.caregiverDevice;
+      _wokeAtToday = wokeAtFor(settings.wokeAt, _todayKey);
     });
     final todayStr = _todayKey;
     final logs = await IsarService.getLogsForDate(todayStr);
+    // The shape's head — where the day would begin if nobody woke late.
+    final allRoutines = await IsarService.getAllRoutines();
+    final head = dayHeadTime(
+        routines: allRoutines,
+        day: _logicalToday,
+        rolloverHour: _rolloverHour);
+    if (mounted && head != _dayHeadToday) {
+      setState(() => _dayHeadToday = head);
+    }
     final trusted = await IsarService.getTrustedDevices();
     final steps = await IsarService.stepProgressForDate(todayStr);
     final todayPlans = await IsarService.getEventsForDate(todayStr);
@@ -1170,6 +1197,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     BnsSnack.show(context, SnackBar(
         content: Text(L.t('Moved to $hhmm — still today.',
             'עבר ל־$hhmm — עדיין היום.'))));
+  }
+
+  /// קמתי on Today: slide the day's routines to now (today only), then
+  /// say what moved. One press does the whole job (the service guards a
+  /// second one).
+  Future<void> _wakeUp() async {
+    final r = await WakeAnchorService.anchorToday();
+    ref.invalidate(routinesProvider);
+    await _refreshDoneToday();
+    if (!mounted) return;
+    BnsSnack.show(context, SnackBar(
+        content: Text(r.moved == 0
+            ? L.t('Up at ${r.wokeAt}. The list already sits right.',
+                'קמת ב-${r.wokeAt}. הרשימה כבר במקום.')
+            : L.t(
+                'Up at ${r.wokeAt} — ${r.moved} things moved to follow you. Today only.',
+                'קמת ב-${r.wokeAt} — ${r.moved} דברים זזו אחריך. רק להיום.'))));
+  }
+
+  /// עוד לא קמתי: hush the question until the next open. Nothing moves.
+  void _notYetUp() {
+    WakeAnchorService.notYetDays.add(_todayKey);
+    setState(() {});
+    BnsSnack.show(context, SnackBar(
+        content: Text(L.t('All right — asked again next time the app opens.',
+            'בסדר — נשאל שוב בפתיחה הבאה.'))));
   }
 
   /// Same persist as Sync / dce029b. Today never sends them to Sync.
@@ -2100,6 +2153,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       textScale: _textScale,
                     ),
                   ],
+                  // THE DAY STARTS WHEN YOU WAKE (owner, 2026-08-21): a
+                  // question that needs answering may interrupt — once.
+                  if (_showWakeAnchorDoor) ...[
+                    const SizedBox(height: 12),
+                    WakeAnchorDoor(
+                      headHhmm: _dayHeadToday!,
+                      anchoredHhmm: null,
+                      onUp: _wakeUp,
+                      onNotYet: _notYetUp,
+                      textScale: _textScale,
+                    ),
+                  ],
                   if (_madActive)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
@@ -2645,6 +2710,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         dayStartHour: _dayStartHour,
                         onPicked: (h) => _setDayStartHour(h),
                         textScale: _textScale,
+                      ),
+                    // The answered wake — a quiet truth under the day.
+                    if (_wokeAtToday != null && _dayHeadToday != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: WakeAnchorDoor(
+                          headHhmm: _dayHeadToday!,
+                          anchoredHhmm: _wokeAtToday,
+                          onUp: () {},
+                          onNotYet: () {},
+                          textScale: _textScale,
+                        ),
                       ),
                     if (_lastSyncLine != null)
                       Padding(

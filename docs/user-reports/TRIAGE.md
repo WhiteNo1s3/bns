@@ -931,3 +931,17 @@ dumpsys **versionName=0.17.1 / versionCode=11** on the S23, data kept. The
 nine mouths and the take-queue are in the owner's hand. Next lived:
 speak a routine's name in the editor; speak twice fast in capture and
 watch «עוד כותבים את המילים הקודמות» instead of a frozen mic.
+
+## Wake-anchored day (owner, 2026-08-21: "push the entity of the routine into whatever hour the user woke up")
+
+Built as 0.18a: the routine is a SHAPE whose head (first routine in owl
+order) slides to the real wake; every routine of today follows by its own
+gap, today only, via timeByDay (the שינוי שעה machinery — list/הבא/
+reminders/day view/Care all follow). Plans stay on the clock, answered rows
+stay, the person's own moves today win, quarter hours, nothing past the
+border. One קמתי per day (settings.wokeAt) from three doors: the ring
+popup, the shade's קמתי ✓, and the Today door «היום מתחיל ב-XX — קמתי /
+עוד לא קמתי». Not built on purpose: "exit the app" on עוד לא קמתי (the
+door just hushes until the next open); a time picker for "I actually woke
+earlier" (a wall — the ring's קמתי already anchors at the alarm, and
+שינוי שעה corrects a single row).

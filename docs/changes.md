@@ -231,3 +231,31 @@ mic first (the skip-why lesson).
 Deliberately still without a mic: the three caregiver-password fields
 (obscured), the numeric pairing code, and the two typed-confirmation
 gates («מקלידים את שם השיתוף») — deliberate typing IS their point.
+
+## 2026-08-21 — 0.18a: the day starts when you wake
+
+Owner: "I want the start of the day to start the routine just like in
+normal day that you wake up like a normie, I want to push the entity of
+the routine into whatever hour the user woke up... it just needs to move
+to the day of a user that wakes up in different hours."
+
+- **The routine is a shape** (`lib/core/wake_anchor.dart`, pure): its
+  head is the usual clock of the first routine in person-day (owl) order.
+  `wakeAnchoredTimes` slides the head to the wake hour and every routine
+  of today follows by its own gap — quarter hours, nothing past the day's
+  border; plans/events stay on the clock; answered rows stay; a row the
+  person already moved today keeps their move. Today only, through the
+  very `timeByDay` overrides שינוי שעה writes — so the list, הבא, the
+  reminders, day view, the widget and the Care seat follow for free.
+- **One קמתי per day** (`WakeAnchorService.anchorToday`): settings
+  `wokeAt` = 'yyyy-MM-dd HH:mm' — a second press cannot shift the day
+  twice. Fed by the ring popup's «קמתי ✓», the shade's «קמתי ✓» action,
+  and the new Today door.
+- **The door** (`WakeAnchorDoor`): «היום מתחיל ב-08:00 — קמת? הרשימה תזוז
+  לשעה שקמת בה.» with «קמתי» / «עוד לא קמתי» (hushes until the next
+  open; memory only, on purpose). Stands on top of Today while
+  unanswered, like the unset day-start; answered, it is a quiet footer
+  line «קמת ב-17:45 — הרשימה זזה לשם. רק להיום.» Guided and Care seats
+  never see it.
+
+v0.18a / 0.18.0+12.

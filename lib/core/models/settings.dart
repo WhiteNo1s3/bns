@@ -71,6 +71,12 @@ class AppSettings {
   // things on the plan, built fresh every reschedule).
   final String wakeAlarmNote;
 
+  // THE DAY STARTS WHEN YOU WAKE (owner, 2026-08-21). 'yyyy-MM-dd HH:mm'
+  // of the last קמתי — the person-day it belongs to and the hour. Today's
+  // routines were slid to that hour (timeByDay, today only); a day anchors
+  // once. '' = no day anchored yet.
+  final String wokeAt;
+
   final bool hapticsEnabled;
   final DateTime? lastFullSyncAt;
 
@@ -199,6 +205,7 @@ class AppSettings {
     this.reminderTimeoutMinutes = 120,
     this.wakeAlarmTime = '',
     this.wakeAlarmNote = '',
+    this.wokeAt = '',
     this.hapticsEnabled = true,
     this.lastFullSyncAt,
     // Owner FINAL (2026-07-08): 20 days of history, +10 forward on calendar.
@@ -243,6 +250,7 @@ class AppSettings {
     int? reminderTimeoutMinutes,
     String? wakeAlarmTime,
     String? wakeAlarmNote,
+    String? wokeAt,
     bool? hapticsEnabled,
     Object? lastFullSyncAt = _unset,
     int? retentionDays,
@@ -282,6 +290,7 @@ class AppSettings {
           reminderTimeoutMinutes ?? this.reminderTimeoutMinutes,
       wakeAlarmTime: wakeAlarmTime ?? this.wakeAlarmTime,
       wakeAlarmNote: wakeAlarmNote ?? this.wakeAlarmNote,
+      wokeAt: wokeAt ?? this.wokeAt,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
       lastFullSyncAt: lastFullSyncAt == _unset
           ? this.lastFullSyncAt
@@ -327,6 +336,7 @@ class AppSettings {
         'reminderTimeoutMinutes': reminderTimeoutMinutes,
         'wakeAlarmTime': wakeAlarmTime,
         'wakeAlarmNote': wakeAlarmNote,
+        'wokeAt': wokeAt,
         'hapticsEnabled': hapticsEnabled,
         'lastFullSyncAt': lastFullSyncAt?.toIso8601String(),
         'retentionDays': retentionDays,
@@ -371,6 +381,7 @@ class AppSettings {
             (json['reminderTimeoutMinutes'] as num?)?.toInt() ?? 120,
         wakeAlarmTime: json['wakeAlarmTime'] as String? ?? '',
         wakeAlarmNote: json['wakeAlarmNote'] as String? ?? '',
+        wokeAt: json['wokeAt'] as String? ?? '',
         hapticsEnabled: json['hapticsEnabled'] as bool? ?? true,
         lastFullSyncAt: json['lastFullSyncAt'] == null
             ? null

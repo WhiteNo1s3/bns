@@ -6,6 +6,7 @@ import 'package:bns/core/owl_time.dart';
 import 'package:bns/core/wake_words.dart';
 import 'package:bns/data/local/isar_service.dart';
 import 'package:bns/services/notifications_service.dart';
+import 'package:bns/services/wake_anchor_service.dart';
 
 /// THE RING POPUP (owner, 2026-08-19: "there is no way to shut down the
 /// alarm now its gonna drive me crazy... it suppose to be an alarm that
@@ -55,7 +56,13 @@ class _WakeRingScreenState extends State<WakeRingScreen> {
     if (mounted) setState(() => _reason = body);
   }
 
-  void _up() => context.go('/');
+  /// קמתי — the day opens AT THIS HOUR: today's routines slide to now
+  /// (owner, 2026-08-21), then home. A day anchors once; a second press
+  /// just goes home.
+  Future<void> _up() async {
+    await WakeAnchorService.anchorToday();
+    if (mounted) context.go('/');
+  }
 
   Future<void> _snooze() async {
     await NotificationsService.snoozeWake();

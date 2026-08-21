@@ -61,3 +61,4 @@ build/symbols/
 # Live-care harness (real stores + ad-hoc app copies) — never in git.
 .l4-test/
 .l3-test/
+.l2-test/

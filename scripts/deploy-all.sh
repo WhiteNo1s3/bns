@@ -70,7 +70,7 @@ done
 # bundle documents instead of .l2-test/caregiver). The gBNS harness pair
 # now rides every wave with everyone else. Missing dir = reported, never
 # fatal (this Mac may not carry the fork).
-L2DIR="$HOME/dev/gBNS/.l2-test"
+L2DIR="$HOME/dev/bns/.l2-test"
 if [ -d "$L2DIR" ]; then
   echo "== harness L2 pair =="
   for app in BNS-L2 BNS-Care; do

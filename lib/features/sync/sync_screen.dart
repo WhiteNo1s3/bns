@@ -592,7 +592,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     rows.add(Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: TextButton.icon(
           onPressed: _resetKeybinds,
           icon: const Icon(Icons.restart_alt, size: 18),

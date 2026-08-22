@@ -357,8 +357,11 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
           width: 220,
           decoration: BoxDecoration(
             color: colorScheme.surface,
-            border: Border(
-              right: BorderSide(
+            // Seam faces the page: end, not right. In Hebrew the Row puts
+            // this rail on the right; a physical right border would then
+            // sit on the window edge.
+            border: BorderDirectional(
+              end: BorderSide(
                 color: colorScheme.outlineVariant.withOpacity(0.4),
                 width: 1,
               ),
@@ -444,7 +447,7 @@ class _BnsDesktopShellState extends State<BnsDesktopShell> {
                         color: colorScheme.outlineVariant.withOpacity(0.3)),
                   ),
                 ),
-                padding: const EdgeInsets.only(left: 4, right: 16),
+                padding: const EdgeInsetsDirectional.only(start: 4, end: 16),
                 child: Row(
                   children: [
                     // Real desktop menu bar: discoverable File/View/Help.

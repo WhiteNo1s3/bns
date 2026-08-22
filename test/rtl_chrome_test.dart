@@ -18,8 +18,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Deliberately physical spots: `path:line` → why.
 const Map<String, String> _allow = {
-  // (none yet — add 'lib/x.dart:123': 'reason' when a spot must stay physical,
-  // e.g. a gradient direction or an LTR-only clock box)
+  'lib/features/diary/day_thread_screen.dart:216':
+      'date strip is a number line, wrapped in Directionality.ltr — '
+      'previous stays left; matchTextDirection here would fire next',
 };
 
 final _patterns = <({RegExp re, String why})>[
@@ -50,6 +51,11 @@ final _patterns = <({RegExp re, String why})>[
   (
     re: RegExp(r'BorderRadius\.horizontal\([^)]*\b(left|right)\s*:'),
     why: 'use BorderRadiusDirectional.horizontal(start:/end:)'
+  ),
+  (
+    re: RegExp(r'Icons\.chevron_right\)'),
+    why: 'add matchTextDirection: true so the door glyph points at end, '
+        'or allowlist a number-line lock'
   ),
 ];
 

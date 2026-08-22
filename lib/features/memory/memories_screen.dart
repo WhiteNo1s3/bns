@@ -302,7 +302,8 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                                         tooltip: L.t('Bring back', 'להחזיר'),
                                         onPressed: () => _restore(m),
                                       )
-                                    : const Icon(Icons.chevron_right),
+                                    : const Icon(Icons.chevron_right,
+                                        matchTextDirection: true),
                                 onTap: () => _open(m),
                               ),
                             );

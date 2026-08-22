@@ -2573,7 +2573,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 'or tell someone when it suits you.',
                             '${_madToday.length} נשמרו — להסתכל, לשמוע שוב, '
                                 'או לספר למישהו כשמתאים לך.')),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(Icons.chevron_right,
+                            matchTextDirection: true),
                         onTap: () => _showKeptWords(
                             L.t('Hard moments today', 'רגעים קשים היום'),
                             _madToday),

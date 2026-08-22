@@ -47,7 +47,7 @@ class KeptMemoriesStrip extends StatelessWidget {
               subtitle: Text(
                 DateFormat.MMMd(L.isHebrew ? 'he' : 'en').add_Hm().format(m.at),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, matchTextDirection: true),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => MemoryViewScreen(memory: m)),
               ),

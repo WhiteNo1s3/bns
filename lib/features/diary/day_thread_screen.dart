@@ -176,40 +176,51 @@ class _DayThreadScreenState extends State<DayThreadScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
                 children: [
                   // Date strip — change in place, no slide animation.
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left),
-                        tooltip: L.t('Previous day', 'היום הקודם'),
-                        onPressed: () => _shiftDay(-1),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              label,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            if (_isFuture)
-                              Text(
-                                L.t('This day hasn\'t come yet.',
-                                    'היום הזה עוד לא הגיע.'),
-                                style: TextStyle(
-                                    fontSize: 12, color: cs.onSurfaceVariant),
-                              ),
-                          ],
+                  // Days are a number line, same as a clock: earlier stays
+                  // on the left in every language. A Hebrew Row would swap
+                  // the buttons; matchTextDirection on the glyphs would then
+                  // flip them again and previous would fire next.
+                  Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: L.t('Previous day', 'היום הקודם'),
+                          constraints: const BoxConstraints(
+                              minWidth: 48, minHeight: 48),
+                          onPressed: () => _shiftDay(-1),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.chevron_right),
-                        tooltip: L.t('Next day', 'היום הבא'),
-                        onPressed: () => _shiftDay(1),
-                      ),
-                    ],
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                label,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              if (_isFuture)
+                                Text(
+                                  L.t('This day hasn\'t come yet.',
+                                      'היום הזה עוד לא הגיע.'),
+                                  style: TextStyle(
+                                      fontSize: 12, color: cs.onSurfaceVariant),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          tooltip: L.t('Next day', 'היום הבא'),
+                          constraints: const BoxConstraints(
+                              minWidth: 48, minHeight: 48),
+                          onPressed: () => _shiftDay(1),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Center(

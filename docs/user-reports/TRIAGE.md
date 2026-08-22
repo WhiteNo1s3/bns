@@ -978,3 +978,13 @@ docs/BNS-SPEC.md written from laws + docs + code; scripts/spec-pdf.sh renders
 dist/BNS-SPEC-v0.18a.pdf (14 pages). Per wave: update the spec with the
 wave's section, re-run the script. The copy-audit seat may read it as the
 map of every room.
+
+### From GitHub (owner: "I've pushed some updates… look how to improve", 2026-08-22)
+
+origin/main carried one commit — the RTL chrome sweep (start/end instead of
+left/right, 13 spots). Merged clean; finished the sweep (one asymmetric
+inset left) and welded it with test/rtl_chrome_test.dart so physical
+left/right can never creep back. The cursor branch
+(origin/cursor/l2-day-start-door-bccf) is already inside main; the retired
+fork's prototyper-doors notes are in the forks archive. Local main (the
+whole 0.17a–0.18a arc + the spec) pushed to origin.

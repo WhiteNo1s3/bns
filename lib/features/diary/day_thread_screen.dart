@@ -406,7 +406,7 @@ class _DayThreadTile extends StatelessWidget {
               ? cs.tertiaryContainer.withValues(alpha: 0.4)
               : null,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 8, 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

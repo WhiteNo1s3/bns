@@ -316,3 +316,17 @@ and what is deliberately not built; appendices for routes, glossary, files.
 `scripts/spec-pdf.sh` prints it to `dist/BNS-SPEC-v<human>.pdf` (our own
 tiny Markdown→HTML + Chrome headless; nothing installed on the Mac).
 README points at it. Regenerated per wave.
+
+## 2026-08-22 — Taken from GitHub: the chrome flips with the language, and a law to keep it
+
+Owner pushed `9e756bf` "Hebrew: physical left/right chrome becomes
+start/end" — the desktop rail's seam (`BorderDirectional.end`), tile gaps
+and alignments written as start/end so they face the page when the Row
+flips for Hebrew. Merged clean. Then the sweep was finished and welded:
+the one asymmetric inset left (`day_thread_screen.dart`, 12 vs 8) became
+`EdgeInsetsDirectional.fromSTEB`; every other remaining `fromLTRB` in the
+tree is symmetric (direction-neutral). **`test/rtl_chrome_test.dart`** now
+scans `lib/` for physical left/right chrome (alignments, insets, borders,
+positioned, text-align, radii, asymmetric LTRB) and fails the suite with
+the offending lines unless a spot is allowlisted with its reason — the
+same "law held by a test" shape as the version weld. Tests 379.

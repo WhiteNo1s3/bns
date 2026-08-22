@@ -284,7 +284,7 @@ class RoutineTile extends StatelessWidget {
                   stepsDone < routine.steps.length &&
                   onStepDone != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsetsDirectional.only(start: 8),
                   child: FilledButton.tonal(
                     onPressed: onStepDone,
                     style: FilledButton.styleFrom(
@@ -297,7 +297,7 @@ class RoutineTile extends StatelessWidget {
               // the row, sweetly, never a scary "problems" label.
               if (keptCount > 0 && onShowKept != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 4),
+                  padding: const EdgeInsetsDirectional.only(start: 4),
                   child: IconButton(
                     tooltip: L.t('What you told about this one',
                         'מה סיפרת על זה'),
@@ -311,7 +311,7 @@ class RoutineTile extends StatelessWidget {
                 ),
               if (routine.tags.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsetsDirectional.only(start: 8),
                   child: Chip(
                     label: Text(routine.tags.first,
                         style: const TextStyle(fontSize: 11)),

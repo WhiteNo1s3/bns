@@ -187,7 +187,7 @@ class PlanTile extends StatelessWidget {
               // A little calendar mark so a plan reads as "of the day",
               // not one of the repeating steps.
               Padding(
-                padding: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsetsDirectional.only(start: 8),
                 child: Icon(Icons.event,
                     size: big ? 26 : 20,
                     color: colorScheme.onSurfaceVariant),

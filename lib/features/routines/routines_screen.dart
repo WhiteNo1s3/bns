@@ -535,7 +535,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
             // The parts of this routine — each part is its own thing, with
             // its own helping note, in the order they happen.
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: Text(
                   L.t('Parts, in order (optional):',
                       'חלקים, לפי הסדר (לא חובה):'),
@@ -591,7 +591,7 @@ class _RoutineFormDialogState extends State<_RoutineFormDialog> {
               const SizedBox(height: 8),
             ],
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: _addStepRow,
                 icon: const Icon(Icons.add),
